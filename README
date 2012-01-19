@@ -1,0 +1,7 @@
+Type-2 Perl client for Couchbase
+
+This is a client in its infancy, and is based on libcouchbase
+along with some possible patches and modifications by yours
+truly.
+
+

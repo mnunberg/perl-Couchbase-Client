@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Komodo Project File - DO NOT EDIT -->
+<project id="32a0fd74-e11a-3743-94a7-9bb2f44a5377" kpf_version="4" name="couchbase-client.kpf">
+<preference-set idref="32a0fd74-e11a-3743-94a7-9bb2f44a5377">
+  <boolean id="import_live">1</boolean>
+</preference-set>
+</project>
