@@ -1,7 +1,13 @@
-Type-2 Perl client for Couchbase
+Couch::Couchbase is a Perl client for Couchbase (http://www.couchbase.org).
 
-This is a client in its infancy, and is based on libcouchbase
-along with some possible patches and modifications by yours
-truly.
+This is a 'smart' or 'Type-2' client, as opposed to legacy Memcached clients.
 
+This module depends on having libcouchbase development packages installed;
+
+It currently features no functionality unit tests.
+
+Included is a wrapper module which provides backwards API compatibility
+with Cache::Memcached::* modules.
+
+Currently only the single-op synchronous inteface is implemented.
 

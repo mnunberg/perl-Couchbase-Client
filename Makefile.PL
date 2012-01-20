@@ -10,12 +10,17 @@ WriteMakefile(
     AUTHOR              => q{M. Nunberg <mnunberg@haskalah.org>},
     VERSION_FROM        => 'lib/Couchbase/Client.pm',
     ABSTRACT_FROM       => 'lib/Couchbase/Client.pm',
+    OBJECT              => 'callbacks.o Client.o',
+
     ($ExtUtils::MakeMaker::VERSION >= 6.3002
       ? ('LICENSE'=> 'perl')
       : ()),
     PL_FILES            => {},
     PREREQ_PM => {
-        'Test::More' => 0,
+        'Array::Assign'     => 0,
+        'ExtUtils::H2PM'    => 0.08,
+        'Class::XSAccessor' => 1.11,
+        'Test::More'        => 0,
     },
     NEEDS_LINKING => 1,
     LIBS    => ['-L/sources/libcouchbase/.libs -lcouchbase'],

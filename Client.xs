@@ -4,82 +4,58 @@
 
 #include "perl-couchbase.h"
 
-/*single structure to determine the value and/or success of the operation*/
 
-PLCB_sync_t global_sync;
+/*XXX:
+12:54 < LeoNerd> mordy: Namely,   my ( $hi, $lo ) = unpack "L> L>", $packed_64bit;
+                 my $num = Math::BigInt->new( $hi ); $num >>= 32; $num |= $lo;
+                 return $num;
+12:55 < mordy> what about vice versa? or would i change my C interface to accept 2
+               32 bit integers and piece them back together there?
+12:55 < LeoNerd> mordy: That might be simplest.
+*/
 
-static void get_callback(
-    libcouchbase_t instance,
-    const void *cookie,
-    libcouchbase_error_t err,
-    const void *key, size_t nkey,
-    const void *value, size_t nvalue,
-    uint32_t flags, uint64_t cas)
+#ifdef PLCB_PERL64
+#define plcb_sv_to_u64(sv) SvUV(sv)
+#define plcb_sv_to_64(sv) (int64_t)(plcb_sv_to_u64(sv))
+#define plcb_sv_from_u64(sv, num) (sv_setuv(sv, num))
+#else
+static uint64_t plcb_sv_to_u64(SV *in)
 {
-	PLCB_sync_t *syncp = plcb_sync_cast(cookie);
-	
-	syncp->value = value;
-	syncp->nvalue = nvalue;
-	
-	syncp->key = key;
-	syncp->nkey = nkey;
-	
-	syncp->cas = cas;
-	syncp->err = err;
-}
-
-static void storage_callback(
-    libcouchbase_t instance,
-    const void *cookie,
-    libcouchbase_storage_t op,
-    libcouchbase_error_t err,
-    const void *key, size_t nkey,
-    uint64_t cas) 
-{
-	PLCB_sync_t *syncp = plcb_sync_cast(cookie);
-	syncp->key = key;
-	syncp->nkey = nkey;
-	
-	syncp->cas = cas;
-	syncp->err = err;	
-}
-
-static void error_callback(
-    libcouchbase_t instance,
-    libcouchbase_error_t err,
-    const char *errinfo) 
-{
-    PLCB_t *object;
-    SV *elem_list[2];
-    
-    if(err == LIBCOUCHBASE_SUCCESS) {
-        return;
+    char *sv_blob;
+    STRLEN blob_len;
+    uint64_t ret;
+    sv_blob = SvPV(in, blob_len);
+    if(blob_len != 8) {
+        die("expected 8-byte data string. Got %d", blob_len);
     }
-    elem_list[0] = newSViv(err);
-    if(errinfo) {
-        elem_list[1] = newSVpv(errinfo, 0);
-    } else {
-        elem_list[1] = &PL_sv_undef;
-    }
-    
-    object = (PLCB_t*)libcouchbase_get_cookie(instance);
-    av_push(object->errors,
-        newRV_noinc((SV*)av_make(2, elem_list))
-    );
+    ret = *(uint64_t*)sv_blob;
+    return ret;
 }
-
-#ifdef PLCB_HAVE_CONNFAIL
-static void connfail_callback(
-    libcouchbase_t instance,
-    int conn_errno,
-    const char *hostname,
-    const char *port,
-    libcouchbase_retry_t *retry_param)
-{
-    warn("Error in connecting to %s:%s", hostname, port);
-    *retry_param = LIBCOUCHBASE_RETRY_BAIL;
-}
+#define plcb_sv_to_64(sv) (plcb_sv_to_u64(sv))
+#define plcb_sv_from_u64(sv, num) \
+    (sv_setpvn(sv, (const char const*)&(num), 8))
 #endif
+
+
+/*Extract a packed 8 byte blob from an SV into a CAS value*/
+
+#define plcb_cas_from_sv(sv, cas_p, lenvar) \
+    (cas_p = (uint64_t*)SvPV(sv, lenvar))  \
+    ? (\
+        (lenvar == 8) \
+            ? cas_p \
+            : (void*)die("Expected 8-byte CAS. Got %d", lenvar) \
+        ) \
+    : (void*)die("CAS specified, but is null")
+    
+
+/*assertively extract a non-null key from an SV, together with its length*/
+
+#define plcb_get_str_or_die(ksv, charvar, lenvar, diespec) \
+    (charvar = SvPV(ksv, lenvar)) \
+        ? ( (lenvar) ? charvar : (void*)die("Got zero-length %s", diespec) ) \
+        : (void*)die("Got NULL %s", diespec)
+
 
 static void ret_populate_err(
     AV *ret,
@@ -96,19 +72,25 @@ static void ret_populate_err(
     }
 }
 
-static void ret_populate_sync_value(
-    AV *ret,
-    PLCB_sync_t *sync)
+#define ret_populate_cas(ret, syncp) \
+    av_store(ret, PLCB_RETIDX_CAS, newSVpv((char*)(&syncp->cas), 8))
+static void ret_populate_sync_value(AV *ret, PLCB_sync_t *sync)
 {
-    SV *cas_sv;
-    
-    if(sync->value) {
-        av_store(ret, PLCB_RETIDX_VALUE,
-                 newSVpv(sync->value, sync->nvalue));
-        
-        av_store(ret, PLCB_RETIDX_CAS,
-                 newSVpv((char*)(&sync->cas), 8));
+    if(!sync->value) {
+        return;
     }
+    av_store(ret, PLCB_RETIDX_VALUE, newSVpv(sync->value, sync->nvalue));
+    ret_populate_cas(ret, sync);
+}
+
+static void ret_populate_sync_arith(AV *ret, PLCB_sync_t *sync)
+{
+    /*we have no way to indicate whether the value is 0 or bad.*/
+    SV *num_sv;
+    num_sv = newSV(0);
+    plcb_sv_from_u64(num_sv, sync->arithmetic);
+    av_store(ret, PLCB_RETIDX_VALUE, num_sv);
+    ret_populate_cas(ret, sync);
 }
 
 
@@ -171,19 +153,13 @@ SV *PLCB_construct(const char *pkg, AV *options)
         die("Could not load '%s'", PLCB_RET_CLASSNAME);
     }
 
-    libcouchbase_set_get_callback(instance, get_callback);
-    libcouchbase_set_storage_callback(instance, storage_callback);
-    libcouchbase_set_error_callback(instance, error_callback);
-#ifdef PLCB_HAVE_CONNFAIL
-    libcouchbase_set_connfail_callback(instance, connfail_callback);
-#endif
-
-    libcouchbase_set_cookie(instance, object);
     
     if(libcouchbase_connect(instance) == LIBCOUCHBASE_SUCCESS) {
         libcouchbase_wait(instance);
     }
-    
+	
+    plcb_setup_callbacks(object);
+	
     blessed_obj = newSV(0);
     sv_setiv(newSVrv(blessed_obj, "Couchbase::Client"), PTR2IV(object));
     return blessed_obj;
@@ -203,7 +179,7 @@ SV *PLCB_construct(const char *pkg, AV *options)
 
 static SV *PLCB_set_common(SV *self,
     SV *key, SV *value,
-    libcouchbase_storage_t storop,
+    int storop,
     int exp_offset, uint64_t cas)
 {
     libcouchbase_t instance;
@@ -215,19 +191,13 @@ static SV *PLCB_set_common(SV *self,
     AV *ret_av;
     SV *ret_rv;
     uint32_t store_flags;
-    const char *errdesc;
     time_t exp;
     mk_instance_vars(self, instance, object);
+        
+    plcb_get_str_or_die(key, skey, klen, "Key");
+    plcb_get_str_or_die(value, sval, vlen, "Value");
     
-    skey = SvPV(key, klen);
-    sval = SvPV(value, vlen);
-    
-    if(! (klen && vlen)) {
-        die("got key length %d and value length %d. Both must be nonzero",
-            klen, vlen);
-    }
-    
-    syncp = &global_sync;
+    syncp = &(object->sync);
     plcb_sync_initialize(syncp, self, skey, klen);
     
     ret_av = newAV();
@@ -236,13 +206,9 @@ static SV *PLCB_set_common(SV *self,
     av_clear(object->errors);
     
     store_flags = 0;
-    if(exp_offset) {
-        exp = time(NULL) + exp_offset;
-    } else {
-        exp = 0;
-    }
+	exp = exp_offset ? time(NULL) + exp_offset : 0;
     
-    err = libcouchbase_store(instance,&global_sync, storop,
+    err = libcouchbase_store(instance, syncp, storop,
         skey, klen, sval, vlen, store_flags, exp, cas);
     
     if(err != LIBCOUCHBASE_SUCCESS) {
@@ -252,6 +218,49 @@ static SV *PLCB_set_common(SV *self,
         ret_populate_err(ret_av, instance, syncp->err);
     }
     bless_return(object, ret_rv, ret_av);
+}
+
+static SV *PLCB_arithmetic_common(SV *self,
+	SV *key, int64_t delta,
+	int do_create, uint64_t initial,
+	int exp_offset)
+{
+	PLCB_t *object;
+	libcouchbase_t instance;
+
+	char *skey;
+	SV *ret_rv;
+	AV *ret_av;
+	
+	STRLEN nkey;
+	
+	PLCB_sync_t *syncp;
+	time_t exp;
+	libcouchbase_error_t err;
+	
+	mk_instance_vars(self, instance, object);
+	exp = exp_offset ? time(NULL) + exp_offset : 0;
+	
+    plcb_get_str_or_die(key, skey, nkey, "Key");
+    	
+	syncp = &(object->sync);
+	plcb_sync_initialize(syncp, self, skey, nkey);
+	ret_av = newAV();
+    
+	err = libcouchbase_arithmetic(
+		instance, syncp, skey, nkey, delta,
+		exp, do_create, initial
+	);
+	if(err != LIBCOUCHBASE_SUCCESS) {
+		ret_populate_err(ret_av, instance, err);
+	} else {
+		libcouchbase_wait(instance);
+		ret_populate_err(ret_av, instance, syncp->err);
+		if(syncp->err == LIBCOUCHBASE_SUCCESS) {
+            ret_populate_sync_arith(ret_av, syncp);
+		}
+	}
+	bless_return(object, ret_rv, ret_av);
 }
 
 static SV *PLCB_get_common(SV *self, SV *key, int exp_offset)
@@ -270,13 +279,10 @@ static SV *PLCB_get_common(SV *self, SV *key, int exp_offset)
     
     mk_instance_vars(self, instance, object);
     
-    skey = SvPV(key, klen);
-    if(!klen) {
-        die("I was given a zero-length key");
-    }
+    plcb_get_str_or_die(key, skey, klen, "Key");
     
     ret_av = newAV();
-    syncp = &global_sync;
+    syncp = &(object->sync);
     plcb_sync_initialize(syncp, self, skey, klen);
     av_clear(object->errors);
    
@@ -336,6 +342,34 @@ SV *PLCB_touch(SV *self, SV *key, UV exp_offset)
     return PLCB_get_common(self, key, exp_offset);
 }
 
+SV *PLCB_remove(SV *self, SV *key, uint64_t cas)
+{
+    libcouchbase_t instance;
+    PLCB_t *object;
+    libcouchbase_error_t err;
+    
+    char *skey;
+    AV *ret_av;
+    SV *ret_rv;
+    STRLEN key_len;
+    PLCB_sync_t *syncp;
+    
+    mk_instance_vars(self, instance, object);
+    
+    plcb_get_str_or_die(key, skey, key_len, "Key");
+    
+    syncp = &(object->sync);
+    plcb_sync_initialize(syncp, self, skey, key_len);
+    if( (err = libcouchbase_remove(instance, syncp, skey, key_len, cas))
+       != LIBCOUCHBASE_SUCCESS) {
+        ret_populate_err(ret_av, instance, err);
+    } else {
+        libcouchbase_wait(instance);
+        ret_populate_err(ret_av, instance, syncp->err);
+    }
+    bless_return(object, ret_rv, ret_av);
+}
+
 /*Used for set/get/replace/add common interface*/
 static libcouchbase_storage_t PLCB_XS_setmap[] = {
     LIBCOUCHBASE_SET,
@@ -344,6 +378,8 @@ static libcouchbase_storage_t PLCB_XS_setmap[] = {
     LIBCOUCHBASE_APPEND,
     LIBCOUCHBASE_PREPEND,
 };
+
+
 
 MODULE = Couchbase::Client PACKAGE = Couchbase::Client	PREFIX = PLCB_
 
@@ -403,6 +439,63 @@ PLCB_set(self, key, value, ...)
     OUTPUT:
     RETVAL
     
+SV *PLCB_arithmetic(self, key, ...)
+	SV *self
+	SV *key
+	
+	ALIAS:
+	incr		= 1
+	decr		= 2
+	
+	PREINIT:
+	int64_t delta;
+	UV exp_offset;
+	SV *initial;
+    SV *delta_sv;
+	int do_create;
+	uint64_t initial_i;
+    
+	CODE:
+	do_create 	= 0;
+	exp_offset 	= 0;
+	initial_i 	= 0;
+    initial     = NULL;
+    delta_sv    = NULL;
+	
+	
+    if(items > 2) {
+        delta_sv = ST(2);
+    }
+    
+	if(ix == 0) {
+		if(items < 4 || items > 5) {
+			die("arithmetic(key, delta, initial [,expiry])");
+		}
+        
+		if(SvTYPE( (initial=ST(3)) ) == SVt_NULL) {
+			do_create = 0;
+		} else {
+			do_create = 1;
+            initial_i = plcb_sv_to_u64(initial);
+		}
+		
+		if(items == 5 && (exp_offset = SvUV( ST(4) )) == 0 ) {
+			die("Expiry offset cannot be 0");
+		}
+        delta = plcb_sv_to_64(delta_sv);
+	} else {
+        if(items < 2 || items > 3) {
+            die("Usage: incr/decr(key [,delta])");
+        }
+        delta = (delta_sv) ? plcb_sv_to_64(delta_sv) : 1;
+        delta = (ix == 2) ? -delta : delta;
+	}
+
+	RETVAL = PLCB_arithmetic_common(
+		self, key, delta, do_create, initial_i, exp_offset);
+	
+	OUTPUT:
+	RETVAL
 
 SV *
 PLCB_cas(self, key, value, cas_sv, ...)
@@ -417,10 +510,7 @@ PLCB_cas(self, key, value, cas_sv, ...)
     STRLEN cas_len;
     
     CODE:
-    cas_val = (uint64_t*)SvPV(cas_sv, cas_len);
-    if(!cas_val || cas_len != 8) {
-        die("Invalid CAS");
-    }
+    plcb_cas_from_sv(cas_sv, cas_val, cas_len);
     
     set_plst_get_offset(5, exp_offset, "USAGE: cas(key,value,cas[,expiry])");
     RETVAL = PLCB_set_common(
@@ -431,6 +521,31 @@ PLCB_cas(self, key, value, cas_sv, ...)
     OUTPUT:
     RETVAL
 
+
+SV *
+PLCB_remove(self, key, ...)
+    SV *self
+    SV *key
+    
+    ALIAS:
+    delete = 1
+    
+    PREINIT:
+    uint64_t *cas_ptr;
+    STRLEN cas_len;
+    SV *cas_sv;
+    
+    CODE:
+    if(items == 2) {
+        RETVAL = PLCB_remove(self, key, 0);
+    } else {
+        cas_sv = ST(2);
+        plcb_cas_from_sv(cas_sv, cas_ptr, cas_len);
+        RETVAL = PLCB_remove(self, key, *cas_ptr);
+    }
+    
+    OUTPUT:
+    RETVAL
 
 SV *PLCB_get_errors(self)
     SV *self

@@ -93,7 +93,35 @@ if(!caller) {
     $o->k_debug($_, $_."Value") for @klist;
     $o->v_debug($_) for @klist;
     $o->v_debug("NonExistent");
-    $o->set("foo", "bar", 100);   
+    $o->set("foo", "bar", 100);
+    $o->append("foo", "more_bar");
+    my $v = $o->get("foo")->value();
+    log_info("Append: ", $v);
+    
+    $o->add("not_here_yet", "some_value");
+    
+    $o->prepend("not_here_yet", "are we here?: ");
+    
+    log_infof("add: %s",
+              $o->get("not_here_yet")->value);
+    
+    log_infof("add (error): %s",
+              $o->add("not_here_yet", "This won't show")
+              ->errstr);
+    
+    log_infof("replace (OK is 0): %d, %s",
+              $o->replace("not_here_yet", "something_else")
+              ->errnum,
+              $o->get("not_here_yet")->value);
+    
+    log_infof("replace (err): %s",
+              $o->replace("NonExistent", "something")->errstr);
+    
+    log_infof("Old counter is %d", $o->get("Counter")->value);
+    log_infof("New counter (+42) is %d",
+              $o->arithmetic("Counter", 42, 0)->value);
+    log_infof("Counter (-5) is %d",
+              $o->decr("Counter", 5)->value);
 }
 
 1;
@@ -257,6 +285,50 @@ The last argument is the expiration offset as documented in L</set>
 =head3 touch(key, expiry)
 
 Modifies the expiration time of C<key> without fetching or setting it.
+
+=head3 arithmetic(key, delta, initial [,expiry])
+
+Performs an arithmetic operation on the B<numeric> value stored in C<key>.
+
+The value will be added to C<delta> (which may be a negative number, in which
+case, C<abs(delta) will be subtracted).
+
+If C<initial> is not C<undef>, it is the value to which C<key> will be initialized
+if it does not yet exist.
+
+=head3 incr(key [,delta])
+
+=head3 decr(key [,delta])
+
+Increments or decrements the numeric value stored under C<key>, if it exists.
+
+If delta is specified, it is the B<absolute> value to be added to or subtracted
+from the value. C<delta> defaults to 1.
+
+These two functions are equivalent to doing:
+
+    $delta ||= 1;
+    $delta = -$delta if $decr;
+    $o->arithmetic($key, $delta, undef);
+
+=head4 NOTE ABOUT 32 BIT PERLS
+
+If your Perl does not support 64 bit integer arithmetic, then L<Math::BigInt> will
+be used for conversion. Since Couchbase internally represents both deltas and values
+as C<int64_t> or C<uint64_t> values.
+
+TODO: would be nice to optionally provide 32-bit integer overflow options for
+performance.
+
+=head3 delete(key [,cas])
+
+=head3 remove(key [,cas])
+
+These two functions are identical. They will delete C<key> on the server.
+
+If C<cas> is also specified, the deletion will only be performed if C<key> still
+maintains the same CAS value as C<cas>.
+
 
 =head3 get_errors()
 

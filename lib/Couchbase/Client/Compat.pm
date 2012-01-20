@@ -42,6 +42,25 @@ foreach my $sub qw(set add replace append prepend cas) {
     };   
 }
 
+foreach my $sub (qw(incr decr delete remove)) {
+    no strict 'refs';
+    *{$sub} = sub {
+        my $self = shift;
+        my $ret = $self->${\"SUPER::$sub"}(@_);
+        if($ret->is_ok) {
+            return $ret->value;
+        } elsif ($ret->errnum == COUCHBASE_NOT_STORED ||
+                 $ret->errnum == COUCHBASE_KEY_ENOENT ||
+                 $ret->errnum == COUCHBASE_KEY_EEXISTS ||
+                 $ret->errnum == COUCHBASE_DELTA_BADVAL ||
+                 $ret->errnum == COUCHBASE_E2BIG) {
+            return 0;
+        } else {
+            return undef;
+        }
+    };
+}
+
 __END__
 
 =head1 NAME
@@ -73,6 +92,14 @@ of those pages for documentation of the methods supported.
 =item append
 
 =item prepend
+
+=item incr
+
+=item decr
+
+=item delete
+
+=item remove
 
 =back
 
