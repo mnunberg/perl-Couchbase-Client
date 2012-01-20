@@ -6,7 +6,6 @@
 
 /*single structure to determine the value and/or success of the operation*/
 
-
 PLCB_sync_t global_sync;
 
 static void get_callback(
@@ -114,8 +113,8 @@ static void ret_populate_sync_value(
 
 
 static inline void extract_ctor_options(
-    AV *options, char **hostp, char **userp, char **passp, char **bucketp
-) {
+    AV *options, char **hostp, char **userp, char **passp, char **bucketp)
+{
     
 #define _assign_options(dst, opt_idx, defl) \
 if( (tmp = av_fetch(options, opt_idx, 0)) && SvTRUE(*tmp) ) { \
@@ -201,8 +200,11 @@ SV *PLCB_construct(const char *pkg, AV *options)
     sv_bless(rv, object->ret_stash); \
     return rv;
 
+
 static SV *PLCB_set_common(SV *self,
-    SV *key, SV *value, int exp_offset, uint64_t cas)
+    SV *key, SV *value,
+    libcouchbase_storage_t storop,
+    int exp_offset, uint64_t cas)
 {
     libcouchbase_t instance;
     PLCB_t *object;
@@ -240,7 +242,7 @@ static SV *PLCB_set_common(SV *self,
         exp = 0;
     }
     
-    err = libcouchbase_store(instance,&global_sync, LIBCOUCHBASE_SET,
+    err = libcouchbase_store(instance,&global_sync, storop,
         skey, klen, sval, vlen, store_flags, exp, cas);
     
     if(err != LIBCOUCHBASE_SUCCESS) {
@@ -334,6 +336,15 @@ SV *PLCB_touch(SV *self, SV *key, UV exp_offset)
     return PLCB_get_common(self, key, exp_offset);
 }
 
+/*Used for set/get/replace/add common interface*/
+static libcouchbase_storage_t PLCB_XS_setmap[] = {
+    LIBCOUCHBASE_SET,
+    LIBCOUCHBASE_ADD,
+    LIBCOUCHBASE_REPLACE,
+    LIBCOUCHBASE_APPEND,
+    LIBCOUCHBASE_PREPEND,
+};
+
 MODULE = Couchbase::Client PACKAGE = Couchbase::Client	PREFIX = PLCB_
 
 PROTOTYPES: DISABLE
@@ -372,12 +383,22 @@ PLCB_set(self, key, value, ...)
     SV *key
     SV *value
     
+    ALIAS:
+    add         = 1
+    replace     = 2
+    append      = 3
+    prepend     = 4
+    
     PREINIT:
     UV exp_offset;
     
     CODE:
     set_plst_get_offset(4, exp_offset, "USAGE: set(key, value [,expiry]");
-    RETVAL = PLCB_set_common(self, key, value, exp_offset, 0);
+    
+    RETVAL = PLCB_set_common(
+        self, key, value,
+        PLCB_XS_setmap[ix],
+        exp_offset, 0);
     
     OUTPUT:
     RETVAL
@@ -402,7 +423,10 @@ PLCB_cas(self, key, value, cas_sv, ...)
     }
     
     set_plst_get_offset(5, exp_offset, "USAGE: cas(key,value,cas[,expiry])");
-    RETVAL = PLCB_set_common(self, key, value, exp_offset, *cas_val);
+    RETVAL = PLCB_set_common(
+        self, key, value,
+        LIBCOUCHBASE_SET,
+        exp_offset, *cas_val);
     
     OUTPUT:
     RETVAL

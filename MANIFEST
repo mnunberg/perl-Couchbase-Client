@@ -10,6 +10,8 @@ lib/Couchbase/Client/IDXConst.pm
 
 lib/Couchbase/Client/Errors_const.pm
 lib/Couchbase/Client/IDXConst_const.pm
+lib/Couchbase/Client/Compat.pm
+
 Client.xs
 perl-couchbase.h
 

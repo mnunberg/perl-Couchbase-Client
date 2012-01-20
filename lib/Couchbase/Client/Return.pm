@@ -18,6 +18,15 @@ sub is_ok {
     $_[0]->[RETIDX_ERRNUM] == COUCHBASE_SUCCESS;
 }
 
+{
+    no strict 'refs';
+    foreach my $errsym (@Couchbase::Client::Errors::EXPORT) {
+        my $subname = $errsym;
+        $subname =~ s/COUCHBASE_//g;
+        *{$subname} = sub { $_[0]->errnum == $_[1] };
+    }
+}
+
 1;
 
 __END__
@@ -46,8 +55,10 @@ C<Couchbase::Client::IDXConst> if performance is an issue for calling the method
 C<errnum> is the Couchbase specific error code indicating stataus. An operation
 is successful if C<errnum> is equal to C<COUCHBASE_SUCCESS>.
 
-The C<is_ok> function does this check internally, and will probably look nicer in
-rout code.
+The C<is_ok> function does this check internally, and will probably look nicer
+in your code.
+
+Some error definitions and explanations can be found in L<Couchbase::Client::Errors>
 
 =item errstr
 
@@ -72,5 +83,26 @@ an C<unpack("Q", $casval)> will yield the numeric value)
 
 CAS values will B<always> be returned for C<get>-like functions.
 
-=back
+=item <ERRNAME>
 
+Some nice magic in this module.
+
+Instead of doing this:
+
+    if($ret->errnum == COUCHBASE_KEY_EEXISTS) {
+        ...
+    }
+    
+you can do this
+
+    if($ret->KEY_EEXISTS) {
+        ...
+    }
+    
+    
+In other words, you can call any error 'basename' (that is, the
+error without the C<COUCHBASE_> prefix) as a method on this object,
+and its return value will be a boolean indicating whether C<errnum> is equal
+to C<COUCHBASE_$name>
+
+=back

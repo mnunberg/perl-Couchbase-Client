@@ -21,7 +21,6 @@ XSLoader::load(__PACKAGE__, $VERSION);
 sub v_debug {
     my ($self,$key) = @_;
     my $ret = $self->get($key);
-    log_info($ret);
     my $value = $ret->value;
     if(defined $value) {
         log_infof("Got %s=%s OK", $key, $value);
@@ -40,7 +39,7 @@ sub k_debug {
     my ($self,$key,$value) = @_;
     #log_debug("k=$key,v=$value");
     my $status = $self->set($key, $value);
-    if($status->[RETIDX_ERRNUM] == COUCHBASE_SUCCESS) {
+    if($status->is_ok) {
         log_infof("Setting %s=%s OK", $key, $value);
     } else {
         my $errors = $self->get_errors;
@@ -51,7 +50,7 @@ sub k_debug {
 
         log_errf("Setting %s=%s ERR: %s (%d)",
                  $key, $value,
-                 $status->[RETIDX_ERRSTR], $status->[RETIDX_ERRNUM]);
+                 $status->errstr, $status->errnum);
     }
 }
 sub new {
@@ -173,6 +172,9 @@ All of the protocol methods (L</get>, L</set>, etc) return a common return value
 L<Couchbase::Client::Return> which stores operation-specific information and
 common status.
 
+For simpler versions of return values, see L<Couchbase::Client::Compat> which
+tries to support the C<Cache::Memcached::*> interface.
+
 =head3 new(\%options)
 
 Create a new object. Takes a hashref of options. The following options are
@@ -200,20 +202,41 @@ The bucket name for the connection. Defaults to C<default>
 
 =back
 
-=head3 set(key, value [,expiry])
-
-Attempts to set the value of the key C<key> to C<value>, optionally setting an
-expiration time of C<expiry> seconds in the future.
-
-Returns an L<Couchbase::Client::Return> object.
-
-maybe a 'legacy' option will be provided to return a simple return value, like
-older memcached clients
-
 =head3 get(key)
 
 Retrieves the value stored under C<key>. Returns an L<Couchbase::Client::Return>
 object.
+
+If the key is not found on the server, the returned object's C<errnum> field
+will be set to C<COUCHBASE_KEY_ENOENT>
+
+=head3 append
+
+=head3 prepend
+
+=head3 set(key, value [,expiry])
+
+Attempts to set, prepend, or append the value of the key C<key> to C<value>,
+optionally setting an expiration time of C<expiry> seconds in the future.
+
+Returns an L<Couchbase::Client::Return> object.
+
+=head3 add(key, value [,expiry])
+
+Store the value on the server, but only if the key does not already exist.
+
+A <COUCHBASE_KEY_EEXISTS> will be set in the returned object's C<errnum>
+field if the key does already exist.
+
+See L</set> for explanation of arguments.
+
+=head3 replace(key, value [,expiry])
+
+Replace the value stored under C<key> with C<value>, but only
+if the key does already exist on the server.
+
+See L</get> for possible errors, and L</set> for argument description.
+
 
 =head3 gets(key)
 
@@ -254,6 +277,18 @@ The return value is an arrayref of arrayrefs in the following format:
 Modifications to the arrayref returned by C<get_errors> will be reflected in
 future calls to this function, until a new operation is performed and the error
 stack is cleared.
+
+=head2 SEE ALSO
+
+L<Couchbase::Client::Errors>
+
+Status codes and their meanings.
+
+L<Couchbase::Client::Compat> - subclass which conforms to the L<Cache::Memcached>
+interface.
+
+L<http://www.couchbase.org> - Couchbase.
+
 
 =head1 AUTHOR & COPYRIGHT
 
