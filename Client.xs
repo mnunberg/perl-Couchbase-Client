@@ -168,6 +168,9 @@ SV *PLCB_construct(const char *pkg, AV *options)
     Newxz(object, 1, PLCB_t);
     object->instance = instance;
     object->errors = newAV();
+    if(! (object->ret_stash = gv_stashpv(PLCB_RET_CLASSNAME, 0)) ) {
+        die("Could not load '%s'", PLCB_RET_CLASSNAME);
+    }
 
     libcouchbase_set_get_callback(instance, get_callback);
     libcouchbase_set_storage_callback(instance, storage_callback);
@@ -193,6 +196,11 @@ SV *PLCB_construct(const char *pkg, AV *options)
     if(!obj_name) { die("tried to access de-initialized PLCB_t"); } \
     inst_name = obj_name->instance;
 
+#define bless_return(object, rv, av) \
+    rv = newRV_noinc((SV*)av); \
+    sv_bless(rv, object->ret_stash); \
+    return rv;
+
 static SV *PLCB_set_common(SV *self,
     SV *key, SV *value, int exp_offset, uint64_t cas)
 {
@@ -203,10 +211,10 @@ static SV *PLCB_set_common(SV *self,
     char *skey, *sval;
     PLCB_sync_t *syncp;
     AV *ret_av;
+    SV *ret_rv;
     uint32_t store_flags;
     const char *errdesc;
     time_t exp;
-    
     mk_instance_vars(self, instance, object);
     
     skey = SvPV(key, klen);
@@ -241,7 +249,7 @@ static SV *PLCB_set_common(SV *self,
         libcouchbase_wait(instance);
         ret_populate_err(ret_av, instance, syncp->err);
     }
-    return (SV*)ret_av;
+    bless_return(object, ret_rv, ret_av);
 }
 
 static SV *PLCB_get_common(SV *self, SV *key, int exp_offset)
@@ -253,6 +261,7 @@ static SV *PLCB_get_common(SV *self, SV *key, int exp_offset)
     STRLEN klen;
     char *skey;
     AV *ret_av;
+    SV *ret_rv;
     
     time_t exp;
     time_t *exp_arg;
@@ -286,7 +295,7 @@ static SV *PLCB_get_common(SV *self, SV *key, int exp_offset)
         ret_populate_err(ret_av, instance, syncp->err);
         ret_populate_sync_value(ret_av, syncp);
     }
-    return (SV*)ret_av;
+    bless_return(object, ret_rv, ret_av);
 }
 
 SV *PLCB_get_errors(SV *self)
@@ -317,12 +326,12 @@ SV *PLCB_get_errors(SV *self)
 
 SV *PLCB_get(SV *self, SV *key)
 {
-    return newRV_noinc(PLCB_get_common(self, key, 0));
+    return PLCB_get_common(self, key, 0);
 }
 
 SV *PLCB_touch(SV *self, SV *key, UV exp_offset)
 {
-    return newRV_noinc(PLCB_get_common(self, key, exp_offset));
+    return PLCB_get_common(self, key, exp_offset);
 }
 
 MODULE = Couchbase::Client PACKAGE = Couchbase::Client	PREFIX = PLCB_
@@ -368,7 +377,7 @@ PLCB_set(self, key, value, ...)
     
     CODE:
     set_plst_get_offset(4, exp_offset, "USAGE: set(key, value [,expiry]");
-    RETVAL = newRV_noinc(PLCB_set_common(self, key, value, exp_offset, 0));
+    RETVAL = PLCB_set_common(self, key, value, exp_offset, 0);
     
     OUTPUT:
     RETVAL
@@ -393,7 +402,7 @@ PLCB_cas(self, key, value, cas_sv, ...)
     }
     
     set_plst_get_offset(5, exp_offset, "USAGE: cas(key,value,cas[,expiry])");
-    RETVAL = newRV_noinc(PLCB_set_common(self, key, value, exp_offset, *cas_val));
+    RETVAL = PLCB_set_common(self, key, value, exp_offset, *cas_val);
     
     OUTPUT:
     RETVAL

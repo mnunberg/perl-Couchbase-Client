@@ -6,9 +6,10 @@
 #include "perl.h"
 #include "XSUB.h"
 
+#define PLCB_RET_CLASSNAME "Couchbase::Client::Return"
+
 typedef struct {
 	SV *sv; /*pointer to the perl instance*/
-	
 	const char *key;
 	size_t nkey;
 	const char *value;
