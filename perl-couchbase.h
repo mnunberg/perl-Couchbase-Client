@@ -24,7 +24,7 @@ typedef struct {
     syncp->nkey = ksz; \
     syncp->cas = syncp->nvalue = 0; \
     syncp->value = NULL; \
-    syncp->err = -1;
+    syncp->err = 0;
 
 typedef struct {
     libcouchbase_t instance;

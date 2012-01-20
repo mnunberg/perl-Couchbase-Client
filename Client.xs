@@ -15,8 +15,7 @@ static void get_callback(
     libcouchbase_error_t err,
     const void *key, size_t nkey,
     const void *value, size_t nvalue,
-    uint32_t flags, uint64_t cas
-)
+    uint32_t flags, uint64_t cas)
 {
 	PLCB_sync_t *syncp = plcb_sync_cast(cookie);
 	
@@ -36,8 +35,8 @@ static void storage_callback(
     libcouchbase_storage_t op,
     libcouchbase_error_t err,
     const void *key, size_t nkey,
-    uint64_t cas
-) {
+    uint64_t cas) 
+{
 	PLCB_sync_t *syncp = plcb_sync_cast(cookie);
 	syncp->key = key;
 	syncp->nkey = nkey;
@@ -49,8 +48,8 @@ static void storage_callback(
 static void error_callback(
     libcouchbase_t instance,
     libcouchbase_error_t err,
-    const char *errinfo
-) {
+    const char *errinfo) 
+{
     PLCB_t *object;
     SV *elem_list[2];
     
@@ -180,7 +179,6 @@ SV *PLCB_construct(const char *pkg, AV *options)
     libcouchbase_set_cookie(instance, object);
     
     if(libcouchbase_connect(instance) == LIBCOUCHBASE_SUCCESS) {
-        warn("Init OK. Will wait for connection..");
         libcouchbase_wait(instance);
     }
     
@@ -269,7 +267,8 @@ static SV *PLCB_get_common(SV *self, SV *key, int exp_offset)
     ret_av = newAV();
     syncp = &global_sync;
     plcb_sync_initialize(syncp, self, skey, klen);
-    
+    av_clear(object->errors);
+   
     if(exp_offset) {
         exp = time(NULL) + exp_offset;
         exp_arg = &exp;
@@ -297,44 +296,24 @@ SV *PLCB_get_errors(SV *self)
     AV *errors;
     
     mk_instance_vars(self, instance, object);
-    
-    if(av_len(object->errors) >= 0) {
-        errors = (AV*)newSVsv((SV*)(object->errors));
-        return newRV_noinc((SV*)errors);
-    } else {
-        return &PL_sv_undef;
-    }
+    return newRV_inc((SV*)object->errors);
 }
 
 #define set_plst_get_offset(exp_idx, exp_var, diemsg) \
-    if(items == exp_idx - 1) { exp_var = 0; } \
-    else if(items == exp_idx) { exp_var = SvIV(ST(exp_idx-1)); } \
-    else { die(diemsg); }
-
-SV *PLCB_set(SV *self, SV *key, SV *value, ...)
-{
-    dXSARGS;
-    UV exp_offset;
-    set_plst_get_offset(4, exp_offset, "USAGE: set(key,value[,expiry])");
-    return newRV_noinc(PLCB_set_common(self, key, value, exp_offset, 0));
-}
-
-SV *PLCB_cas(SV *self, SV *key, SV *value, SV* cas_sv, ...)
-{
-    dXSARGS;
-    UV exp_offset;
-    uint64_t *cas_val;
-    STRLEN cas_len;
-    
-    cas_val = (uint64_t*)SvPV(cas_sv, cas_len);
-    if(!cas_val || cas_len != 8) {
-        die("Invalid CAS");
+    if(items == (exp_idx - 1)) { \
+        exp_var = 0; \
+     } else if(items == exp_idx) { \
+        if(!SvIOK(ST(exp_idx-1))) { \
+            sv_dump(ST(exp_idx-1)); \
+            die("Expected numeric argument"); \
+        } \
+        exp_var = SvIV(ST((exp_idx-1))); \
+    } else { \
+        die(diemsg); \
     }
-    
-    set_plst_get_offset(5, exp_offset, "USAGE: cas(key,value,cas[,expiry])");
-    
-    return newRV_noinc(PLCB_set_common(self, key, value, exp_offset, *cas_val));
-}
+
+/*variable length ->get and ->cas are in the XS section*/
+
 
 SV *PLCB_get(SV *self, SV *key)
 {
@@ -357,7 +336,7 @@ PLCB_construct(pkg, options)
     AV *options
 
 void
-PLCB_destroy(self)
+PLCB_DESTROY(self)
     SV *self
     CODE:
     PLCB_t *object;
@@ -370,22 +349,55 @@ SV *
 PLCB_get(self, key)
 	SV *	self
 	SV *	key
+    
 
 SV *
 PLCB_touch(self, key, exp_offset)
     SV *self
     SV *key
     UV exp_offset;
-    
+
 SV *
 PLCB_set(self, key, value, ...)
     SV *self
     SV *key
     SV *value
     
-SV *PLCB_cas(self, key, value, cas, ...)
+    PREINIT:
+    UV exp_offset;
+    
+    CODE:
+    set_plst_get_offset(4, exp_offset, "USAGE: set(key, value [,expiry]");
+    RETVAL = newRV_noinc(PLCB_set_common(self, key, value, exp_offset, 0));
+    
+    OUTPUT:
+    RETVAL
+    
+
+SV *
+PLCB_cas(self, key, value, cas_sv, ...)
     SV *self
     SV *key
     SV *value
-    SV *cas
+    SV *cas_sv
+    
+    PREINIT:
+    UV exp_offset;
+    uint64_t *cas_val;
+    STRLEN cas_len;
+    
+    CODE:
+    cas_val = (uint64_t*)SvPV(cas_sv, cas_len);
+    if(!cas_val || cas_len != 8) {
+        die("Invalid CAS");
+    }
+    
+    set_plst_get_offset(5, exp_offset, "USAGE: cas(key,value,cas[,expiry])");
+    RETVAL = newRV_noinc(PLCB_set_common(self, key, value, exp_offset, *cas_val));
+    
+    OUTPUT:
+    RETVAL
 
+
+SV *PLCB_get_errors(self)
+    SV *self
