@@ -22,6 +22,7 @@ void plcb_callback_get(
 	
 	syncp->cas = cas;
 	syncp->err = err;
+	syncp->store_flags = flags;
 }
 
 void plcb_callback_storage(

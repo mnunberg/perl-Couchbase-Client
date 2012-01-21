@@ -15,6 +15,7 @@ lib/Couchbase/Client/Compat.pm
 Client.xs
 perl-couchbase.h
 callbacks.c
+convert.c
 
 idx_constants.pl
 error_constants.pl

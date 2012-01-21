@@ -7,8 +7,9 @@ use Couchbase::Client::Errors;
 use Couchbase::Client::IDXConst;
 use Couchbase::Client::Return;
 
+my $have_storable = eval "use Storable;";
+my $have_zlib = eval "use Compress::Zlib";
 
-use Log::Fu { level => "debug" };
 use Array::Assign;
 
 our $VERSION = '0.01_1';
@@ -18,41 +19,11 @@ XSLoader::load(__PACKAGE__, $VERSION);
     *gets = \&get;
 }
 
-sub v_debug {
-    my ($self,$key) = @_;
-    my $ret = $self->get($key);
-    my $value = $ret->value;
-    if(defined $value) {
-        log_infof("Got %s=%s OK", $key, $value);
-    } else {
-        log_errf("Got error for %s: %s (%d)", $key,
-                 $ret->errstr, $ret->errnum);
-        my $errors = $self->get_errors;
-        foreach my $errinfo (@$errors) {
-            my ($errnum,$errstr) = @$errinfo;
-            log_errf("%s (%d)", $errstr,$errnum);
-        }
-    }
+sub make_compression_settings {
+    my ($arglist,$options) = @_;
+    
 }
 
-sub k_debug {
-    my ($self,$key,$value) = @_;
-    #log_debug("k=$key,v=$value");
-    my $status = $self->set($key, $value);
-    if($status->is_ok) {
-        log_infof("Setting %s=%s OK", $key, $value);
-    } else {
-        my $errors = $self->get_errors;
-        foreach my $errinfo (@$errors) {
-            my ($errnum,$errstr) = @$errinfo;
-            log_errf("%s (%d)", $errstr,$errnum);
-        }
-
-        log_errf("Setting %s=%s ERR: %s (%d)",
-                 $key, $value,
-                 $status->errstr, $status->errnum);
-    }
-}
 sub new {
     my ($pkg,$opts) = @_;
     my $server;
@@ -79,49 +50,6 @@ sub new {
         log_err($errstr);
     }
     return $o;
-}
-
-if(!caller) {
-    my $o = __PACKAGE__->new({
-        server => '10.0.0.99:8091',
-        username => 'Administrator',
-        password => '123456',
-        #bucket  => 'nonexist',
-        bucket => 'membase0'
-    });
-    my @klist = qw(Foo Bar Baz Blargh Bleh Meh Grr Gah);
-    $o->k_debug($_, $_."Value") for @klist;
-    $o->v_debug($_) for @klist;
-    $o->v_debug("NonExistent");
-    $o->set("foo", "bar", 100);
-    $o->append("foo", "more_bar");
-    my $v = $o->get("foo")->value();
-    log_info("Append: ", $v);
-    
-    $o->add("not_here_yet", "some_value");
-    
-    $o->prepend("not_here_yet", "are we here?: ");
-    
-    log_infof("add: %s",
-              $o->get("not_here_yet")->value);
-    
-    log_infof("add (error): %s",
-              $o->add("not_here_yet", "This won't show")
-              ->errstr);
-    
-    log_infof("replace (OK is 0): %d, %s",
-              $o->replace("not_here_yet", "something_else")
-              ->errnum,
-              $o->get("not_here_yet")->value);
-    
-    log_infof("replace (err): %s",
-              $o->replace("NonExistent", "something")->errstr);
-    
-    log_infof("Old counter is %d", $o->get("Counter")->value);
-    log_infof("New counter (+42) is %d",
-              $o->arithmetic("Counter", 42, 0)->value);
-    log_infof("Counter (-5) is %d",
-              $o->decr("Counter", 5)->value);
 }
 
 1;
@@ -291,7 +219,7 @@ Modifies the expiration time of C<key> without fetching or setting it.
 Performs an arithmetic operation on the B<numeric> value stored in C<key>.
 
 The value will be added to C<delta> (which may be a negative number, in which
-case, C<abs(delta) will be subtracted).
+case, C<abs(delta)> will be subtracted).
 
 If C<initial> is not C<undef>, it is the value to which C<key> will be initialized
 if it does not yet exist.

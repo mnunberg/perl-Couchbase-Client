@@ -1,7 +1,3 @@
-#include "EXTERN.h"
-#include "perl.h"
-#include "XSUB.h"
-
 #include "perl-couchbase.h"
 
 
@@ -74,12 +70,14 @@ static void ret_populate_err(
 
 #define ret_populate_cas(ret, syncp) \
     av_store(ret, PLCB_RETIDX_CAS, newSVpv((char*)(&syncp->cas), 8))
-static void ret_populate_sync_value(AV *ret, PLCB_sync_t *sync)
+static void ret_populate_sync_value(PLCB_t *object, AV *ret, PLCB_sync_t *sync)
 {
     if(!sync->value) {
         return;
     }
-    av_store(ret, PLCB_RETIDX_VALUE, newSVpv(sync->value, sync->nvalue));
+    av_store(ret, PLCB_RETIDX_VALUE,
+        plcb_convert_retrieval(
+            object, sync->value, sync->nvalue, sync->store_flags));
     ret_populate_cas(ret, sync);
 }
 
@@ -111,9 +109,12 @@ if( (tmp = av_fetch(options, opt_idx, 0)) && SvTRUE(*tmp) ) { \
     _assign_options(passp, PLCB_CTORIDX_PASSWORD, NULL);
     _assign_options(bucketp, PLCB_CTORIDX_BUCKET, "default");
 #undef _assign_options
-
 }
 
+static inline void initialize_conversion_settings(PLCB_t *object, AV *options)
+{
+    
+}
 
 static void PLCB_cleanup(PLCB_t *object)
 {
@@ -146,14 +147,17 @@ SV *PLCB_construct(const char *pkg, AV *options)
         die("Failed to create instance");
     }
     
+    
+    
     Newxz(object, 1, PLCB_t);
     object->instance = instance;
     object->errors = newAV();
     if(! (object->ret_stash = gv_stashpv(PLCB_RET_CLASSNAME, 0)) ) {
         die("Could not load '%s'", PLCB_RET_CLASSNAME);
     }
-
     
+    initialize_conversion_settings(object, options);
+            
     if(libcouchbase_connect(instance) == LIBCOUCHBASE_SUCCESS) {
         libcouchbase_wait(instance);
     }
@@ -190,8 +194,9 @@ static SV *PLCB_set_common(SV *self,
     PLCB_sync_t *syncp;
     AV *ret_av;
     SV *ret_rv;
-    uint32_t store_flags;
     time_t exp;
+    uint32_t store_flags = 0;
+    
     mk_instance_vars(self, instance, object);
         
     plcb_get_str_or_die(key, skey, klen, "Key");
@@ -200,16 +205,17 @@ static SV *PLCB_set_common(SV *self,
     syncp = &(object->sync);
     plcb_sync_initialize(syncp, self, skey, klen);
     
-    ret_av = newAV();
     
     /*Clear existing error status first*/
     av_clear(object->errors);
+	ret_av = newAV();
     
-    store_flags = 0;
 	exp = exp_offset ? time(NULL) + exp_offset : 0;
     
+    plcb_convert_storage(object, &value, &vlen, &store_flags);
     err = libcouchbase_store(instance, syncp, storop,
-        skey, klen, sval, vlen, store_flags, exp, cas);
+        skey, klen, SvPVX(value), vlen, store_flags, exp, cas);
+    plcb_convert_storage_free(object, value, store_flags);
     
     if(err != LIBCOUCHBASE_SUCCESS) {
         ret_populate_err(ret_av, instance, err);
@@ -301,7 +307,7 @@ static SV *PLCB_get_common(SV *self, SV *key, int exp_offset)
     } else {
         libcouchbase_wait(instance);
         ret_populate_err(ret_av, instance, syncp->err);
-        ret_populate_sync_value(ret_av, syncp);
+        ret_populate_sync_value(object, ret_av, syncp);
     }
     bless_return(object, ret_rv, ret_av);
 }
@@ -357,9 +363,12 @@ SV *PLCB_remove(SV *self, SV *key, uint64_t cas)
     mk_instance_vars(self, instance, object);
     
     plcb_get_str_or_die(key, skey, key_len, "Key");
+	ret_av = newAV();
+	av_clear(object->errors);
     
     syncp = &(object->sync);
     plcb_sync_initialize(syncp, self, skey, key_len);
+	
     if( (err = libcouchbase_remove(instance, syncp, skey, key_len, cas))
        != LIBCOUCHBASE_SUCCESS) {
         ret_populate_err(ret_av, instance, err);
@@ -378,8 +387,6 @@ static libcouchbase_storage_t PLCB_XS_setmap[] = {
     LIBCOUCHBASE_APPEND,
     LIBCOUCHBASE_PREPEND,
 };
-
-
 
 MODULE = Couchbase::Client PACKAGE = Couchbase::Client	PREFIX = PLCB_
 

@@ -10,7 +10,7 @@ WriteMakefile(
     AUTHOR              => q{M. Nunberg <mnunberg@haskalah.org>},
     VERSION_FROM        => 'lib/Couchbase/Client.pm',
     ABSTRACT_FROM       => 'lib/Couchbase/Client.pm',
-    OBJECT              => 'callbacks.o Client.o',
+    OBJECT              => 'callbacks.o convert.o Client.o',
 
     ($ExtUtils::MakeMaker::VERSION >= 6.3002
       ? ('LICENSE'=> 'perl')
