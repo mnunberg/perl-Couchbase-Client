@@ -12,12 +12,20 @@ void plcb_convert_storage(
     int count;
     
     
-    if(! (object->my_flags & PLCBf_DO_CONVERSION) ) {
+    if(!(object->my_flags & PLCBf_DO_CONVERSION || SvROK(*data_sv) ) ) {
         return;
     }
     
     sv = *data_sv;
-    if( (object->my_flags & PLCBf_USE_STORABLE) && SvROK(sv) ) {
+    if(SvROK(sv)) {
+        if(!(object->my_flags & PLCBf_USE_STORABLE)) {
+            die("Serialization not enabled "
+                "but we were passed a reference");
+        }
+        //warn("Serializing...");
+        
+        ENTER;
+        SAVETMPS;
         
         PUSHMARK(SP);
         XPUSHs(sv);
@@ -32,7 +40,11 @@ void plcb_convert_storage(
         }
     
         sv = POPs;
+        SvREFCNT_inc(sv);
         PUTBACK;
+        
+        FREETMPS;
+        LEAVE;
         
         *data_len = SvLEN(sv);
         *data_sv = sv;
@@ -40,7 +52,10 @@ void plcb_convert_storage(
     }
     
     if( (object->my_flags & PLCBf_USE_COMPRESSION)
+       && object->compress_threshold
        && *data_len >= object->compress_threshold ) {
+        
+        //warn("Compressing..");
         
         compressed_sv = newSV(0);
         
@@ -98,7 +113,7 @@ SV* plcb_convert_retrieval(
     
     if(plcb_storeflags_has_compression(object, flags)) {
         ret_sv = newSV(0);
-        
+        //warn("Decompressing..");
         PUSHMARK(SP);
         XPUSHs(sv_2mortal(newRV_inc(input_sv)));
         XPUSHs(sv_2mortal(newRV_inc(ret_sv)));
@@ -112,6 +127,7 @@ SV* plcb_convert_retrieval(
             SvREFCNT_dec(ret_sv);
             ret_sv = NULL;
         } else {
+            //sv_dump(input_sv);
             SvREFCNT_dec(input_sv);
             input_sv = NULL;
         }
@@ -123,25 +139,29 @@ SV* plcb_convert_retrieval(
              which we are about to deserialize*/
             input_sv = ret_sv;
         }
+        //warn("Deserializing..");
         ret_sv = NULL;
+        
+        ENTER;
+        SAVETMPS;
         PUSHMARK(SP);
         XPUSHs(input_sv);
+        PUTBACK;
+        
         if(call_sv(object->cv_deserialize, G_SCALAR|G_EVAL) < 1) {
             die("Deserialize method didn't return anything");
         }
         if(!SvTRUE(ERRSV)) {
             ret_sv = POPs;
+            SvREFCNT_inc(ret_sv);
             SvREFCNT_dec(input_sv);
+            input_sv = NULL;
         } else {
-            ret_sv = NULL;
+            ret_sv = input_sv;
             warn(SvPV_nolen(ERRSV));
         }
+        FREETMPS;
+        LEAVE;
     }
-    
-    if(input_sv && ret_sv) {
-        SvREFCNT_dec(input_sv);
-        return ret_sv;
-    } else {
-        return input_sv;
-    }
+    return ret_sv;
 }

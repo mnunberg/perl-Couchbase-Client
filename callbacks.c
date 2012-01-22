@@ -3,6 +3,7 @@
 #include "XSUB.h"
 
 #include "perl-couchbase.h"
+//#include <string.h>
 
 void plcb_callback_get(
     libcouchbase_t instance,
@@ -73,8 +74,7 @@ void plcb_callback_error(
     
     object = (PLCB_t*)libcouchbase_get_cookie(instance);
     av_push(object->errors,
-        newRV_noinc((SV*)av_make(2, elem_list))
-    );
+        newRV_noinc((SV*)av_make(2, elem_list)));
 }
 
 #ifdef PLCB_HAVE_CONNFAIL
@@ -100,6 +100,60 @@ static void keyop_callback(
                       NULL, 0, 0, 0);
 }
 
+static void stat_callback(
+	libcouchbase_t instance, const void *cookie,
+	const char *server,
+	libcouchbase_error_t err,
+	const void *stat_key, size_t nkey,
+	const void *bytes, size_t nbytes)
+{
+	PLCB_t *object;
+	SV *server_sv, *data_sv, *key_sv;
+	dSP;
+	
+	
+	
+	if(! (stat_key || bytes) ) {
+		warn("Got all statistics");
+		return;
+	}
+	
+	server_sv = newSVpvn(server, strlen(server));
+	if(nkey) {
+		key_sv = newSVpvn(stat_key, nkey);
+		fprintf(stderr, "stat_callback(): ");
+		fwrite(stat_key, nkey, 1, stderr);
+		fprintf(stderr, "\n");
+	} else {
+		key_sv = newSVpvn("", 0);
+	}
+	
+	if(nbytes) {
+		data_sv = newSVpvn(bytes, nbytes);
+	} else {
+		data_sv = newSVpvn("", 0);
+	}
+	
+	object = (PLCB_t*)libcouchbase_get_cookie(instance);
+	if(!object->stats_hv) {
+		die("We have nothing to write our stats to!");
+	}
+	
+	ENTER;
+	SAVETMPS;
+	
+	PUSHMARK(SP);
+	XPUSHs(sv_2mortal(newRV_inc((SV*)object->stats_hv)));
+	XPUSHs(sv_2mortal(server_sv));
+	XPUSHs(sv_2mortal(key_sv));
+	XPUSHs(sv_2mortal(data_sv));
+	PUTBACK;
+	
+	call_pv(PLCB_STATS_SUBNAME, G_DISCARD);
+	FREETMPS;
+	LEAVE;
+}
+
 void plcb_setup_callbacks(PLCB_t *object)
 {
     libcouchbase_t instance = object->instance;
@@ -113,6 +167,7 @@ void plcb_setup_callbacks(PLCB_t *object)
     libcouchbase_set_touch_callback(instance, keyop_callback);
     libcouchbase_set_remove_callback(instance, keyop_callback);
     libcouchbase_set_arithmetic_callback(instance, arithmetic_callback);
-    
+    libcouchbase_set_stat_callback(instance, stat_callback);
+	
     libcouchbase_set_cookie(instance, object);
 }

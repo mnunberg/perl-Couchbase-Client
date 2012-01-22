@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use blib;
 use base qw(Couchbase::Client);
+use Data::Dumper;
 
 use Log::Fu { level => "debug" };
 
@@ -42,15 +43,8 @@ sub k_debug {
     }
 }
 
-if(!caller) {
-    my $o = __PACKAGE__->new({
-        server => '10.0.0.99:8091',
-        username => 'Administrator',
-        password => '123456',
-        #bucket  => 'nonexist',
-        bucket => 'membase0'
-    });
-    bless $o, __PACKAGE__;
+sub runloop {
+    my $o = shift;
     my @klist = qw(Foo Bar Baz Blargh Bleh Meh Grr Gah);
     $o->k_debug($_, $_."Value") for @klist;
     $o->v_debug($_) for @klist;
@@ -88,4 +82,39 @@ if(!caller) {
     $o->set("delete_me_soon", "meh");
     log_infof("Remove: %d", $o->delete("delete_me_soon")->errnum);
     log_infof("Remove (err) %d", $o->delete("NonExistent")->errnum);
+    
+    log_infof("Complex (Serialized) = %d",
+              $o->set(complex_var => [qw(foo bar baz)])->errnum);
+    
+    log_infof("Complex (Deserialized) = %s",
+              Dumper($o->get("complex_var")->value));
+    
+    log_infof("Compression: %d",
+              $o->set("compressed_key", 'x' x 1000)->errnum);
+    
+    log_infof("Decompression (length=%d)",
+              length($o->get("compressed_key")->value));
+
+}
+
+if(!caller) {
+    my $o = __PACKAGE__->new({
+        server => '10.0.0.99:8091',
+        username => 'Administrator',
+        password => '123456',
+        #bucket  => 'nonexist',
+        bucket => 'membase0',
+        compress_threshold => 100,
+    });
+    bless $o, __PACKAGE__;
+    
+    my $LOOPS = shift @ARGV;
+    if($LOOPS) {
+        $Log::Fu::SHUSH = 1;
+        $o->runloop() for (0..$LOOPS);
+    } else {
+        $o->runloop();
+    }
+    #my $stats = $o->stats([""]);
+    #print Dumper($stats);    
 }

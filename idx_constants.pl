@@ -14,6 +14,11 @@ my @const_bases = qw(
     CTORIDX_STOREFLAGS
     CTORIDX_MYFLAGS
     
+    CTORIDX_COMP_THRESHOLD
+    CTORIDX_COMP_METHODS
+    
+    CTORIDX_SERIALIZE_METHODS
+    
     RETIDX_VALUE
     RETIDX_ERRSTR
     RETIDX_CAS
@@ -21,4 +26,14 @@ my @const_bases = qw(
 );
 
 constant("PLCB_$_", name => $_) for (@const_bases);
+
+my @ctor_flags = qw(
+    USE_COMPAT_FLAGS
+    USE_COMPRESSION
+    USE_STORABLE
+    USE_CONVERT_UTF8
+);
+
+constant("PLCBf_$_", name => "f$_") for (@ctor_flags);
+
 write_output($ARGV[0]);

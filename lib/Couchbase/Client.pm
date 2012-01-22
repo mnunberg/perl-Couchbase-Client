@@ -7,11 +7,13 @@ use Couchbase::Client::Errors;
 use Couchbase::Client::IDXConst;
 use Couchbase::Client::Return;
 
-my $have_storable = eval "use Storable;";
-my $have_zlib = eval "use Compress::Zlib";
+my $have_storable = eval "use Storable; 1;";
+my $have_zlib = eval "use Compress::Zlib; 1;";
 
+use Log::Fu;
 use Array::Assign;
 
+log_warnf("Storable=%d, Zlib=%d", $have_storable, $have_zlib);
 our $VERSION = '0.01_1';
 XSLoader::load(__PACKAGE__, $VERSION);
 {
@@ -19,18 +21,55 @@ XSLoader::load(__PACKAGE__, $VERSION);
     *gets = \&get;
 }
 
-sub make_compression_settings {
+#this function converts hash options for compression and serialization
+#to something suitable for construct()
+sub _make_conversion_settings {
     my ($arglist,$options) = @_;
+    my $compress_threshold = delete $options->{compress_threshold};
+    my $flags = 0;
     
+    $compress_threshold = 0 unless defined $compress_threshold;
+    $compress_threshold = 0 if $compress_threshold < 0;
+    $arglist->[CTORIDX_COMP_THRESHOLD] = $compress_threshold;
+    
+    my $meth_comp = 0;
+    if(exists $options->{compress_methods}) {
+        $meth_comp = delete $options->{compress_threshold};
+    }
+    if($meth_comp == 0 && $have_zlib) {
+        $meth_comp = [ sub { ${$_[1]} = Compress::Zlib::memGzip(${$_[0]}) },
+                      sub { ${$_[1]} = Compress::Zlib::memGunzip(${$_[0]}) }]
+    }
+    
+    if($meth_comp) {
+        $flags |= fUSE_COMPRESSION;
+        $arglist->[CTORIDX_COMP_METHODS] = $meth_comp;
+    }
+    
+    my $meth_serialize = 0;
+    if(exists $options->{serialize_methods}) {
+        $meth_serialize = delete $options->{serialize_methods};
+    }
+    
+    if($meth_serialize == 0 && $have_storable) {
+        $meth_serialize = [ \&Storable::freeze, \&Storable::thaw ];
+    }
+    
+    if($meth_serialize) {
+        $flags |= fUSE_STORABLE;
+        $arglist->[CTORIDX_SERIALIZE_METHODS] = $meth_serialize;
+    }
+    
+    $arglist->[CTORIDX_MYFLAGS] = $flags;
 }
 
 sub new {
     my ($pkg,$opts) = @_;
     my $server;
     my @arglist;
-    my $servers = $opts->{servers};
+    my $servers = delete $opts->{servers};
     if(!$servers) {
-        $server = $opts->{server};
+        $server = delete $opts->{server};
     } else {
         $server = $servers->[0];
     }
@@ -40,9 +79,15 @@ sub new {
     }
     arry_assign_i(@arglist,
         CTORIDX_SERVERS, $server,
-        CTORIDX_USERNAME, $opts->{username},
-        CTORIDX_PASSWORD, $opts->{password},
-        CTORIDX_BUCKET, $opts->{bucket});
+        CTORIDX_USERNAME, delete $opts->{username},
+        CTORIDX_PASSWORD, delete $opts->{password},
+        CTORIDX_BUCKET, delete $opts->{bucket});
+    
+    _make_conversion_settings(\@arglist, $opts);
+    if(keys %$opts) {
+        warn sprintf("Unused keys (%s) in constructor",
+                     join(", ", keys %$opts));
+    }
     my $o = $pkg->construct(\@arglist);
     my $errors = $o->get_errors;
     foreach (@$errors) {
@@ -50,6 +95,14 @@ sub new {
         log_err($errstr);
     }
     return $o;
+}
+
+#This is called from within C to record our stats:
+sub _stats_helper {
+    my ($hash,$server,$key,$data) = @_;
+    #printf("Got server %s, key%s\n", $server, $key);
+    $key ||= "__default__";
+    ($hash->{$server}->{$key} ||= "") .= $data;
 }
 
 1;
@@ -136,6 +189,8 @@ tries to support the C<Cache::Memcached::*> interface.
 Create a new object. Takes a hashref of options. The following options are
 currently supported
 
+=head4 Typical Constructor Options
+
 =over
 
 =item server
@@ -157,6 +212,127 @@ Authentication credentials for the connection. Defaults to NULL
 The bucket name for the connection. Defaults to C<default>
 
 =back
+
+=head4 Conversion Options
+
+The following options for conversion can be specified. Some of the compression
+code is borrowed from L<Cache::Memcached::Fast>, with some modifications.
+
+First, a note about compression and conversion:
+
+Compression and conversion as done by legacy memcached clients in Perl and other
+languages relies on internal 'user-defined' protocol flags. Meaning, that the flags
+are free for use by any client implementation. These flags are of course not
+exposed to you, the end user, but it's worth reading about them.
+
+Legacy clients have used 'standard' flags for compression and serialization -
+flags which themselves only make sense to other hosts running the same client
+with the same understanding of the flag semantics.
+
+What this means for you:
+
+=over
+
+=item Storable-incompatibility and interoperability
+
+When serializing a complex object, the default is to use L<Storable>. Storable
+itself is ill-suited for cross-platform, cross-machine and cross-version storage.
+
+Additionally, the flags set by other Perl clients to indicate C<Storable> is the
+same flag used by other memcached clients in other languages to indicate other
+forms of serialization and/or compression.
+
+Therefore it is highly unrecommended to use Storable if you want any other host
+to be able to access your key. If you are sure that all your hosts are running
+the same version of Storable on the same architecture then it might not fail.
+
+Having said that, Storable is still enabled by default in order to retain
+drop-in compatibility with older clients.
+
+=item Compression
+
+Most clients have used the same flag to indicate Gzip compression. While legacy
+clients (L<Cache::Memcached> and friends) provide options to provide your 'own'
+compression mechanism, this compression mechanism must be used throughout all
+hosts wishing to read and write to the key
+
+=item Appending, Prepending
+
+Compression and serialization are ill-suited for values which may be modified
+using L</append> and L</prepend>. Specifically the server will blindly append
+the data provided (in I<byte> form) to the already-stored value.
+
+=back
+
+Now, without further ado, we present conversion options, mostly copy-pasted from
+L<Cache::Memcached::Fast>
+
+=over
+
+=item compress_threshold
+
+  compress_threshold => 10_000
+  (default: -1)
+
+The value is an integer.  When positive it denotes the threshold size
+in bytes: data with the size equal or larger than this should be
+compressed.  See L</compress_ratio> and L</compress_methods> below.
+
+Non-positive value disables compression.
+
+=item compress_methods
+
+  compress_methods => [ \&IO::Compress::Gzip::gzip,
+                        \&IO::Uncompress::Gunzip::gunzip ]
+  (default: [ sub { ${$_[1]} = Compress::Zlib::memGzip(${$_[0]}) },
+              sub { ${$_[1]} = Compress::Zlib::memGunzip(${$_[0]}) } ]
+   when Compress::Zlib is available)
+
+The value is a reference to an array holding two code references for
+compression and decompression routines respectively.
+
+Compression routine is called when the size of the I<$value> passed to
+L</set> method family is greater than or equal to
+L</compress_threshold>.  The fact that
+compression was performed is remembered along with the data, and
+decompression routine is called on data retrieval with L</get> method
+family.  The interface of these routines should be the same as for
+B<IO::Compress> family (for instance see
+L<IO::Compress::Gzip::gzip|IO::Compress::Gzip/gzip> and
+L<IO::Uncompress::Gunzip::gunzip|IO::Uncompress::Gunzip/gunzip>).
+I.e. compression routine takes a reference to scalar value and a
+reference to scalar where compressed result will be stored.
+Decompression routine takes a reference to scalar with compressed data
+and a reference to scalar where uncompressed result will be stored.
+Both routines should return true on success, and false on error.
+
+By default we use L<Compress::Zlib|Compress::Zlib> because as of this
+writing it appears to be much faster than
+L<IO::Uncompress::Gunzip|IO::Uncompress::Gunzip>.
+
+=item I<serialize_methods>
+
+  serialize_methods => [ \&Storable::freeze, \&Storable::thaw ],
+  (default: [ \&Storable::nfreeze, \&Storable::thaw ])
+
+The value is a reference to an array holding two code references for
+serialization and deserialization routines respectively.
+
+Serialization routine is called when the I<$value> passed to L</set>
+method family is a reference.  The fact that serialization was
+performed is remembered along with the data, and deserialization
+routine is called on data retrieval with L</get> method family.  The
+interface of these routines should be the same as for
+L<Storable::nfreeze|Storable/nfreeze> and
+L<Storable::thaw|Storable/thaw>.  I.e. serialization routine takes a
+reference and returns a scalar string; it should not fail.
+Deserialization routine takes scalar string and returns a reference;
+if deserialization fails (say, wrong data format) it should throw an
+exception (call I<die>).  The exception will be caught by the module
+and L</get> will then pretend that the key hasn't been found.
+
+=back
+
 
 =head3 get(key)
 
@@ -277,6 +453,25 @@ The return value is an arrayref of arrayrefs in the following format:
 Modifications to the arrayref returned by C<get_errors> will be reflected in
 future calls to this function, until a new operation is performed and the error
 stack is cleared.
+
+=head3 stats( [keys, ..] )
+
+=head3 stats()
+
+Get statistics from all servers in the cluster.
+
+If C<[keys..]> are specified, only the named keys will be gathered and returned
+
+The return format is as so:
+
+    {
+        'server_name' => {
+            'key_name' => 'key_value',
+            ...
+        },
+        
+        ...
+    }
 
 =head2 SEE ALSO
 

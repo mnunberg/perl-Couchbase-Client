@@ -8,6 +8,7 @@
 #include "XSUB.h"
 
 #define PLCB_RET_CLASSNAME "Couchbase::Client::Return"
+#define PLCB_STATS_SUBNAME "Couchbase::Client::_stats_helper"
 
 #if IVSIZE >= 8
 #define PLCB_PERL64
@@ -51,6 +52,7 @@ typedef enum {
 typedef struct {
     libcouchbase_t instance; /*our library handle*/
     PLCB_sync_t sync; /*object to collect results from callbacks*/
+	HV *stats_hv; /*object to collect statistics from*/
     AV *errors; /*per-operation error stack*/
     HV *ret_stash; /*stash with which we bless our return objects*/
     uint32_t store_flags; /*flags to use when storing values*/
@@ -116,9 +118,10 @@ typedef enum {
     PLCB_CTORIDX_MYFLAGS,
     PLCB_CTORIDX_STOREFLAGS,
     
-    PLCB_CTORIDX_METH_COMP,
-    PLCB_CTORIDX_METH_SERIALIZE,
-    PLCB_CTORIDX_COMP_MINLEN
+    PLCB_CTORIDX_COMP_THRESHOLD,
+	PLCB_CTORIDX_COMP_METHODS,
+	PLCB_CTORIDX_SERIALIZE_METHODS
+	
 } PLCB_ctor_idx_t;
 
 typedef enum {
