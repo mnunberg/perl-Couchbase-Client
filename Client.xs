@@ -114,52 +114,52 @@ if( (tmp = av_fetch(options, opt_idx, 0)) && SvTRUE(*tmp) ) { \
 static inline void initialize_conversion_settings(PLCB_t *object, AV *options)
 {
     SV **tmpsv;
-	AV *methav;
-	int dummy;
-	
+    AV *methav;
+    int dummy;
+    
 #define meth_assert_getpairs(flag, optidx) \
-	((object->my_flags & flag) \
-	? \
-		(((tmpsv = av_fetch(options, optidx, 0)) && SvROK(*tmpsv) && \
-			(methav = (AV*)SvRV(*tmpsv))) ? 1 : \
-				(void*)die(\
-					"Flag %s specified but no methods provided", #flag)) \
-	: 0)
-	
+    ((object->my_flags & flag) \
+    ? \
+        (((tmpsv = av_fetch(options, optidx, 0)) && SvROK(*tmpsv) && \
+            (methav = (AV*)SvRV(*tmpsv))) ? 1 : \
+                (void*)die(\
+                    "Flag %s specified but no methods provided", #flag)) \
+    : 0)
+    
 #define meth_assert_assign(target_field, source_idx, diemsg) \
-	if((tmpsv = av_fetch(methav, source_idx, 0)) == NULL) { \
-		die("Nothing in IDX=%d (%s)", source_idx, diemsg); \
-	} \
-	if(! ((SvROK(*tmpsv) && SvTYPE(SvRV(*tmpsv)) == SVt_PVCV) ) ) { \
-		die("Expected CODE reference at IDX=%d: %s",source_idx, diemsg); \
-	} \
-	object->target_field = newRV_inc(SvRV(*tmpsv));
+    if((tmpsv = av_fetch(methav, source_idx, 0)) == NULL) { \
+        die("Nothing in IDX=%d (%s)", source_idx, diemsg); \
+    } \
+    if(! ((SvROK(*tmpsv) && SvTYPE(SvRV(*tmpsv)) == SVt_PVCV) ) ) { \
+        die("Expected CODE reference at IDX=%d: %s",source_idx, diemsg); \
+    } \
+    object->target_field = newRV_inc(SvRV(*tmpsv));
 
-	
-	if( (tmpsv = av_fetch(options, PLCB_CTORIDX_MYFLAGS, 0))
-	   && SvIOK(*tmpsv)) {
-		object->my_flags = SvUV(*tmpsv);
-	}
-	
-	if(meth_assert_getpairs(PLCBf_USE_COMPRESSION,
-								  PLCB_CTORIDX_COMP_METHODS)) {
-		meth_assert_assign(cv_compress, 0, "Compression");
-		meth_assert_assign(cv_decompress, 1, "Decompression");
-	}
-	
-	if(meth_assert_getpairs(PLCBf_USE_STORABLE,
-								  PLCB_CTORIDX_SERIALIZE_METHODS)) {
-		meth_assert_assign(cv_serialize, 0, "Serialize");
-		meth_assert_assign(cv_deserialize, 1, "Deserialize");
+    
+    if( (tmpsv = av_fetch(options, PLCB_CTORIDX_MYFLAGS, 0))
+       && SvIOK(*tmpsv)) {
+        object->my_flags = SvUV(*tmpsv);
+    }
+    
+    if(meth_assert_getpairs(PLCBf_USE_COMPRESSION,
+                                  PLCB_CTORIDX_COMP_METHODS)) {
+        meth_assert_assign(cv_compress, 0, "Compression");
+        meth_assert_assign(cv_decompress, 1, "Decompression");
+    }
+    
+    if(meth_assert_getpairs(PLCBf_USE_STORABLE,
+                                  PLCB_CTORIDX_SERIALIZE_METHODS)) {
+        meth_assert_assign(cv_serialize, 0, "Serialize");
+        meth_assert_assign(cv_deserialize, 1, "Deserialize");
 
-	}
-	
-	if( (tmpsv = av_fetch(options, PLCB_CTORIDX_COMP_THRESHOLD, 0))
-	   && SvIOK(*tmpsv)) {
-		object->compress_threshold = SvIV(*tmpsv);
-	} else {
-		object->compress_threshold = 0;
-	}
+    }
+    
+    if( (tmpsv = av_fetch(options, PLCB_CTORIDX_COMP_THRESHOLD, 0))
+       && SvIOK(*tmpsv)) {
+        object->compress_threshold = SvIV(*tmpsv);
+    } else {
+        object->compress_threshold = 0;
+    }
 }
 
 static void PLCB_cleanup(PLCB_t *object)
@@ -173,13 +173,13 @@ static void PLCB_cleanup(PLCB_t *object)
         object->errors = NULL;
     }
 #define _free_cv(fld) \
-	if(object->fld) { \
-		SvREFCNT_dec(object->fld); object->fld = NULL; \
+    if(object->fld) { \
+        SvREFCNT_dec(object->fld); object->fld = NULL; \
 }
-	_free_cv(cv_compress); _free_cv(cv_decompress);
-	_free_cv(cv_serialize); _free_cv(cv_deserialize);
+    _free_cv(cv_compress); _free_cv(cv_decompress);
+    _free_cv(cv_serialize); _free_cv(cv_deserialize);
 #undef _free_cv
-	
+    
 }
 
 /*Construct a new libcouchbase object*/
@@ -209,15 +209,15 @@ SV *PLCB_construct(const char *pkg, AV *options)
     }
     
     initialize_conversion_settings(object, options);
-	
+    
     libcouchbase_set_cookie(instance, object);
-	
+    
     if(libcouchbase_connect(instance) == LIBCOUCHBASE_SUCCESS) {
         libcouchbase_wait(instance);
     }
-	
+    
     plcb_setup_callbacks(object);
-	
+    
     blessed_obj = newSV(0);
     sv_setiv(newSVrv(blessed_obj, "Couchbase::Client"), PTR2IV(object));
     return blessed_obj;
@@ -264,7 +264,7 @@ static SV *PLCB_set_common(SV *self,
     av_clear(object->errors);
     ret_av = newAV();
     
-	exp = exp_offset ? time(NULL) + exp_offset : 0;
+    exp = exp_offset ? time(NULL) + exp_offset : 0;
     
     plcb_convert_storage(object, &value, &vlen, &store_flags);
     err = libcouchbase_store(instance, syncp, storop,
@@ -281,46 +281,46 @@ static SV *PLCB_set_common(SV *self,
 }
 
 static SV *PLCB_arithmetic_common(SV *self,
-	SV *key, int64_t delta,
-	int do_create, uint64_t initial,
-	int exp_offset)
+    SV *key, int64_t delta,
+    int do_create, uint64_t initial,
+    int exp_offset)
 {
-	PLCB_t *object;
-	libcouchbase_t instance;
+    PLCB_t *object;
+    libcouchbase_t instance;
 
-	char *skey;
-	SV *ret_rv;
-	AV *ret_av;
-	
-	STRLEN nkey;
-	
-	PLCB_sync_t *syncp;
-	time_t exp;
-	libcouchbase_error_t err;
-	
-	mk_instance_vars(self, instance, object);
-	exp = exp_offset ? time(NULL) + exp_offset : 0;
-	
-    plcb_get_str_or_die(key, skey, nkey, "Key");
-    	
-	syncp = &(object->sync);
-	plcb_sync_initialize(syncp, self, skey, nkey);
-	ret_av = newAV();
+    char *skey;
+    SV *ret_rv;
+    AV *ret_av;
     
-	err = libcouchbase_arithmetic(
-		instance, syncp, skey, nkey, delta,
-		exp, do_create, initial
-	);
-	if(err != LIBCOUCHBASE_SUCCESS) {
-		ret_populate_err(ret_av, instance, err);
-	} else {
-		libcouchbase_wait(instance);
-		ret_populate_err(ret_av, instance, syncp->err);
-		if(syncp->err == LIBCOUCHBASE_SUCCESS) {
+    STRLEN nkey;
+    
+    PLCB_sync_t *syncp;
+    time_t exp;
+    libcouchbase_error_t err;
+    
+    mk_instance_vars(self, instance, object);
+    exp = exp_offset ? time(NULL) + exp_offset : 0;
+    
+    plcb_get_str_or_die(key, skey, nkey, "Key");
+        
+    syncp = &(object->sync);
+    plcb_sync_initialize(syncp, self, skey, nkey);
+    ret_av = newAV();
+    
+    err = libcouchbase_arithmetic(
+        instance, syncp, skey, nkey, delta,
+        exp, do_create, initial
+    );
+    if(err != LIBCOUCHBASE_SUCCESS) {
+        ret_populate_err(ret_av, instance, err);
+    } else {
+        libcouchbase_wait(instance);
+        ret_populate_err(ret_av, instance, syncp->err);
+        if(syncp->err == LIBCOUCHBASE_SUCCESS) {
             ret_populate_sync_arith(ret_av, syncp);
-		}
-	}
-	bless_return(object, ret_rv, ret_av);
+        }
+    }
+    bless_return(object, ret_rv, ret_av);
 }
 
 static SV *PLCB_get_common(SV *self, SV *key, int exp_offset)
@@ -416,12 +416,12 @@ SV *PLCB_remove(SV *self, SV *key, uint64_t cas)
     mk_instance_vars(self, instance, object);
     
     plcb_get_str_or_die(key, skey, key_len, "Key");
-	ret_av = newAV();
-	av_clear(object->errors);
+    ret_av = newAV();
+    av_clear(object->errors);
     
     syncp = &(object->sync);
     plcb_sync_initialize(syncp, self, skey, key_len);
-	
+    
     if( (err = libcouchbase_remove(instance, syncp, skey, key_len, cas))
        != LIBCOUCHBASE_SUCCESS) {
         ret_populate_err(ret_av, instance, err);
@@ -434,53 +434,53 @@ SV *PLCB_remove(SV *self, SV *key, uint64_t cas)
 
 SV *PLCB_stats(SV *self, AV *stats)
 {
-	libcouchbase_t instance;
-	PLCB_t *object;
-	char *skey;
-	STRLEN nkey;
-	int curidx;
-	libcouchbase_error_t err;
-	
-	SV *ret_hvref;
-	SV **tmpsv;
-	
-	mk_instance_vars(self, instance, object);
-	if(object->stats_hv) {
-		die("Hrrm.. stats_hv should be NULL");
-	}
-	
-	av_clear(object->errors);
-	object->stats_hv = newHV();
-	ret_hvref = newRV_noinc((SV*)object->stats_hv);
-	
-	if(stats == NULL || (curidx = av_len(stats)) == -1) {
-		skey = NULL;
-		nkey = 0;
-		curidx = -1;
-		err = libcouchbase_server_stats(instance, NULL, NULL, 0);
-		if(err != LIBCOUCHBASE_SUCCESS) {
-			SvREFCNT_dec(ret_hvref);
-			ret_hvref = &PL_sv_undef;
-		}
-		libcouchbase_wait(instance);
-	} else {
-		for(; curidx >= 0; curidx--) {
-			tmpsv = av_fetch(stats, curidx, 0);
-			if(tmpsv == NULL
-			   || SvTYPE(*tmpsv) == SVt_NULL
-			   || (!SvPOK(*tmpsv))) {
-				continue;
-			}
-			skey = SvPV(*tmpsv, nkey);
-			err = libcouchbase_server_stats(instance, NULL, skey, nkey);
-			if(err == LIBCOUCHBASE_SUCCESS) {
-				libcouchbase_wait(instance);
-			}
-		}
-	}
-	
-	object->stats_hv = NULL;
-	return ret_hvref;
+    libcouchbase_t instance;
+    PLCB_t *object;
+    char *skey;
+    STRLEN nkey;
+    int curidx;
+    libcouchbase_error_t err;
+    
+    SV *ret_hvref;
+    SV **tmpsv;
+    
+    mk_instance_vars(self, instance, object);
+    if(object->stats_hv) {
+        die("Hrrm.. stats_hv should be NULL");
+    }
+    
+    av_clear(object->errors);
+    object->stats_hv = newHV();
+    ret_hvref = newRV_noinc((SV*)object->stats_hv);
+    
+    if(stats == NULL || (curidx = av_len(stats)) == -1) {
+        skey = NULL;
+        nkey = 0;
+        curidx = -1;
+        err = libcouchbase_server_stats(instance, NULL, NULL, 0);
+        if(err != LIBCOUCHBASE_SUCCESS) {
+            SvREFCNT_dec(ret_hvref);
+            ret_hvref = &PL_sv_undef;
+        }
+        libcouchbase_wait(instance);
+    } else {
+        for(; curidx >= 0; curidx--) {
+            tmpsv = av_fetch(stats, curidx, 0);
+            if(tmpsv == NULL
+               || SvTYPE(*tmpsv) == SVt_NULL
+               || (!SvPOK(*tmpsv))) {
+                continue;
+            }
+            skey = SvPV(*tmpsv, nkey);
+            err = libcouchbase_server_stats(instance, NULL, skey, nkey);
+            if(err == LIBCOUCHBASE_SUCCESS) {
+                libcouchbase_wait(instance);
+            }
+        }
+    }
+    
+    object->stats_hv = NULL;
+    return ret_hvref;
 }
 
 /*Used for set/get/replace/add common interface*/
@@ -492,7 +492,7 @@ static libcouchbase_storage_t PLCB_XS_setmap[] = {
     LIBCOUCHBASE_PREPEND,
 };
 
-MODULE = Couchbase::Client PACKAGE = Couchbase::Client	PREFIX = PLCB_
+MODULE = Couchbase::Client PACKAGE = Couchbase::Client    PREFIX = PLCB_
 
 PROTOTYPES: DISABLE
 
@@ -514,8 +514,8 @@ PLCB_DESTROY(self)
     
 SV *
 PLCB_get(self, key)
-	SV *	self
-	SV *	key
+    SV *    self
+    SV *    key
     
 
 SV *
@@ -550,65 +550,65 @@ PLCB_set(self, key, value, ...)
     OUTPUT:
     RETVAL
     
-	
+    
 SV *
 PLCB_arithmetic(self, key, ...)
-	SV *self
-	SV *key
-	
-	ALIAS:
-	incr		= 1
-	decr		= 2
-	
-	PREINIT:
-	int64_t delta;
-	UV exp_offset;
-	SV *initial;
-    SV *delta_sv;
-	int do_create;
-	uint64_t initial_i;
+    SV *self
+    SV *key
     
-	CODE:
-	do_create 	= 0;
-	exp_offset 	= 0;
-	initial_i 	= 0;
+    ALIAS:
+    incr        = 1
+    decr        = 2
+    
+    PREINIT:
+    int64_t delta;
+    UV exp_offset;
+    SV *initial;
+    SV *delta_sv;
+    int do_create;
+    uint64_t initial_i;
+    
+    CODE:
+    do_create     = 0;
+    exp_offset     = 0;
+    initial_i     = 0;
     initial     = NULL;
     delta_sv    = NULL;
-	
-	
+    
+    
     if(items > 2) {
         delta_sv = ST(2);
     }
     
-	if(ix == 0) {
-		if(items < 4 || items > 5) {
-			die("arithmetic(key, delta, initial [,expiry])");
-		}
+    if(ix == 0) {
+        if(items < 4 || items > 5) {
+            die("arithmetic(key, delta, initial [,expiry])");
+        }
         
-		if(SvTYPE( (initial=ST(3)) ) == SVt_NULL) {
-			do_create = 0;
-		} else {
-			do_create = 1;
+        if(SvTYPE( (initial=ST(3)) ) == SVt_NULL) {
+            do_create = 0;
+        } else {
+            do_create = 1;
             initial_i = plcb_sv_to_u64(initial);
-		}
-		
-		if(items == 5 && (exp_offset = SvUV( ST(4) )) == 0 ) {
-			die("Expiry offset cannot be 0");
-		}
+        }
+        
+        if(items == 5 && (exp_offset = SvUV( ST(4) )) == 0 ) {
+            die("Expiry offset cannot be 0");
+        }
         delta = plcb_sv_to_64(delta_sv);
-	} else {
+    } else {
         if(items < 2 || items > 3) {
             die("Usage: incr/decr(key [,delta])");
         }
         delta = (delta_sv) ? plcb_sv_to_64(delta_sv) : 1;
         delta = (ix == 2) ? -delta : delta;
-	}
+    }
 
-	RETVAL = PLCB_arithmetic_common(
-		self, key, delta, do_create, initial_i, exp_offset);
-	
-	OUTPUT:
-	RETVAL
+    RETVAL = PLCB_arithmetic_common(
+        self, key, delta, do_create, initial_i, exp_offset);
+    
+    OUTPUT:
+    RETVAL
 
 
 SV *
@@ -669,21 +669,22 @@ PLCB_get_errors(self)
 
 SV *
 PLCB_stats(self, ...)
-	SV *self
-	
-	PREINIT:
-	SV *klist;
-	
-	CODE:	
-	if( items < 2 ) {
-		klist = NULL;
-	} else {
-		klist = ST(1);
-		if(! (SvROK(klist) && SvTYPE(SvRV(klist)) >= SVt_PVAV) ) {
-			die("Usage: stats( ['some', 'keys', ...] )");
-		}
-	}
-	RETVAL = PLCB_stats(self, (klist) ? (AV*)SvRV(klist) : NULL);
-	
-	OUTPUT:
-	RETVAL
+    SV *self
+    
+    PREINIT:
+    SV *klist;
+    
+    CODE:    
+    if( items < 2 ) {
+        klist = NULL;
+    } else {
+        klist = ST(1);
+        if(! (SvROK(klist) && SvTYPE(SvRV(klist)) >= SVt_PVAV) ) {
+            die("Usage: stats( ['some', 'keys', ...] )");
+        }
+    }
+    RETVAL = PLCB_stats(self, (klist) ? (AV*)SvRV(klist) : NULL);
+    
+    OUTPUT:
+    RETVAL
+    

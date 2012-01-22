@@ -17,14 +17,14 @@
 #endif
 
 typedef struct {
-	SV *sv; /*pointer to the perl instance*/
-	const char *key;
-	size_t nkey;
-	const char *value;
-	size_t nvalue;
-	uint64_t cas;
-	uint64_t arithmetic;
-	libcouchbase_error_t err;
+    SV *sv; /*pointer to the perl instance*/
+    const char *key;
+    size_t nkey;
+    const char *value;
+    size_t nvalue;
+    uint64_t cas;
+    uint64_t arithmetic;
+    libcouchbase_error_t err;
     uint32_t store_flags;
 } PLCB_sync_t;
 
@@ -35,7 +35,7 @@ typedef struct {
     syncp->cas = syncp->nvalue = 0; \
     syncp->value = NULL; \
     syncp->err = 0; \
-	syncp->arithmetic = 0; \
+    syncp->arithmetic = 0; \
     syncp->store_flags = 0;
 
 typedef enum {
@@ -52,7 +52,7 @@ typedef enum {
 typedef struct {
     libcouchbase_t instance; /*our library handle*/
     PLCB_sync_t sync; /*object to collect results from callbacks*/
-	HV *stats_hv; /*object to collect statistics from*/
+    HV *stats_hv; /*object to collect statistics from*/
     AV *errors; /*per-operation error stack*/
     HV *ret_stash; /*stash with which we bless our return objects*/
     uint32_t store_flags; /*flags to use when storing values*/
@@ -119,9 +119,9 @@ typedef enum {
     PLCB_CTORIDX_STOREFLAGS,
     
     PLCB_CTORIDX_COMP_THRESHOLD,
-	PLCB_CTORIDX_COMP_METHODS,
-	PLCB_CTORIDX_SERIALIZE_METHODS
-	
+    PLCB_CTORIDX_COMP_METHODS,
+    PLCB_CTORIDX_SERIALIZE_METHODS
+    
 } PLCB_ctor_idx_t;
 
 typedef enum {

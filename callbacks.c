@@ -13,17 +13,17 @@ void plcb_callback_get(
     const void *value, size_t nvalue,
     uint32_t flags, uint64_t cas)
 {
-	PLCB_sync_t *syncp = plcb_sync_cast(cookie);
-	
-	syncp->value = value;
-	syncp->nvalue = nvalue;
-	
-	syncp->key = key;
-	syncp->nkey = nkey;
-	
-	syncp->cas = cas;
-	syncp->err = err;
-	syncp->store_flags = flags;
+    PLCB_sync_t *syncp = plcb_sync_cast(cookie);
+    
+    syncp->value = value;
+    syncp->nvalue = nvalue;
+    
+    syncp->key = key;
+    syncp->nkey = nkey;
+    
+    syncp->cas = cas;
+    syncp->err = err;
+    syncp->store_flags = flags;
 }
 
 void plcb_callback_storage(
@@ -34,12 +34,12 @@ void plcb_callback_storage(
     const void *key, size_t nkey,
     uint64_t cas) 
 {
-	PLCB_sync_t *syncp = plcb_sync_cast(cookie);
-	syncp->key = key;
-	syncp->nkey = nkey;
-	
-	syncp->cas = cas;
-	syncp->err = err;	
+    PLCB_sync_t *syncp = plcb_sync_cast(cookie);
+    syncp->key = key;
+    syncp->nkey = nkey;
+    
+    syncp->cas = cas;
+    syncp->err = err;    
 }
 
 static void arithmetic_callback(
@@ -101,57 +101,57 @@ static void keyop_callback(
 }
 
 static void stat_callback(
-	libcouchbase_t instance, const void *cookie,
-	const char *server,
-	libcouchbase_error_t err,
-	const void *stat_key, size_t nkey,
-	const void *bytes, size_t nbytes)
+    libcouchbase_t instance, const void *cookie,
+    const char *server,
+    libcouchbase_error_t err,
+    const void *stat_key, size_t nkey,
+    const void *bytes, size_t nbytes)
 {
-	PLCB_t *object;
-	SV *server_sv, *data_sv, *key_sv;
-	dSP;
-	
-	
-	
-	if(! (stat_key || bytes) ) {
-		warn("Got all statistics");
-		return;
-	}
-	
-	server_sv = newSVpvn(server, strlen(server));
-	if(nkey) {
-		key_sv = newSVpvn(stat_key, nkey);
-		fprintf(stderr, "stat_callback(): ");
-		fwrite(stat_key, nkey, 1, stderr);
-		fprintf(stderr, "\n");
-	} else {
-		key_sv = newSVpvn("", 0);
-	}
-	
-	if(nbytes) {
-		data_sv = newSVpvn(bytes, nbytes);
-	} else {
-		data_sv = newSVpvn("", 0);
-	}
-	
-	object = (PLCB_t*)libcouchbase_get_cookie(instance);
-	if(!object->stats_hv) {
-		die("We have nothing to write our stats to!");
-	}
-	
-	ENTER;
-	SAVETMPS;
-	
-	PUSHMARK(SP);
-	XPUSHs(sv_2mortal(newRV_inc((SV*)object->stats_hv)));
-	XPUSHs(sv_2mortal(server_sv));
-	XPUSHs(sv_2mortal(key_sv));
-	XPUSHs(sv_2mortal(data_sv));
-	PUTBACK;
-	
-	call_pv(PLCB_STATS_SUBNAME, G_DISCARD);
-	FREETMPS;
-	LEAVE;
+    PLCB_t *object;
+    SV *server_sv, *data_sv, *key_sv;
+    dSP;
+    
+    
+    
+    if(! (stat_key || bytes) ) {
+        warn("Got all statistics");
+        return;
+    }
+    
+    server_sv = newSVpvn(server, strlen(server));
+    if(nkey) {
+        key_sv = newSVpvn(stat_key, nkey);
+        fprintf(stderr, "stat_callback(): ");
+        fwrite(stat_key, nkey, 1, stderr);
+        fprintf(stderr, "\n");
+    } else {
+        key_sv = newSVpvn("", 0);
+    }
+    
+    if(nbytes) {
+        data_sv = newSVpvn(bytes, nbytes);
+    } else {
+        data_sv = newSVpvn("", 0);
+    }
+    
+    object = (PLCB_t*)libcouchbase_get_cookie(instance);
+    if(!object->stats_hv) {
+        die("We have nothing to write our stats to!");
+    }
+    
+    ENTER;
+    SAVETMPS;
+    
+    PUSHMARK(SP);
+    XPUSHs(sv_2mortal(newRV_inc((SV*)object->stats_hv)));
+    XPUSHs(sv_2mortal(server_sv));
+    XPUSHs(sv_2mortal(key_sv));
+    XPUSHs(sv_2mortal(data_sv));
+    PUTBACK;
+    
+    call_pv(PLCB_STATS_SUBNAME, G_DISCARD);
+    FREETMPS;
+    LEAVE;
 }
 
 void plcb_setup_callbacks(PLCB_t *object)
@@ -168,6 +168,6 @@ void plcb_setup_callbacks(PLCB_t *object)
     libcouchbase_set_remove_callback(instance, keyop_callback);
     libcouchbase_set_arithmetic_callback(instance, arithmetic_callback);
     libcouchbase_set_stat_callback(instance, stat_callback);
-	
+    
     libcouchbase_set_cookie(instance, object);
 }
