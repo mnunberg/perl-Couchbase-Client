@@ -10,7 +10,8 @@ WriteMakefile(
     AUTHOR              => q{M. Nunberg <mnunberg@haskalah.org>},
     VERSION_FROM        => 'lib/Couchbase/Client.pm',
     ABSTRACT_FROM       => 'lib/Couchbase/Client.pm',
-    OBJECT              => 'callbacks.o convert.o Client.o',
+    OBJECT              => 'callbacks.o convert.o ctor.o Client.o ' .
+                            'async.o async_callbacks.o',
 
     ($ExtUtils::MakeMaker::VERSION >= 6.3002
       ? ('LICENSE'=> 'perl')
@@ -24,7 +25,7 @@ WriteMakefile(
     },
     NEEDS_LINKING => 1,
     OPTIMIZE    => '-O0 -ggdb3',
-    LIBS    => ['-L/sources/libcouchbase/.libs -lcouchbase'],
+    LIBS    => ['-L/sources/libcouchbase/.libs -lcouchbase -lcouchbase_libevent'],
     #LIBS     => ['-lcouchbase'],
     INC     => '-I/sources/libcouchbase/include /sources/memcached/include',
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },

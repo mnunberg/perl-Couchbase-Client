@@ -13,7 +13,6 @@ my $have_zlib = eval "use Compress::Zlib; 1;";
 use Log::Fu;
 use Array::Assign;
 
-log_warnf("Storable=%d, Zlib=%d", $have_storable, $have_zlib);
 our $VERSION = '0.01_1';
 XSLoader::load(__PACKAGE__, $VERSION);
 {
@@ -23,6 +22,7 @@ XSLoader::load(__PACKAGE__, $VERSION);
 
 #this function converts hash options for compression and serialization
 #to something suitable for construct()
+
 sub _make_conversion_settings {
     my ($arglist,$options) = @_;
     my $compress_threshold = delete $options->{compress_threshold};
@@ -63,8 +63,9 @@ sub _make_conversion_settings {
     $arglist->[CTORIDX_MYFLAGS] = $flags;
 }
 
-sub new {
-    my ($pkg,$opts) = @_;
+sub _MkCtorIDX {
+    my $opts = shift;
+    
     my $server;
     my @arglist;
     my $servers = delete $opts->{servers};
@@ -88,7 +89,14 @@ sub new {
         warn sprintf("Unused keys (%s) in constructor",
                      join(", ", keys %$opts));
     }
-    my $o = $pkg->construct(\@arglist);
+    return \@arglist;
+}
+
+sub new {
+    my ($pkg,$opts) = @_;
+    my $arglist = _MkCtorIDX($opts);
+    
+    my $o = $pkg->construct($arglist);
     my $errors = $o->get_errors;
     foreach (@$errors) {
         my ($errno,$errstr) = @$_;

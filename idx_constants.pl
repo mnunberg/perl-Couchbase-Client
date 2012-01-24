@@ -6,6 +6,8 @@ $ENV{C_INCLUDE_PATH} = './';
 
 include "sys/types.h";
 include "perl-couchbase.h";
+include "perl-couchbase-async.h";
+
 my @const_bases = qw(
     CTORIDX_SERVERS
     CTORIDX_USERNAME
@@ -35,5 +37,20 @@ my @ctor_flags = qw(
 );
 
 constant("PLCBf_$_", name => "f$_") for (@ctor_flags);
+
+my @async_bases = qw(
+    CTORIDX_CBEVMOD
+    CTORIDX_CBERR
+);
+
+constant("PLCBA_$_", name => $_) for (@async_bases);
+
+my @event_bases = qw(
+    READ_EVENT
+    WRITE_EVENT
+);
+
+constant("LIBCOUCHBASE_$_", name => "COUCHBASE_$_") for (@event_bases);
+
 
 write_output($ARGV[0]);

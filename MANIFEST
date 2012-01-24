@@ -13,12 +13,22 @@ lib/Couchbase/Client/IDXConst_const.pm
 lib/Couchbase/Client/Compat.pm
 
 Client.xs
+Async.xs
+
 perl-couchbase.h
+perl-couchbase-async.h
+plcb-util.h
+plcb-return.h
+
 callbacks.c
 convert.c
+ctor.c
+async.c
+async_callbacks.c
 
 idx_constants.pl
 error_constants.pl
 print_constants.pl
+async_constants.pl
 
 t/00-load.t

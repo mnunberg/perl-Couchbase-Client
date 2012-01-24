@@ -1,166 +1,5 @@
 #include "perl-couchbase.h"
-
-
-/*XXX:
-12:54 < LeoNerd> mordy: Namely,   my ( $hi, $lo ) = unpack "L> L>", $packed_64bit;
-                 my $num = Math::BigInt->new( $hi ); $num >>= 32; $num |= $lo;
-                 return $num;
-12:55 < mordy> what about vice versa? or would i change my C interface to accept 2
-               32 bit integers and piece them back together there?
-12:55 < LeoNerd> mordy: That might be simplest.
-*/
-
-#ifdef PLCB_PERL64
-#define plcb_sv_to_u64(sv) SvUV(sv)
-#define plcb_sv_to_64(sv) (int64_t)(plcb_sv_to_u64(sv))
-#define plcb_sv_from_u64(sv, num) (sv_setuv(sv, num))
-#else
-static uint64_t plcb_sv_to_u64(SV *in)
-{
-    char *sv_blob;
-    STRLEN blob_len;
-    uint64_t ret;
-    sv_blob = SvPV(in, blob_len);
-    if(blob_len != 8) {
-        die("expected 8-byte data string. Got %d", blob_len);
-    }
-    ret = *(uint64_t*)sv_blob;
-    return ret;
-}
-#define plcb_sv_to_64(sv) (plcb_sv_to_u64(sv))
-#define plcb_sv_from_u64(sv, num) \
-    (sv_setpvn(sv, (const char const*)&(num), 8))
-#endif
-
-
-/*Extract a packed 8 byte blob from an SV into a CAS value*/
-
-#define plcb_cas_from_sv(sv, cas_p, lenvar) \
-    (cas_p = (uint64_t*)SvPV(sv, lenvar))  \
-    ? (\
-        (lenvar == 8) \
-            ? cas_p \
-            : (void*)die("Expected 8-byte CAS. Got %d", lenvar) \
-        ) \
-    : (void*)die("CAS specified, but is null")
-    
-
-/*assertively extract a non-null key from an SV, together with its length*/
-
-#define plcb_get_str_or_die(ksv, charvar, lenvar, diespec) \
-    (charvar = SvPV(ksv, lenvar)) \
-        ? ( (lenvar) ? charvar : (void*)die("Got zero-length %s", diespec) ) \
-        : (void*)die("Got NULL %s", diespec)
-
-
-static void ret_populate_err(
-    AV *ret,
-    libcouchbase_t instance,
-    libcouchbase_error_t err)
-{
-    const char *errstr;
-    av_store(ret, PLCB_RETIDX_ERRNUM, newSViv(err));
-    if(err != LIBCOUCHBASE_SUCCESS) {
-        errstr = libcouchbase_strerror(instance, err);
-        if(errstr) {
-            av_store(ret, PLCB_RETIDX_ERRSTR, newSVpv(errstr, 0));
-        }
-    }
-}
-
-#define ret_populate_cas(ret, syncp) \
-    av_store(ret, PLCB_RETIDX_CAS, newSVpv((char*)(&syncp->cas), 8))
-static void ret_populate_sync_value(PLCB_t *object, AV *ret, PLCB_sync_t *sync)
-{
-    if(!sync->value) {
-        return;
-    }
-    av_store(ret, PLCB_RETIDX_VALUE,
-        plcb_convert_retrieval(
-            object, sync->value, sync->nvalue, sync->store_flags));
-    ret_populate_cas(ret, sync);
-}
-
-static void ret_populate_sync_arith(AV *ret, PLCB_sync_t *sync)
-{
-    /*we have no way to indicate whether the value is 0 or bad.*/
-    SV *num_sv;
-    num_sv = newSV(0);
-    plcb_sv_from_u64(num_sv, sync->arithmetic);
-    av_store(ret, PLCB_RETIDX_VALUE, num_sv);
-    ret_populate_cas(ret, sync);
-}
-
-
-static inline void extract_ctor_options(
-    AV *options, char **hostp, char **userp, char **passp, char **bucketp)
-{
-    
-#define _assign_options(dst, opt_idx, defl) \
-if( (tmp = av_fetch(options, opt_idx, 0)) && SvTRUE(*tmp) ) { \
-    *dst = SvPV_nolen(*tmp); \
-} else { \
-    *dst = defl; \
-}
-    SV **tmp;
-    
-    _assign_options(hostp, PLCB_CTORIDX_SERVERS, "127.0.0.1:8091");
-    _assign_options(userp, PLCB_CTORIDX_USERNAME, NULL);
-    _assign_options(passp, PLCB_CTORIDX_PASSWORD, NULL);
-    _assign_options(bucketp, PLCB_CTORIDX_BUCKET, "default");
-#undef _assign_options
-}
-
-static inline void initialize_conversion_settings(PLCB_t *object, AV *options)
-{
-    SV **tmpsv;
-    AV *methav;
-    int dummy;
-    
-#define meth_assert_getpairs(flag, optidx) \
-    ((object->my_flags & flag) \
-    ? \
-        (((tmpsv = av_fetch(options, optidx, 0)) && SvROK(*tmpsv) && \
-            (methav = (AV*)SvRV(*tmpsv))) ? 1 : \
-                (void*)die(\
-                    "Flag %s specified but no methods provided", #flag)) \
-    : 0)
-    
-#define meth_assert_assign(target_field, source_idx, diemsg) \
-    if((tmpsv = av_fetch(methav, source_idx, 0)) == NULL) { \
-        die("Nothing in IDX=%d (%s)", source_idx, diemsg); \
-    } \
-    if(! ((SvROK(*tmpsv) && SvTYPE(SvRV(*tmpsv)) == SVt_PVCV) ) ) { \
-        die("Expected CODE reference at IDX=%d: %s",source_idx, diemsg); \
-    } \
-    object->target_field = newRV_inc(SvRV(*tmpsv));
-
-    
-    if( (tmpsv = av_fetch(options, PLCB_CTORIDX_MYFLAGS, 0))
-       && SvIOK(*tmpsv)) {
-        object->my_flags = SvUV(*tmpsv);
-    }
-    
-    if(meth_assert_getpairs(PLCBf_USE_COMPRESSION,
-                                  PLCB_CTORIDX_COMP_METHODS)) {
-        meth_assert_assign(cv_compress, 0, "Compression");
-        meth_assert_assign(cv_decompress, 1, "Decompression");
-    }
-    
-    if(meth_assert_getpairs(PLCBf_USE_STORABLE,
-                                  PLCB_CTORIDX_SERIALIZE_METHODS)) {
-        meth_assert_assign(cv_serialize, 0, "Serialize");
-        meth_assert_assign(cv_deserialize, 1, "Deserialize");
-
-    }
-    
-    if( (tmpsv = av_fetch(options, PLCB_CTORIDX_COMP_THRESHOLD, 0))
-       && SvIOK(*tmpsv)) {
-        object->compress_threshold = SvIV(*tmpsv);
-    } else {
-        object->compress_threshold = 0;
-    }
-}
+#include "plcb-util.h"
 
 static void PLCB_cleanup(PLCB_t *object)
 {
@@ -192,7 +31,7 @@ SV *PLCB_construct(const char *pkg, AV *options)
     
     char *host = NULL, *username = NULL, *password = NULL, *bucket = NULL;
     
-    extract_ctor_options(options,
+    plcb_ctor_cbc_opts(options,
                          &host, &username, &password, &bucket);
         
     instance = libcouchbase_create(host, username, password, bucket, NULL);    
@@ -202,14 +41,10 @@ SV *PLCB_construct(const char *pkg, AV *options)
     }
     
     Newxz(object, 1, PLCB_t);
-    object->instance = instance;
-    object->errors = newAV();
-    if(! (object->ret_stash = gv_stashpv(PLCB_RET_CLASSNAME, 0)) ) {
-        die("Could not load '%s'", PLCB_RET_CLASSNAME);
-    }
     
-    initialize_conversion_settings(object, options);
-    
+    plcb_ctor_conversion_opts(object, options);
+    plcb_ctor_init_common(object, instance);
+	
     libcouchbase_set_cookie(instance, object);
     
     if(libcouchbase_connect(instance) == LIBCOUCHBASE_SUCCESS) {
@@ -272,10 +107,10 @@ static SV *PLCB_set_common(SV *self,
     plcb_convert_storage_free(object, value, store_flags);
     
     if(err != LIBCOUCHBASE_SUCCESS) {
-        ret_populate_err(ret_av, instance, err);
+		plcb_ret_set_err(object, ret_av, err);
     } else {
         libcouchbase_wait(instance);
-        ret_populate_err(ret_av, instance, syncp->err);
+		plcb_ret_set_err(object, ret_av, syncp->err);
     }
     bless_return(object, ret_rv, ret_av);
 }
@@ -312,12 +147,13 @@ static SV *PLCB_arithmetic_common(SV *self,
         exp, do_create, initial
     );
     if(err != LIBCOUCHBASE_SUCCESS) {
-        ret_populate_err(ret_av, instance, err);
+		plcb_ret_set_err(object, ret_av, err);
     } else {
         libcouchbase_wait(instance);
-        ret_populate_err(ret_av, instance, syncp->err);
+		plcb_ret_set_err(object, ret_av, syncp->err);
+		
         if(syncp->err == LIBCOUCHBASE_SUCCESS) {
-            ret_populate_sync_arith(ret_av, syncp);
+			plcb_ret_set_numval(object, ret_av, syncp->arithmetic, syncp->cas);
         }
     }
     bless_return(object, ret_rv, ret_av);
@@ -356,11 +192,15 @@ static SV *PLCB_get_common(SV *self, SV *key, int exp_offset)
                             exp_arg);
     
     if(err != LIBCOUCHBASE_SUCCESS) {
-        ret_populate_err(ret_av, instance, err);
+		plcb_ret_set_err(object, ret_av, err);
     } else {
         libcouchbase_wait(instance);
-        ret_populate_err(ret_av, instance, syncp->err);
-        ret_populate_sync_value(object, ret_av, syncp);
+		plcb_ret_set_err(object, ret_av, syncp->err);
+		if(syncp->err == LIBCOUCHBASE_SUCCESS) {
+			plcb_ret_set_strval(
+				object, ret_av, syncp->value, syncp->nvalue,
+				syncp->store_flags, syncp->cas);
+		}
     }
     bless_return(object, ret_rv, ret_av);
 }
@@ -424,10 +264,10 @@ SV *PLCB_remove(SV *self, SV *key, uint64_t cas)
     
     if( (err = libcouchbase_remove(instance, syncp, skey, key_len, cas))
        != LIBCOUCHBASE_SUCCESS) {
-        ret_populate_err(ret_av, instance, err);
+		plcb_ret_set_err(object, ret_av, err);
     } else {
         libcouchbase_wait(instance);
-        ret_populate_err(ret_av, instance, syncp->err);
+		plcb_ret_set_err(object, ret_av, syncp->err);
     }
     bless_return(object, ret_rv, ret_av);
 }
@@ -688,3 +528,5 @@ PLCB_stats(self, ...)
     OUTPUT:
     RETVAL
     
+	
+INCLUDE: Async.xs
