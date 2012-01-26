@@ -6,8 +6,9 @@ tell_perl(PLCBA_cookie_t *cookie, AV *ret,
 {
     dSP;
     
-    hv_store(cookie->results, key, nkey, newRV_noinc((SV*)ret), 0);
-    
+    hv_store(cookie->results, key, nkey,
+             plcb_ret_blessed_rv(&(cookie->parent->base), ret),
+             0);
     
     cookie->remaining--;    
     
@@ -22,6 +23,8 @@ tell_perl(PLCBA_cookie_t *cookie, AV *ret,
         XPUSHs(sv_2mortal(newRV_inc((SV*)cookie->results)));
         XPUSHs(cookie->cbdata);
         
+        PUTBACK;
+        
         call_sv(cookie->callcb, G_DISCARD);
         
         FREETMPS;
@@ -34,6 +37,19 @@ tell_perl(PLCBA_cookie_t *cookie, AV *ret,
         SvREFCNT_dec(cookie->cbdata);
         Safefree(cookie);
     }
+}
+
+void plcba_callback_notify_err(PLCBA_t *async,
+                               PLCBA_cookie_t *cookie,
+                               const char *key, size_t nkey,
+                               libcouchbase_error_t err)
+{
+    AV *ret;
+    
+    warn("Got immediate error for %s", key);
+    ret = newAV();
+    plcb_ret_set_err((&(async->base)), ret, err);
+    tell_perl(cookie, ret, key, nkey);
 }
 
 /*macro to define common variables and operations for callbacks*/
@@ -58,8 +74,9 @@ get_callback(
     uint32_t flags, uint64_t cas)
 {
     _CB_INIT;
-    
+    //warn("Get callback");
     if(err == LIBCOUCHBASE_SUCCESS) {
+        //warn("Got value of %d bytes", nbytes);
         plcb_ret_set_strval(object, ret, bytes, nbytes, flags, cas);
     }
     tell_perl(cookie, ret, key, nkey);
@@ -75,7 +92,7 @@ storage_callback(libcouchbase_t instance,
 {
     _CB_INIT;
     if(cas) {
-        plcb_ret_set_cas(object, ret, cas);
+        plcb_ret_set_cas(object, ret, &cas);
     }
     tell_perl(cookie, ret, key, nkey);
 }
@@ -115,7 +132,8 @@ error_callback(libcouchbase_t instance,
 {
     PLCBA_t *async;
     dSP;
-    
+    //warn("Error callback (err=%d, %s)",
+         //err, libcouchbase_strerror(instance, err));
     async = (PLCBA_t*)libcouchbase_get_cookie(instance);
     ENTER;
     SAVETMPS;
@@ -123,6 +141,8 @@ error_callback(libcouchbase_t instance,
     
     XPUSHs(sv_2mortal(newSViv(err)));
     XPUSHs(sv_2mortal(newSVpv(errinfo, 0)));
+    PUTBACK;
+    
     call_sv(async->cv_err, G_DISCARD);
     
     FREETMPS;

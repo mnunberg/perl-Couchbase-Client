@@ -1,141 +1,6 @@
 #include "perl-couchbase-async.h"
 #include "plcb-util.h"
 
-#ifndef _WIN32
-#include <libcouchbase/libevent_io_opts.h>
-#define plcba_default_io_opts() \
-    libcouchbase_create_libevent_io_opts(NULL)
-
-#else
-
-#include <libcouchbase/winsock_io_opts.h>
-#define plcba_default_io_opts() \
-    libcouchbase_create_winsock_io_opts()
-
-#endif
-
-static void *create_event(plcba_cbcio *cbcio)
-{
-    PLCBA_c_event *cevent;
-    Newxz(cevent, 1, PLCBA_c_event);
-    return cevent;
-}
-
-static void destroy_event(plcba_cbcio *cbcio, void *event)
-{
-    PLCBA_c_event *cevent = (PLCBA_c_event*)event;
-    if(cevent->dupfh) {
-        SvREFCNT_dec(cevent->dupfh);
-        cevent->dupfh = NULL;
-    }
-    Safefree(cevent);
-}
-
-/*start select()ing on a socket*/
-static int update_event(plcba_cbcio *cbcio,
-                        libcouchbase_socket_t sock,
-                        void *event,
-                        short flags,
-                        void *cb_data,
-                        plcba_c_evhandler handler)
-{
-    AV *fdes_av;
-    PLCBA_t *object;
-    SV *opaque_sv;
-    SV *sock_sv;
-    SV **dupfh_new;
-    
-    PLCBA_c_event *cevent;
-    
-    dSP;
-    
-    warn("Update event requested..");
-    
-    cevent = (PLCBA_c_event*)event;
-    object = (PLCBA_t*)(cbcio->cookie);
-    
-    fdes_av = newAV();
-    opaque_sv = newSViv(PTR2IV(cevent));
-    sock_sv = newSVuv(sock);
-    dupfh_new = NULL;
-    
-    av_store(fdes_av, 0, newSViv(sock));
-    
-    if(cevent->dupfh) {
-        SvREFCNT_inc(cevent->dupfh);
-        av_store(fdes_av, 1, cevent->dupfh);
-    }
-    
-    cevent->c.handler = handler;
-    cevent->c.arg = cb_data;
-    
-    /*BEGIN SUBROUTINE CALL*/
-    ENTER;
-    SAVETMPS;
-    
-    PUSHMARK(SP);
-    XPUSHs(sv_2mortal(newRV_inc((SV*)fdes_av)));
-    XPUSHs(sv_2mortal(newSViv(flags)));
-    XPUSHs(sv_2mortal(opaque_sv));
-    PUTBACK;
-    
-    call_sv(object->cv_evmod, G_DISCARD);
-    
-    
-    if(!cevent->dupfh) {
-        if( (dupfh_new = av_fetch(fdes_av, 1, 0))
-           && SvTYPE(*dupfh_new) != SVt_NULL) {
-            SvREFCNT_inc(*dupfh_new);
-            cevent->dupfh = *dupfh_new;
-        }
-    } else {
-        if( (dupfh_new = av_fetch(fdes_av, 0, 0)) == NULL ||
-           SvTYPE(*dupfh_new) == SVt_NULL) {
-            SvREFCNT_dec(cevent->dupfh);
-            cevent->dupfh = NULL;
-        }
-    }
-    
-    FREETMPS;
-    LEAVE;
-    /*END SUBROUTINE CALL*/
-    
-    if(flags && (dupfh_new = av_fetch(fdes_av, 1, 0)) &&
-       *dupfh_new != cevent->dupfh) {
-        
-        if(cevent->dupfh) {
-            SvREFCNT_dec(cevent->dupfh);
-            cevent->dupfh = *dupfh_new;
-            SvREFCNT_inc(*dupfh_new);
-        }
-    } else if(flags == 0 && cevent->dupfh) {
-        SvREFCNT_dec(cevent->dupfh);
-        cevent->dupfh = NULL;
-    }
-    
-    SvREFCNT_dec(fdes_av);
-}
-
-/*stop select()ing a socket*/
-static void delete_event(plcba_cbcio *cbcio,
-                         libcouchbase_socket_t sock, void *event)
-{
-    update_event(cbcio, sock, event, 0, NULL, NULL);
-}
-
-/*run/stop functions are noop because we are only running inside a cooperative
-  event loop, and not driving it per se
-*/
-static void run_event_loop(plcba_cbcio *cbcio)
-{
-    /*noop?*/
-}
-
-static void stop_event_loop(plcba_cbcio *cbcio)
-{
-    /*noop*/
-}
-
 #define _mk_common_vars(selfsv, v_instance, v_base, v_async) \
     if( (!SvROK(selfsv)) || (!SvIOK(SvRV(selfsv))) ) \
         die("Passed a bad object!"); \
@@ -173,7 +38,7 @@ static inline void av2request(
     if(plcba_cmd_needs_strval(cmd)) {
         _fetch_assert(PLCBA_REQIDX_VALUE, "Expected value but none passed");
         request->value = *tmpsv;
-        request->nvalue = SvLEN(*tmpsv);
+        request->nvalue = SvCUR(*tmpsv);
         
         if(!request->nvalue) {
             die("Got zero-length value");
@@ -201,8 +66,11 @@ static inline void av2request(
     }
     
     if( _fetch_nonull(PLCBA_REQIDX_CAS) ) {
+        //warn("Have CAS. Setting..");
         plcb_cas_from_sv(*tmpsv, dummy_cas, dummy);
         request->cas = *dummy_cas;
+    } else {
+        request->cas = 0;
     }
 #undef _fetch_nonull
 #undef _fetch_assert
@@ -230,15 +98,7 @@ async_cmd_to_storop(PLCBA_cmd_t cmd)
 }
 
 /*single error for single operation on a cookie*/
-static inline void
-error_single(
-    PLCBA_t *async,
-    PLCBA_cookie_t *cookie,
-    const char *key, size_t nkey,
-    libcouchbase_error_t err)
-{
-    die("Grrr...");
-}
+#define error_single plcba_callback_notify_err
 
 /*single error for multiple operations on a cookie*/
 static inline void
@@ -366,7 +226,10 @@ PLCBA_request(
         if((tmpsv = av_fetch(params, idx, 0)) == NULL) { \
             die("Null request found in request list"); \
         } \
-        av2request(async, cmd, (AV*)*tmpsv, &r);
+        if(!SvROK(*tmpsv)) { \
+            die("Expected reference type in parameter list."); \
+        } \
+        av2request(async, cmd, (AV*)(SvRV(*tmpsv)), &r);
         
     #define pseudo_multi_begin \
         Newxz(errors, nreq, libcouchbase_error_t); \
@@ -387,10 +250,17 @@ PLCBA_request(
                 _do_cbop(); \
                 pseudo_multi_maybe_add; \
             } \
+            if(errcount < nreq) { \
+                libcouchbase_wait(instance); \
+            } \
         } else { \
+            av2request(async, cmd, params, &r); \
             _do_cbop(); \
             if(err != LIBCOUCHBASE_SUCCESS) { \
+                warn("Key %s did not return OK (%d)", r.key, err); \
                 error_single(async, cookie, r.key, r.nkey, err); \
+            } else { \
+                libcouchbase_wait(instance); \
             } \
         } \
     
@@ -424,6 +294,8 @@ PLCBA_request(
             if(err != LIBCOUCHBASE_SUCCESS) {
                 error_true_multi(
                     async, cookie, nreq, (const char**)multi_key, multi_nkey, err);
+            } else {
+                libcouchbase_wait(instance);
             }
             Safefree(multi_key);
             Safefree(multi_nkey);
@@ -433,6 +305,8 @@ PLCBA_request(
             _do_cbop(&(r.key), &(r.nkey), &(r.exp));
             if(err != LIBCOUCHBASE_SUCCESS) {
                 error_single(async, cookie, r.key, r.nkey, err);
+            } else {
+                libcouchbase_wait(instance);
             }
         }
         break;
@@ -444,6 +318,7 @@ PLCBA_request(
     case PLCBA_CMD_APPEND:
     case PLCBA_CMD_PREPEND:
         storop = async_cmd_to_storop(cmd);
+        //warn("Storop is %x (cmd=%x)", storop, cmd);
         has_conversion = plcba_cmd_needs_conversion(cmd);
         #define _do_cbop() \
             err = libcouchbase_store(instance, cookie, storop, r.key, r.nkey, \
@@ -487,25 +362,33 @@ PLCBA_request(
 static inline void
 extract_async_options(PLCBA_t *async, AV *options)
 {
+    #define _assert_get_cv(idxbase, target, diemsg) \
+        if( (tmpsv = av_fetch(options, PLCBA_CTORIDX_ ## idxbase, 0)) == NULL \
+            || SvTYPE(*tmpsv) == SVt_NULL) { \
+            die("Must have '%s' callback", diemsg); \
+        } \
+        SvREFCNT_inc(*tmpsv); \
+        async->target = *tmpsv;
+    
     SV **tmpsv;
-    if( (tmpsv = av_fetch(options, PLCBA_CTORIDX_CBEVMOD, 0)) == NULL) {
-        die("Must have update event callback");
-    }
-    SvREFCNT_inc(*tmpsv);
-    async->cv_evmod = *tmpsv;
     
-    if( (tmpsv = av_fetch(options, PLCBA_CTORIDX_CBERR, 0)) == NULL) {
-        die("Must have error event callback");
-    }
-    async->cv_err = *tmpsv;
-    SvREFCNT_inc(*tmpsv);
+    _assert_get_cv(CBEVMOD, cv_evmod, "update_event");
+    _assert_get_cv(CBERR, cv_err, "error");
+    _assert_get_cv(CBWAITDONE, cv_waitdone, "waitdone");
     
+    if( (tmpsv = av_fetch(options, PLCBA_CTORIDX_BLESS_EVENT, 0)) ) {
+        if(SvTRUE(*tmpsv)) {
+            async->event_stash = gv_stashpv(PLCBA_EVENT_CLASS, 0);
+        }
+    }
+    
+    #undef _assert_get_cv
 }
 
-SV *PLCBA_construct(const char *pkg, AV *options)
+SV *
+PLCBA_construct(const char *pkg, AV *options)
 {
     PLCBA_t *async;
-    plcba_cbcio *cbcio;
     char *host, *username, *password, *bucket;
     libcouchbase_t instance;
     SV *blessed_obj;
@@ -516,19 +399,9 @@ SV *PLCBA_construct(const char *pkg, AV *options)
     
     plcb_ctor_conversion_opts(&async->base, options);
     
-    cbcio = plcba_default_io_opts();
-    
-    cbcio->cookie = async;
-    
-    cbcio->create_event = create_event;
-    cbcio->destroy_event = destroy_event;
-    cbcio->update_event = update_event;
-    cbcio->delete_event = delete_event;
-    cbcio->run_event_loop = run_event_loop;
-    cbcio->stop_event_loop = stop_event_loop;
-    
     plcb_ctor_cbc_opts(options, &host, &username, &password, &bucket);
-    instance = libcouchbase_create(host, username, password, bucket, cbcio);
+    instance = libcouchbase_create(host, username, password, bucket,
+                                   plcba_make_io_opts(async));
     
     if(!instance) {
         die("Couldn't create instance!");
@@ -550,7 +423,6 @@ PLCBA_HaveEvent(const char *pkg, short flags, SV *opaque)
      event loops which have a different calling convention, e.g. POE*/
     
     PLCBA_c_event *cevent;
-    warn("Flags are %d, opaque is %p", flags, opaque);
     //sv_dump(opaque);
     
     cevent = NUM2PTR(PLCBA_c_event*, SvIV(opaque));
@@ -563,7 +435,12 @@ PLCBA_connect(SV *self)
     libcouchbase_t instance;
     PLCBA_t *async;
     PLCB_t *base;
+    libcouchbase_error_t err;
+    
     _mk_common_vars(self, instance, base, async);
-    warn("Connecting...");
-    libcouchbase_connect(instance);
+    if( (err = libcouchbase_connect(instance)) != LIBCOUCHBASE_SUCCESS) {
+        die("Problem with initial connection: %s (%d)",
+            libcouchbase_strerror(instance, err), err);
+    }
+    libcouchbase_wait(instance);
 }

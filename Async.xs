@@ -1,3 +1,5 @@
+#include "perl-couchbase-async.h"
+
 MODULE = Couchbase::Client PACKAGE = Couchbase::Client::Async PREFIX = PLCBA_
 
 SV *
@@ -11,7 +13,7 @@ PLCBA_connect(self)
 
 void
 PLCBA_HaveEvent(pkg, flags, opaque)
-    const char pkg
+    const char *pkg
     short flags
     SV *opaque
     

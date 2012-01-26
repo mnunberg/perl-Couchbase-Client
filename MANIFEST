@@ -12,6 +12,10 @@ lib/Couchbase/Client/Errors_const.pm
 lib/Couchbase/Client/IDXConst_const.pm
 lib/Couchbase/Client/Compat.pm
 
+lib/Couchbase/Client/Async.pm
+lib/Couchbase/Client/Async/Event.pm
+lib/Couchbase/Client/Async/Request.pm
+
 Client.xs
 Async.xs
 
@@ -25,10 +29,10 @@ convert.c
 ctor.c
 async.c
 async_callbacks.c
+async_events.c
 
 idx_constants.pl
 error_constants.pl
 print_constants.pl
-async_constants.pl
 
 t/00-load.t

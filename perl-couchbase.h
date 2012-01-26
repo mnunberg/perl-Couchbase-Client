@@ -30,6 +30,7 @@ typedef struct {
     uint64_t arithmetic;
     libcouchbase_error_t err;
     uint32_t store_flags;
+	int received;
 } PLCB_sync_t;
 
 #define plcb_sync_cast(p) (PLCB_sync_t*)(p)
@@ -40,7 +41,8 @@ typedef struct {
     syncp->value = NULL; \
     syncp->err = 0; \
     syncp->arithmetic = 0; \
-    syncp->store_flags = 0;
+    syncp->store_flags = 0; \
+	syncp->received = 0;
 
 typedef enum {
     PLCBf_DIE_ON_ERROR          = 0x1,

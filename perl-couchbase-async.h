@@ -52,18 +52,48 @@ typedef struct libcouchbase_io_opt_st plcba_cbcio;
   
 #define PLCBA_EVENT_CLASS "Couchbase::Client::Async::Event"
 
-/*proxy event*/
+/*various fields for helper class*/
+typedef enum {
+    PLCBA_EVIDX_FD,
+    PLCBA_EVIDX_DUPFH,
+    PLCBA_EVIDX_WATCHFLAGS,
+    PLCBA_EVIDX_STATEFLAGS,
+    PLCBA_EVIDX_OPAQUE,
+    PLCBA_EVIDX_PLDATA,
+} PLCBA_evidx_t;
+
+/*various types of actions which may be taken by the callback*/
+typedef enum {
+    PLCBA_EVACTION_WATCH,
+    PLCBA_EVACTION_UNWATCH,
+    PLCBA_EVACTION_SUSPEND,
+    PLCBA_EVACTION_RESUME,
+} PLCBA_evaction_t;
+
+typedef enum {
+    PLCBA_EVSTATE_INITIALIZED,
+    PLCBA_EVSTATE_ACTIVE,
+    PLCBA_EVSTATE_SUSPENDED
+} PLCBA_evstate_t;
+
 typedef struct PLCBA_c_event_st PLCBA_c_event;
+
 struct PLCBA_c_event_st {
-    
+    /*position within linked list*/
     PLCBA_c_event *next;
     PLCBA_c_event *prev;
     
     /*FD from libcouchbase*/
     libcouchbase_socket_t fd;
     
-    /*FH from PerlIO*/
-    SV *dupfh;
+    AV *pl_event;
+    
+    /*we can compare some basic flags and functions here with these
+     two flags, so that we don't need to call into perl for stupid
+     stuff*/
+    
+    short flags;
+    PLCBA_evstate_t state;
     
     struct {
         plcba_c_evhandler handler;
@@ -71,12 +101,20 @@ struct PLCBA_c_event_st {
     } c;
 };
 
+
+
+/*our base object*/
 typedef struct {
     /*base object*/
     PLCB_t base;
     
     SV *cv_evmod;
     SV *cv_err;
+    SV *cv_waitdone;
+    
+    PLCBA_c_event *cevents;
+    HV *event_stash;
+    
 } PLCBA_t;
 
 
@@ -124,7 +162,10 @@ typedef struct {
 /*extra constructor parameters*/
 typedef enum {
     PLCBA_CTORIDX_CBEVMOD = PLCB_CTOR_STDIDX_MAX,
-    PLCBA_CTORIDX_CBERR
+    PLCBA_CTORIDX_CBERR,
+    PLCBA_CTORIDX_CBWAITDONE,
+    PLCBA_CTORIDX_BLESS_EVENT,
+    
 } PLCBA_ctoridx_t;
 
 /*Types of commands we currently handle*/
@@ -136,7 +177,7 @@ typedef enum {
     (cmd & (PLCBA_CMD_SET|PLCBA_CMD_ADD))
 
 #define plcba_cmd_needs_strval(cmd) \
-    (cmd & (PLCBA_CMD_SET|PLCBA_CMD_GET \
+    (cmd & (PLCBA_CMD_SET \
         |PLCBA_CMD_REPLACE|PLCBA_CMD_APPEND|PLCBA_CMD_PREPEND))
 
 typedef enum {
@@ -197,7 +238,25 @@ typedef struct PLCBA_request_st {
     
 } PLCBA_request_t;
 
+/*wire callbacks*/
 void plcba_setup_callbacks(PLCBA_t *async);
+
+/*wire io structure*/
+plcba_cbcio *plcba_make_io_opts(PLCBA_t *async);
+
+
+/*immediate error notification*/
+void plcba_callback_notify_err(PLCBA_t *async,
+                               PLCBA_cookie_t *cookie,
+                               const char *key, size_t nkey,
+                               libcouchbase_error_t err);
+
+
+/*prototypes for perl-facing functions, for Async.xs*/
+SV *PLCBA_construct(const char*, AV*);
+void PLCBA_connect(SV*);
+void PLCBA_HaveEvent(const char*, short, SV*);
+void PLCBA_request(SV *, int, int, SV*, SV*, int, AV*);
 
 
 #endif /* PERL_COUCHBASE_ASYNC_H_ */

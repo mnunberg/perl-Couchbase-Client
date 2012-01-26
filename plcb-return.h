@@ -35,4 +35,7 @@ plcb_ret_set_numval(PLCB_t *obj, AV *ret, uint64_t value, uint64_t cas)
 		newSVpv(libcouchbase_strerror(obj->instance, err), 0)); \
 	}
 
+#define plcb_ret_blessed_rv(obj, ret) \
+	sv_bless(newRV_noinc( (SV*)(ret)), (obj)->ret_stash)
+
 #endif /*PLCB_RETURN_H_*/

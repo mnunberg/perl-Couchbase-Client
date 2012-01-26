@@ -14,7 +14,8 @@ void plcb_callback_get(
     uint32_t flags, uint64_t cas)
 {
     PLCB_sync_t *syncp = plcb_sync_cast(cookie);
-    
+    warn("Got get callback");
+    syncp->received++;
     syncp->value = value;
     syncp->nvalue = nvalue;
     
@@ -34,7 +35,11 @@ void plcb_callback_storage(
     const void *key, size_t nkey,
     uint64_t cas) 
 {
+    warn("Got storage callback");
+    
     PLCB_sync_t *syncp = plcb_sync_cast(cookie);
+    
+    syncp->received++;
     syncp->key = key;
     syncp->nkey = nkey;
     
@@ -48,6 +53,7 @@ static void arithmetic_callback(
     uint64_t value, uint64_t cas)
 {
     PLCB_sync_t *syncp = plcb_sync_cast(cookie);
+    syncp->received++;
     syncp->key = key; syncp->nkey = nkey;
     syncp->cas = cas; syncp->err = err;
     syncp->arithmetic = value;
@@ -59,6 +65,7 @@ void plcb_callback_error(
     libcouchbase_error_t err,
     const char *errinfo) 
 {
+    warn("Got error callback");
     PLCB_t *object;
     SV *elem_list[2];
     
