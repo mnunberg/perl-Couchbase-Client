@@ -18,6 +18,43 @@
 #endif
 
 
+static inline void
+plcb_call_sv_with_args_noret(SV *code,
+                       int mortalize,
+                       int nargs,
+                       ...)
+{
+    va_list ap;
+    SV *cursv;    
+    
+    dSP;
+    
+    ENTER;
+    SAVETMPS;
+    PUSHMARK(SP);
+    EXTEND(SP, nargs);
+        
+    va_start(ap, nargs);
+    while(nargs) {
+        cursv = va_arg(ap, SV*);
+        if(mortalize) {
+            cursv = sv_2mortal(cursv);
+        }
+        PUSHs(cursv);
+        nargs--;
+    }
+    va_end(ap);
+    
+    PUTBACK;
+    
+    call_sv(code, G_DISCARD);
+    
+    
+    FREETMPS;
+    LEAVE;
+}
+
+
 static void *create_event(plcba_cbcio *cbcio)
 {
     PLCBA_c_event *cevent;
@@ -27,6 +64,7 @@ static void *create_event(plcba_cbcio *cbcio)
     Newxz(cevent, 1, PLCBA_c_event);
     
     cevent->pl_event = newAV();
+    cevent->evtype = PLCBA_EVTYPE_IO;
     
     av_store(cevent->pl_event, PLCBA_EVIDX_OPAQUE,
              newSViv(PTR2IV(cevent)));
@@ -50,6 +88,7 @@ static void destroy_event(plcba_cbcio *cbcio, void *event)
     PLCBA_c_event *cevent = (PLCBA_c_event*)event;
     PLCBA_t *async = (PLCBA_t*)cbcio->cookie;
     
+    //warn("Event destruction requested");
     
     if(cevent == async->cevents) {
         if(cevent->next) {
@@ -92,18 +131,9 @@ modify_event_perl(PLCBA_t *async, PLCBA_c_event *cevent,
         sv_setiv(*tmpsv, cevent->fd);
     }
     
-    ENTER;
-    SAVETMPS;
-    PUSHMARK(SP);
-    EXTEND(SP, 3);
-    mPUSHs(newRV_inc( (SV*)cevent->pl_event));
-    mPUSHi(action);
-    mPUSHi(flags);
-    PUTBACK;
-    call_sv(async->cv_evmod, G_DISCARD);
-    
-    FREETMPS;
-    LEAVE;
+    plcb_call_sv_with_args_noret(async->cv_evmod, 1, 3,
+                                 newRV_inc( (SV*)(cevent->pl_event)),
+                                 newSViv(action), newSViv(flags));
     
     /*set the current flags*/
     if(action != PLCBA_EVACTION_SUSPEND && action != PLCBA_EVACTION_RESUME) {
@@ -170,8 +200,56 @@ static void delete_event(plcba_cbcio *cbcio,
 }
 
 
-/*We need to resume watching on all events here*/
+/*
+  destroy_timer == destroy_event
+*/
 
+
+static void *create_timer(plcba_cbcio *cbcio)
+{
+    PLCBA_c_event *cevent = create_event(cbcio);
+    cevent->evtype = PLCBA_EVTYPE_TIMER;
+    //warn("Created timer %p", cevent);
+    return cevent;
+}
+
+static inline void
+modify_timer_perl(PLCBA_t *async,PLCBA_c_event *cevent,
+                  uint32_t usecs, PLCBA_evaction_t action)
+{
+    SV **tmpsv;
+    dSP;
+    //warn("Calling cv_timermod");
+    plcb_call_sv_with_args_noret(async->cv_timermod,
+                                 1, 3,
+                                 newRV_inc( (SV*)cevent->pl_event ),
+                                 newSViv(action), newSVuv(usecs));
+}
+static int update_timer(plcba_cbcio *cbcio,
+                         void *event, uint32_t usecs,
+                         void *cb_data,
+                         plcba_c_evhandler handler)
+{
+    /*we cannot do any sane caching or clever magic like we do for I/O
+     watchers, because the time will always be different*/
+    PLCBA_c_event *cevent = (PLCBA_c_event*)event;
+    
+    cevent->c.handler = handler;
+    cevent->c.arg = cb_data;
+        
+    modify_timer_perl(cbcio->cookie, cevent, usecs, PLCBA_EVACTION_WATCH);
+    return 0;
+}
+
+static void delete_timer(plcba_cbcio *cbcio, void *event)
+{
+    PLCBA_c_event *cevent = (PLCBA_c_event*)event;
+    //warn("Deletion requested for timer!");
+    modify_timer_perl(cbcio->cookie, cevent, 0, PLCBA_EVACTION_UNWATCH);
+}
+
+
+/*We need to resume watching on all events here*/
 static void run_event_loop(plcba_cbcio *cbcio)
 {
     PLCBA_t *async;
@@ -179,12 +257,16 @@ static void run_event_loop(plcba_cbcio *cbcio)
     
     async = (PLCBA_t*)cbcio->cookie;
     
+    //warn("Resuming events..");
     for(cevent = async->cevents; cevent; cevent = cevent->next) {
-        cevent->state = PLCBA_EVSTATE_ACTIVE;
-        modify_event_perl(async, cevent, PLCBA_EVACTION_RESUME, cevent->flags);
+        if(cevent->evtype == PLCBA_EVTYPE_IO && cevent->fd > 0) {
+            cevent->state = PLCBA_EVSTATE_ACTIVE;
+            modify_event_perl(
+                async, cevent, PLCBA_EVACTION_RESUME, cevent->flags);
+        }
     }
     
-    warn("Running event loop...");
+    //warn("Running event loop...");
 }
 
 /*
@@ -205,10 +287,13 @@ static void stop_event_loop(plcba_cbcio *cbcio)
     async = cbcio->cookie;
     
     for(cevent = async->cevents; cevent; cevent = cevent->next) {
-        cevent->state = PLCBA_EVSTATE_SUSPENDED;
-        modify_event_perl(async, cevent, PLCBA_EVACTION_SUSPEND, -1);
+        if(cevent->evtype == PLCBA_EVTYPE_IO && cevent->fd > 0) {
+            cevent->state = PLCBA_EVSTATE_SUSPENDED;
+            modify_event_perl(async, cevent, PLCBA_EVACTION_SUSPEND, -1);
+        }
     }
     
+    //warn("Calling cv_waitdone");
     PUSHMARK(SP);
     call_sv(async->cv_waitdone, G_DISCARD|G_NOARGS);
 }
@@ -223,10 +308,18 @@ plcba_make_io_opts(PLCBA_t *async)
     
     cbcio->cookie = async;
     
+    /* i/o events */
     cbcio->create_event = create_event;
     cbcio->destroy_event = destroy_event;
     cbcio->update_event = update_event;
     cbcio->delete_event = delete_event;
+    
+    /* timer events */
+    cbcio->create_timer = create_timer;
+    cbcio->destroy_timer = destroy_event;
+    cbcio->delete_timer = delete_timer;
+    cbcio->update_timer = update_timer;
+    
     cbcio->run_event_loop = run_event_loop;
     cbcio->stop_event_loop = stop_event_loop;
     

@@ -62,6 +62,8 @@ typedef enum {
     PLCBA_EVIDX_PLDATA,
 } PLCBA_evidx_t;
 
+#define PLCBA_EVIDX_TIMERID PLCBA_EVIDX_FD
+
 /*various types of actions which may be taken by the callback*/
 typedef enum {
     PLCBA_EVACTION_WATCH,
@@ -76,6 +78,11 @@ typedef enum {
     PLCBA_EVSTATE_SUSPENDED
 } PLCBA_evstate_t;
 
+typedef enum {
+    PLCBA_EVTYPE_IO,
+    PLCBA_EVTYPE_TIMER
+} PLCBA_evtype_t;
+
 typedef struct PLCBA_c_event_st PLCBA_c_event;
 
 struct PLCBA_c_event_st {
@@ -83,10 +90,15 @@ struct PLCBA_c_event_st {
     PLCBA_c_event *next;
     PLCBA_c_event *prev;
     
-    /*FD from libcouchbase*/
-    libcouchbase_socket_t fd;
-    
+    /*Couchbase::Client::Async::Event object*/
     AV *pl_event;
+    PLCBA_evtype_t evtype;
+    
+    struct {
+        plcba_c_evhandler handler;
+        void *arg;
+    } c;
+
     
     /*we can compare some basic flags and functions here with these
      two flags, so that we don't need to call into perl for stupid
@@ -94,11 +106,8 @@ struct PLCBA_c_event_st {
     
     short flags;
     PLCBA_evstate_t state;
-    
-    struct {
-        plcba_c_evhandler handler;
-        void *arg;
-    } c;
+    /*FD from libcouchbase*/
+    libcouchbase_socket_t fd;    
 };
 
 
@@ -109,6 +118,7 @@ typedef struct {
     PLCB_t base;
     
     SV *cv_evmod;
+    SV *cv_timermod;
     SV *cv_err;
     SV *cv_waitdone;
     
@@ -162,6 +172,7 @@ typedef struct {
 /*extra constructor parameters*/
 typedef enum {
     PLCBA_CTORIDX_CBEVMOD = PLCB_CTOR_STDIDX_MAX,
+    PLCBA_CTORIDX_CBTIMERMOD,
     PLCBA_CTORIDX_CBERR,
     PLCBA_CTORIDX_CBWAITDONE,
     PLCBA_CTORIDX_BLESS_EVENT,

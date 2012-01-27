@@ -1,11 +1,13 @@
 #include "perl-couchbase.h"
 #include "plcb-util.h"
+#include <libcouchbase/libevent_io_opts.h>
+static inline void
+wait_for_single_response(PLCB_t *object)
+{
+    object->npending = 1;
+    object->io_ops->run_event_loop(object->io_ops);
+}
 
-
-//#define libcouchbase_wait(x) \
-//	libcouchbase_flush_buffers(x, NULL);
-
-#define libcouchbase_behavior_set_syncmode(x, y)
 
 static void PLCB_cleanup(PLCB_t *object)
 {
@@ -31,7 +33,8 @@ static void PLCB_cleanup(PLCB_t *object)
 SV *PLCB_construct(const char *pkg, AV *options)
 {
     libcouchbase_t instance;
-    libcouchbase_error_t oprc;
+    libcouchbase_error_t err;
+    struct libcouchbase_io_opt_st *io_ops;
     SV *blessed_obj;
     PLCB_t *object;
     
@@ -39,8 +42,16 @@ SV *PLCB_construct(const char *pkg, AV *options)
     
     plcb_ctor_cbc_opts(options,
                          &host, &username, &password, &bucket);
-        
-    instance = libcouchbase_create(host, username, password, bucket, NULL);    
+    
+    
+    io_ops = libcouchbase_create_io_ops(
+        LIBCOUCHBASE_IO_OPS_DEFAULT, NULL, &err);
+    if(err != LIBCOUCHBASE_SUCCESS) {
+        die("Couldn't create new IO operations: %d", err);
+    }
+    
+    //io_ops = libcouchbase_create_libevent_io_opts(NULL);
+    instance = libcouchbase_create(host, username, password, bucket, io_ops);    
     
     if(!instance) {
         die("Failed to create instance");
@@ -48,15 +59,14 @@ SV *PLCB_construct(const char *pkg, AV *options)
     
     Newxz(object, 1, PLCB_t);
     
+    object->io_ops = io_ops;
     plcb_ctor_conversion_opts(object, options);
     plcb_ctor_init_common(object, instance);
-	
+    
     libcouchbase_set_cookie(instance, object);
-	libcouchbase_behavior_set_syncmode(instance, LIBCOUCHBASE_SYNCHRONOUS);
     
     if(libcouchbase_connect(instance) == LIBCOUCHBASE_SUCCESS) {
         libcouchbase_wait(instance);
-		warn("Connected!");
     }
     
     plcb_setup_callbacks(object);
@@ -73,7 +83,7 @@ SV *PLCB_construct(const char *pkg, AV *options)
     inst_name = obj_name->instance;
 
 #define bless_return(object, rv, av) \
-	return plcb_ret_blessed_rv(object, av);
+    return plcb_ret_blessed_rv(object, av);
 
 
 static SV *PLCB_set_common(SV *self,
@@ -98,7 +108,7 @@ static SV *PLCB_set_common(SV *self,
     plcb_get_str_or_die(value, sval, vlen, "Value");
     
     syncp = &(object->sync);
-    plcb_sync_initialize(syncp, self, skey, klen);
+    plcb_sync_initialize(syncp, object, skey, klen);
     
     
     /*Clear existing error status first*/
@@ -115,9 +125,7 @@ static SV *PLCB_set_common(SV *self,
     if(err != LIBCOUCHBASE_SUCCESS) {
         plcb_ret_set_err(object, ret_av, err);
     } else {
-        warn("Waiting..");
-        libcouchbase_wait(instance);
-        warn("Done!");
+        wait_for_single_response(object);
         plcb_ret_set_err(object, ret_av, syncp->err);
     }
     bless_return(object, ret_rv, ret_av);
@@ -147,7 +155,7 @@ static SV *PLCB_arithmetic_common(SV *self,
     plcb_get_str_or_die(key, skey, nkey, "Key");
         
     syncp = &(object->sync);
-    plcb_sync_initialize(syncp, self, skey, nkey);
+    plcb_sync_initialize(syncp, object, skey, nkey);
     ret_av = newAV();
     
     err = libcouchbase_arithmetic(
@@ -155,13 +163,11 @@ static SV *PLCB_arithmetic_common(SV *self,
         exp, do_create, initial
     );
     if(err != LIBCOUCHBASE_SUCCESS) {
-		plcb_ret_set_err(object, ret_av, err);
+        plcb_ret_set_err(object, ret_av, err);
     } else {
-        if(!syncp->received) {
-            libcouchbase_wait(instance);
-        }
+        wait_for_single_response(object);
         plcb_ret_set_err(object, ret_av, syncp->err);
-		
+        
         if(syncp->err == LIBCOUCHBASE_SUCCESS) {
             plcb_ret_set_numval(object, ret_av, syncp->arithmetic, syncp->cas);
         }
@@ -188,7 +194,7 @@ static SV *PLCB_get_common(SV *self, SV *key, int exp_offset)
     
     ret_av = newAV();
     syncp = &(object->sync);
-    plcb_sync_initialize(syncp, self, skey, klen);
+    plcb_sync_initialize(syncp, object, skey, klen);
     av_clear(object->errors);
    
     if(exp_offset) {
@@ -202,11 +208,12 @@ static SV *PLCB_get_common(SV *self, SV *key, int exp_offset)
                             exp_arg);
     
     if(err != LIBCOUCHBASE_SUCCESS) {
-		plcb_ret_set_err(object, ret_av, err);
+        plcb_ret_set_err(object, ret_av, err);
     } else {
-        libcouchbase_wait(instance);
-		plcb_ret_set_err(object, ret_av, syncp->err);
-		if(syncp->err == LIBCOUCHBASE_SUCCESS) {
+        wait_for_single_response(object);
+        
+        plcb_ret_set_err(object, ret_av, syncp->err);
+        if(syncp->err == LIBCOUCHBASE_SUCCESS) {
             plcb_ret_set_strval(
                 object, ret_av, syncp->value, syncp->nvalue,
                 syncp->store_flags, syncp->cas);
@@ -270,14 +277,15 @@ SV *PLCB_remove(SV *self, SV *key, uint64_t cas)
     av_clear(object->errors);
     
     syncp = &(object->sync);
-    plcb_sync_initialize(syncp, self, skey, key_len);
+    plcb_sync_initialize(syncp, object, skey, key_len);
     
     if( (err = libcouchbase_remove(instance, syncp, skey, key_len, cas))
        != LIBCOUCHBASE_SUCCESS) {
-		plcb_ret_set_err(object, ret_av, err);
+        plcb_ret_set_err(object, ret_av, err);
     } else {
-        libcouchbase_wait(instance);
-		plcb_ret_set_err(object, ret_av, syncp->err);
+        wait_for_single_response(object);
+        
+        plcb_ret_set_err(object, ret_av, syncp->err);
     }
     bless_return(object, ret_rv, ret_av);
 }
@@ -312,7 +320,9 @@ SV *PLCB_stats(SV *self, AV *stats)
             SvREFCNT_dec(ret_hvref);
             ret_hvref = &PL_sv_undef;
         }
-        libcouchbase_wait(instance);
+        
+        wait_for_single_response(object);
+        
     } else {
         for(; curidx >= 0; curidx--) {
             tmpsv = av_fetch(stats, curidx, 0);
@@ -324,7 +334,7 @@ SV *PLCB_stats(SV *self, AV *stats)
             skey = SvPV(*tmpsv, nkey);
             err = libcouchbase_server_stats(instance, NULL, skey, nkey);
             if(err == LIBCOUCHBASE_SUCCESS) {
-                libcouchbase_wait(instance);
+                wait_for_single_response(object);
             }
         }
     }
@@ -538,5 +548,5 @@ PLCB_stats(self, ...)
     OUTPUT:
     RETVAL
     
-	
+    
 INCLUDE: Async.xs

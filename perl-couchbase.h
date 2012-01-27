@@ -19,9 +19,10 @@
 
 #include "plcb-util.h"
 
+typedef struct PLCB_st PLCB_t;
 
 typedef struct {
-    SV *sv; /*pointer to the perl instance*/
+    PLCB_t *parent;
     const char *key;
     size_t nkey;
     const char *value;
@@ -30,11 +31,11 @@ typedef struct {
     uint64_t arithmetic;
     libcouchbase_error_t err;
     uint32_t store_flags;
-	int received;
 } PLCB_sync_t;
 
 #define plcb_sync_cast(p) (PLCB_sync_t*)(p)
-#define plcb_sync_initialize(syncp, self_sv, k, ksz) \
+#define plcb_sync_initialize(syncp, object, k, ksz) \
+    syncp->parent = object; \
     syncp->key = k; \
     syncp->nkey = ksz; \
     syncp->cas = syncp->nvalue = 0; \
@@ -42,23 +43,22 @@ typedef struct {
     syncp->err = 0; \
     syncp->arithmetic = 0; \
     syncp->store_flags = 0; \
-	syncp->received = 0;
 
 typedef enum {
     PLCBf_DIE_ON_ERROR          = 0x1,
-	/*conversion flags*/
+    /*conversion flags*/
     PLCBf_USE_COMPAT_FLAGS      = 0x2,
     PLCBf_USE_COMPRESSION       = 0x4,
     PLCBf_USE_STORABLE          = 0x8,
     PLCBf_USE_CONVERT_UTF8      = 0x10,
-	
-	PLCBf_NO_CONNECT			= 0x20,
+    
+    PLCBf_NO_CONNECT            = 0x20,
 } PLCB_flags_t;
 
 #define PLCBf_DO_CONVERSION \
     (PLCBf_USE_COMPRESSION|PLCBf_USE_STORABLE|PLCBf_USE_CONVERT_UTF8)
 
-typedef struct {
+struct PLCB_st {
     libcouchbase_t instance; /*our library handle*/
     PLCB_sync_t sync; /*object to collect results from callbacks*/
     HV *stats_hv; /*object to collect statistics from*/
@@ -72,7 +72,13 @@ typedef struct {
     SV *cv_compress;
     SV *cv_decompress;
     STRLEN compress_threshold;
-} PLCB_t;
+    
+    /*io operations, needed for starting/stopping the event loop*/
+    struct libcouchbase_io_opt_st *io_ops;
+    
+    /*how many operations are pending on this object*/
+    int npending;
+};
 
 /*need to include this after defining PLCB_t*/
 #include "plcb-return.h"
@@ -138,9 +144,9 @@ typedef enum {
     PLCB_CTORIDX_COMP_THRESHOLD,
     PLCB_CTORIDX_COMP_METHODS,
     PLCB_CTORIDX_SERIALIZE_METHODS,
-	
-	/*provided object for event loop handling*/
-	PLCB_CTORIDX_EVLOOP_OBJ,
+    
+    /*provided object for event loop handling*/
+    PLCB_CTORIDX_EVLOOP_OBJ,
     
 } PLCB_ctor_idx_t;
 
@@ -149,7 +155,7 @@ void plcb_setup_callbacks(PLCB_t *object);
 
 /*options for common constructor settings*/
 void plcb_ctor_cbc_opts(AV *options,
-	char **hostp, char **userp, char **passp, char **bucketp);
+    char **hostp, char **userp, char **passp, char **bucketp);
 void plcb_ctor_conversion_opts(PLCB_t *object, AV *options);
 void plcb_ctor_init_common(PLCB_t *object, libcouchbase_t instance);
 

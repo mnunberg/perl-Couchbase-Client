@@ -3,7 +3,31 @@
 #include "XSUB.h"
 
 #include "perl-couchbase.h"
-//#include <string.h>
+
+static inline void
+signal_done(PLCB_sync_t *sync)
+{
+    sync->parent->npending--;
+    if(sync->parent->npending) {
+        return;
+    }
+    
+    sync->parent->io_ops->stop_event_loop(
+        sync->parent->io_ops);
+}
+
+#define syncp_assign_keys(syncp, err, key, nkey, cas) \
+    syncp->key = key; \
+    syncp->nkey = nkey; \
+    syncp->cas = cas; \
+    syncp->err = err;
+
+#define syncp_assign_strval(syncp, err, key, nkey, val, nval, cas, flags) \
+    syncp_assign_keys(syncp, err, key, nkey, cas); \
+    syncp->value = val; \
+    syncp->nvalue = nval; \
+    syncp->store_flags = flags;
+
 
 void plcb_callback_get(
     libcouchbase_t instance,
@@ -14,17 +38,8 @@ void plcb_callback_get(
     uint32_t flags, uint64_t cas)
 {
     PLCB_sync_t *syncp = plcb_sync_cast(cookie);
-    warn("Got get callback");
-    syncp->received++;
-    syncp->value = value;
-    syncp->nvalue = nvalue;
-    
-    syncp->key = key;
-    syncp->nkey = nkey;
-    
-    syncp->cas = cas;
-    syncp->err = err;
-    syncp->store_flags = flags;
+    syncp_assign_strval(syncp, err, key, nkey, value, nvalue, cas, flags);
+    signal_done(syncp);
 }
 
 void plcb_callback_storage(
@@ -34,17 +49,10 @@ void plcb_callback_storage(
     libcouchbase_error_t err,
     const void *key, size_t nkey,
     uint64_t cas) 
-{
-    warn("Got storage callback");
-    
+{    
     PLCB_sync_t *syncp = plcb_sync_cast(cookie);
-    
-    syncp->received++;
-    syncp->key = key;
-    syncp->nkey = nkey;
-    
-    syncp->cas = cas;
-    syncp->err = err;    
+    syncp_assign_keys(syncp, err, key, nkey, cas);
+    signal_done(syncp);
 }
 
 static void arithmetic_callback(
@@ -53,10 +61,9 @@ static void arithmetic_callback(
     uint64_t value, uint64_t cas)
 {
     PLCB_sync_t *syncp = plcb_sync_cast(cookie);
-    syncp->received++;
-    syncp->key = key; syncp->nkey = nkey;
-    syncp->cas = cas; syncp->err = err;
+    syncp_assign_keys(syncp, err, key, nkey, cas);
     syncp->arithmetic = value;
+    signal_done(syncp);
 }
 
 
@@ -122,6 +129,7 @@ static void stat_callback(
     
     if(! (stat_key || bytes) ) {
         warn("Got all statistics");
+        //signal_done(syncp);
         return;
     }
     

@@ -15,6 +15,7 @@ sub new {
         cb_update_event
         cb_error
         cb_waitdone
+        cb_update_timer
         bless_events
     );
     my %async_opts;
@@ -27,6 +28,8 @@ sub new {
     $arglist->[CTORIDX_CBERR] = delete $async_opts{cb_error}
     and
     $arglist->[CTORIDX_CBWAITDONE] = delete $async_opts{cb_waitdone}
+    and
+    $arglist->[CTORIDX_CBTIMERMOD] = delete $async_opts{cb_update_timer}
     
     or die "We require update_event, error, and wait_done callbacks";
     

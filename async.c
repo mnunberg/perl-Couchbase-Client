@@ -375,6 +375,7 @@ extract_async_options(PLCBA_t *async, AV *options)
     _assert_get_cv(CBEVMOD, cv_evmod, "update_event");
     _assert_get_cv(CBERR, cv_err, "error");
     _assert_get_cv(CBWAITDONE, cv_waitdone, "waitdone");
+    _assert_get_cv(CBTIMERMOD, cv_timermod, "update_timer");
     
     if( (tmpsv = av_fetch(options, PLCBA_CTORIDX_BLESS_EVENT, 0)) ) {
         if(SvTRUE(*tmpsv)) {

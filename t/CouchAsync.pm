@@ -36,6 +36,9 @@ sub cbc_connect :Start {
         cb_waitdone => sub {
             log_warn("Wait is done..");
             POE::Kernel->yield("wait_done", @_);
+        },
+        cb_update_timer => sub {
+            POE::Kernel->call($SESSION, "update_timer", @_);
         }
     });
     
@@ -120,9 +123,11 @@ my @OPERATIONS = (
     }
 );
 
+use Carp qw(cluck);
+
 sub wait_done :Event {
     #Suspend all event loops:
-    
+    log_debug("wait_done begin");
     if ((my $sub = shift @OPERATIONS)) {
         $sub->();
     }
@@ -189,13 +194,45 @@ sub update_event :Event {
         _deactivate_events($evdata->[EVIDX_WATCHFLAGS], $dupfh);
     } elsif ($action == EVACTION_SUSPEND || $action == EVACTION_RESUME) {
         if(!$dupfh) {
-            warn("suspend/resume requested on undefined dup'd filehandle");
+            warn("suspend/resume requested on undefined dup'd filehandle. ".
+                 "fd=".$evdata->[EVIDX_FD]);
         }
         my $prefix = $action == EVACTION_SUSPEND ? "pause" : "resume";
         $prefix = "select_" . $prefix;
         _startstop_events($evdata->[EVIDX_WATCHFLAGS], $prefix, $dupfh);
     } else {
         die("Unhandled action $action");
+    }
+}
+
+sub update_timer :Event {
+    my ($evdata,$action,$usecs) = @_[ARG0..ARG2];
+    my $timer_id = $evdata->[EVIDX_PLDATA];
+    my $seconds;
+    
+    if($usecs) {
+        $seconds = ($usecs / (1000*1000));
+    }
+    if($action == EVACTION_WATCH) {
+        if(defined $timer_id) {
+            log_debugf("Rescheduling timer %d in %0.5f seconds from now",
+                       $timer_id, $seconds);
+            $poe_kernel->delay_adjust($timer_id, $seconds)
+        } else {
+            $timer_id = $poe_kernel->delay_set(
+                "dispatch_timeout", $seconds, $evdata->[EVIDX_OPAQUE]);
+            $evdata->[EVIDX_PLDATA] = $timer_id;
+            log_debugf("Scheduling timer %d for %0.5f seconds from now",
+                       $timer_id, $seconds);
+        }
+    } else {
+        if(defined $timer_id) {
+            log_debug("Deletion requested for timer $timer_id.");
+            $poe_kernel->alarm_remove($timer_id);
+            $evdata->[EVIDX_PLDATA] = undef;
+        } else {
+            log_err("Requested to delete non-existent timer ID");
+        }
     }
 }
 
@@ -207,6 +244,12 @@ sub dispatch_event :Event {
     Couchbase::Client::Async->HaveEvent($flags, $opaque);
 }
 
+sub dispatch_timeout :Event {
+    my $opaque = $_[ARG0];
+    my $flags = 0;
+    log_debugf("Dispatching timer.. opaque=%x", $opaque);
+    Couchbase::Client::Async->HaveEvent($flags, $opaque);
+}
 
 POE::Sugar::Attributes->wire_new_session($SESSION);
 

@@ -41,6 +41,7 @@ constant("PLCBf_$_", name => "f$_") for (@ctor_flags);
 my @async_bases = qw(
     CTORIDX_CBEVMOD
     CTORIDX_CBERR
+    CTORIDX_CBTIMERMOD
     CTORIDX_CBWAITDONE
     CTORIDX_BLESS_EVENT
 );
