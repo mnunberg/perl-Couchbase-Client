@@ -49,7 +49,7 @@ void plcb_callback_storage(
     libcouchbase_error_t err,
     const void *key, size_t nkey,
     uint64_t cas) 
-{    
+{
     PLCB_sync_t *syncp = plcb_sync_cast(cookie);
     syncp_assign_keys(syncp, err, key, nkey, cas);
     signal_done(syncp);

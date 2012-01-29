@@ -127,6 +127,7 @@ static SV *PLCB_set_common(SV *self,
     } else {
         wait_for_single_response(object);
         plcb_ret_set_err(object, ret_av, syncp->err);
+        plcb_ret_set_cas(object, ret_av, &syncp->cas);
     }
     bless_return(object, ret_rv, ret_av);
 }
