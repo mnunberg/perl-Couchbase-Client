@@ -298,6 +298,11 @@ static void stop_event_loop(plcba_cbcio *cbcio)
     call_sv(async->cv_waitdone, G_DISCARD|G_NOARGS);
 }
 
+static void destructor(plcba_cbcio *cbcio)
+{
+    /*noop*/
+}
+
 
 plcba_cbcio *
 plcba_make_io_opts(PLCBA_t *async)
@@ -322,6 +327,7 @@ plcba_make_io_opts(PLCBA_t *async)
     
     cbcio->run_event_loop = run_event_loop;
     cbcio->stop_event_loop = stop_event_loop;
+    cbcio->destructor = destructor;
     
     return cbcio;
 }
