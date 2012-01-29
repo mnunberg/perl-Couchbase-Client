@@ -50,6 +50,10 @@ WriteMakefile(
         'Log::Fu'           => 0.25,
         'Test::Class'       => 0.36,
         'LWP::UserAgent'    => 0,
+        
+        #these are needed for asynchronous tests and modules
+        'POE::Sugar::Attributes' => 0.02,
+        'POE'               => 1.350,
     },
     NEEDS_LINKING => 1,
     OPTIMIZE    => '-O0 -ggdb3',

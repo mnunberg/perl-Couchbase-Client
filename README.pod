@@ -29,7 +29,7 @@ etc. client for Couchbase.
 
 =head2 Mock Server Interface: Couchbase::MockServer
 
-Interface to the Java C<Couchbase::Mock>. This is a work in progress.
+Interface to the Java C<CouchbaseMock.jar>. This is a work in progress.
 
 =head1 Installing
 
@@ -55,6 +55,12 @@ Currently, I know of these dependencies:
 
 =item libevent >= 1.4
 
+For embedded default event loop functionality
+
+=item java
+
+For the Perl and C tests
+
 =back
 
 Additionally, C<libcouchbase> depends on header files available from the
@@ -68,12 +74,33 @@ something like this:
     ~$ git clone https://github.com/memcached/memcached.git -b engine-pu couch/memcached
     ~$ git clone https://github.com/couchbase/libcouchbase.git couch/libcouchbase
     
+    #Get vbucket stuff:
+    
+    # I pick RPM, since that's what my target production platform is:
+    
+    ~$ wget http://packages.couchbase.com/clients/c/libvbucket1-1.8.0.1-1.x86_64.rpm
+    ~$ rpm -ivh libvbucket1-1.8.0.1-1.x86_64.rpm
+    ~$ wget http://packages.couchbase.com/clients/c/libvbucket-1.8.0.1.tar.gz
+    ~$ cd couch; tar xf ../libvbucket-1.8.0.1.tar.gz
+    ~$ ln -s libvbucket-1.8.0.1 libvbucket
+    
+    
+    # Note for CentOS/RHEL 5 users, you will need to perform the autorun
+    # to generate the 'configure' script on a newer platform, then copy it over
+    # to your target platform
+    
+    
     ~$ cd couch/libcouchbase
     ~$ ./config/autorun.sh
     
-    #make sure we know about the new memcached headers:
+    #make sure we know about the new memcached (and vbucket) headers:
     
-    ~$ CPPFLAGS=-I../memcached/include ./configure
+    ~$ CPPFLAGS='-I../memcached/include -I../libvbucket/include' ./configure
+    
+    # (EL5: If configure complains about not finding libvbucket, try:)
+        ~$ ln -s /usr/lib64/libvbucket.so.1 /usr/lib64/libvbucket.so
+    
+    
     ~$ make
     
     #optional, run some tests:
@@ -94,6 +121,7 @@ If you were following the example above, your keys should look like this
     #the '.libs' is an Autoconf thing, it seems.
 
 run
+
     $ perl Makefile.PL #you know the drill..
     $ make test
     

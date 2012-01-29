@@ -3,5 +3,8 @@
 <project id="32a0fd74-e11a-3743-94a7-9bb2f44a5377" kpf_version="4" name="couchbase-client.kpf">
 <preference-set idref="32a0fd74-e11a-3743-94a7-9bb2f44a5377">
   <boolean id="import_live">1</boolean>
+  <string relative="path" id="perlExtraPaths">lib:/home/mordy/src/Couchbase-Client/blib</string>
+  <boolean id="perl_lintOption_includeCurrentDirForLinter">1</boolean>
+  <string id="phpExtraPaths"></string>
 </preference-set>
 </project>
