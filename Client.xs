@@ -46,7 +46,8 @@ SV *PLCB_construct(const char *pkg, AV *options)
     
     io_ops = libcouchbase_create_io_ops(
         LIBCOUCHBASE_IO_OPS_DEFAULT, NULL, &err);
-    if(err != LIBCOUCHBASE_SUCCESS) {
+    
+    if(io_ops == NULL && err != LIBCOUCHBASE_SUCCESS) {
         die("Couldn't create new IO operations: %d", err);
     }
     
