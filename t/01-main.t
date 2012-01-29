@@ -17,4 +17,8 @@ Couchbase::Test::Common->Initialize(
 );
 
 use Couchbase::Test::ClientSync;
-Test::Class->runtests();
+use Couchbase::Test::Async;
+
+Couchbase::Test::ClientSync->runtests();
+Couchbase::Test::Async->runtests();
+#Test::Class->runtests();

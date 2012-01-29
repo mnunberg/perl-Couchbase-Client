@@ -71,7 +71,7 @@ sub get_ok {
     ok($ret->value eq $expected, "Got expected value for $key");
 }
 
-sub T0_set_values_simple :Test(no_plan) {
+sub T00_set_values_simple :Test(no_plan) {
     my $self = shift;
     foreach my $k (@{$self->{basic_keys}}) {
         $self->set_ok("Key '$k'", $k, $self->k2v($k));
@@ -79,14 +79,14 @@ sub T0_set_values_simple :Test(no_plan) {
     }
 }
 
-sub T1_get_nonexistent :Test(no_plan) {
+sub T01_get_nonexistent :Test(no_plan) {
     my $self = shift;
     my $v = $self->cbo->get('NonExistent');
     is($v->errnum, COUCHBASE_KEY_ENOENT, "Got ENOENT for nonexistent key");
     $self->err_ok();
 }
 
-sub T2_mutators :Test(no_plan) {
+sub T02_mutators :Test(no_plan) {
     my $self = shift;
     my $o = $self->cbo;
     
@@ -98,7 +98,7 @@ sub T2_mutators :Test(no_plan) {
     is($o->get($key)->value, "PREFIX_BASE_SUFFIX", "Got expected mutated value");
 }
 
-sub T3_arithmetic :Test(no_plan) {
+sub T03_arithmetic :Test(no_plan) {
     my $self = shift;
     my $o = $self->cbo;
     my $key = "ArithmeticKey";
@@ -124,7 +124,7 @@ sub T3_arithmetic :Test(no_plan) {
     is($wv->value, 0, "decr() == 0");
 }
 
-sub T4_atomic :Test(no_plan) {
+sub T04_atomic :Test(no_plan) {
     my $self = shift;
     my $o = $self->cbo;
     my $key = "AtomicKey";
@@ -159,7 +159,7 @@ sub T4_atomic :Test(no_plan) {
        "No error for delete with updated CAS");
 }
 
-sub T5_conversion :Test(no_plan) {
+sub T05_conversion :Test(no_plan) {
     my $self = shift;
     my $o = $self->cbo;
     my $structure = [ qw(foo bar baz) ];
