@@ -344,6 +344,21 @@ SV *PLCB_stats(SV *self, AV *stats)
     return ret_hvref;
 }
 
+static SV*
+return_empty(SV *self, int error, const char *errmsg)
+{
+    libcouchbase_t instance;
+    PLCB_t *object;
+    AV *ret_av;
+    
+    mk_instance_vars(self, instance, object);
+    ret_av = newAV();
+    av_store(ret_av, PLCB_RETIDX_ERRNUM, newSViv(error));
+    av_store(ret_av, PLCB_RETIDX_ERRSTR, newSVpvf(
+        "Couchbase::Client usage error: %s", errmsg));
+    plcb_ret_blessed_rv(object, ret_av);
+}
+
 /*Used for set/get/replace/add common interface*/
 static libcouchbase_storage_t PLCB_XS_setmap[] = {
     LIBCOUCHBASE_SET,
@@ -402,6 +417,10 @@ PLCB_set(self, key, value, ...)
     
     CODE:
     set_plst_get_offset(4, exp_offset, "USAGE: set(key, value [,expiry]");
+    
+    if(ix >= 3 && SvROK(value)) {
+        die("Cannot append/prepend a reference");
+    }
     
     RETVAL = PLCB_set_common(
         self, key, value,
@@ -485,6 +504,13 @@ PLCB_cas(self, key, value, cas_sv, ...)
     STRLEN cas_len;
     
     CODE:
+    if(SvTYPE(cas_sv) == SVt_NULL) {
+        /*don't bother the network if we know our CAS operation will fail*/
+        RETVAL = return_empty(self,
+            LIBCOUCHBASE_KEY_EEXISTS, "I was given an undef cas");
+        return;
+    }
+    
     plcb_cas_from_sv(cas_sv, cas_val, cas_len);
     
     set_plst_get_offset(5, exp_offset, "USAGE: cas(key,value,cas[,expiry])");

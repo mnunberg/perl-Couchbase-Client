@@ -1,7 +1,7 @@
 Changes
 MANIFEST
 Makefile.PL
-README
+README.pod
 
 lib/Couchbase/Client.pm
 lib/Couchbase/Client/Return.pm
@@ -15,6 +15,10 @@ lib/Couchbase/Client/Compat.pm
 lib/Couchbase/Client/Async.pm
 lib/Couchbase/Client/Async/Event.pm
 lib/Couchbase/Client/Async/Request.pm
+
+lib/Couchbase/MockServer.pm
+lib/Couchbase/Test/ClientSync.pm
+lib/Couchbase/Test/Common.pm
 
 Client.xs
 Async.xs
@@ -36,3 +40,4 @@ error_constants.pl
 print_constants.pl
 
 t/00-load.t
+t/01-main.t

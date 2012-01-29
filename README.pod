@@ -1,0 +1,103 @@
+=head1 Introduction
+
+Couch::Couchbase is a Perl client for Couchbase (http://www.couchbase.org).
+
+The couchbase client is a smart, vbucket-aware client. What this means is that
+Couchbase::Client can tap into your Couchbase cluster, with the client needing
+to be able to access (initially) only a single entry point.
+
+The module provides:
+
+=head2 Synchronous Interface: Couchbase::Client
+
+This is the simplest and most tested interface. The methods are self-explanatory.
+Additionally, the return type is complex and detailed, allowing error reporting
+for any unexpected conditions (something severely lacking in any Memcache client
+implementation).
+
+=head2 Legacy Interface: Couchbase::Client::Compat
+
+Drop-in replacement for Cache::Memcached and Cache::Memcached::Fast.
+
+I can't say it's 100% compatible yet, but the basic methods have been implemented.
+Internally it just wraps around the new interface
+
+=head2 Asynchronous Framework for Perl: Couchbase::Client::Async
+
+Provides the necessary functions and utilities needed to make a POE, IO::Async,
+etc. client for Couchbase.
+
+=head2 Mock Server Interface: Couchbase::MockServer
+
+Interface to the Java C<Couchbase::Mock>. This is a work in progress.
+
+=head1 Installing
+
+I will be focusing on installing and configuring C<libcouchbase> itself, the C
+client library. It is assumed you have a functional installation of the couchbase
+server somewhere. If not, go to http://www.couchbase.org
+
+To use this module, you should have installed C<libvbucket> (see the links on
+the side here http://www.couchbase.com/develop/c/current).
+
+As of 01/28/2011, you will need to download C<libcouchbase> itself from
+github (the current release versions contain bugs which may break this module).
+
+=head2 Building C<libcouchbase>
+
+
+C<libcouchbase> itself depends on C<libvbucket>, so make sure to install that
+(and its development libraries) first.
+
+Currently, I know of these dependencies:
+
+=over
+
+=item libevent >= 1.4
+
+=back
+
+Additionally, C<libcouchbase> depends on header files available from the
+C<engine-pu> branch of the C<memcached> project. Note that actually building
+memcached itself is not required.
+
+Your best bet would be to do
+something like this:
+    
+    ~$ mkdir couch
+    ~$ git clone https://github.com/memcached/memcached.git -b engine-pu couch/memcached
+    ~$ git clone https://github.com/couchbase/libcouchbase.git couch/libcouchbase
+    
+    ~$ cd couch/libcouchbase
+    ~$ ./config/autorun.sh
+    
+    #make sure we know about the new memcached headers:
+    
+    ~$ CPPFLAGS=-I../memcached/include ./configure
+    ~$ make
+    
+    #optional, run some tests:
+    ~$ make check
+    
+
+=head2 Building Couchbase::Client
+
+To build the perl client, you should edit the C<PLCB_Config.pm> file, and
+change the keys C<COUCHBASE_INCLUDE_PATH> and C<COUCHBASE_LIBRARY_PATH> to their
+appropriate locations.
+
+If you were following the example above, your keys should look like this
+
+    COUCHBASE_INCLUDE_PATH => "~/couch/libcouchbase/include",
+    COUCHBASE_LIBRARY_PATH => "~/couch/libcouchbase/.libs"
+    
+    #the '.libs' is an Autoconf thing, it seems.
+
+run
+    $ perl Makefile.PL #you know the drill..
+    $ make test
+    
+There are some top-level scripts. Some have meaning to only the author, some might
+be useful.
+
+Also, check out the runnable modules in the C<t/> directory
