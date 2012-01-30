@@ -9,7 +9,7 @@ wait_for_single_response(PLCB_t *object)
 }
 
 
-static void PLCB_cleanup(PLCB_t *object)
+void plcb_cleanup(PLCB_t *object)
 {
     if(object->instance) {
         libcouchbase_destroy(object->instance);
@@ -62,20 +62,25 @@ SV *PLCB_construct(const char *pkg, AV *options)
     
     object->io_ops = io_ops;
     plcb_ctor_conversion_opts(object, options);
-    plcb_ctor_init_common(object, instance);
+    plcb_ctor_init_common(object, instance, options);
     
     libcouchbase_set_cookie(instance, object);
-    
-    if(libcouchbase_connect(instance) == LIBCOUCHBASE_SUCCESS) {
-        libcouchbase_wait(instance);
-    }
     
     plcb_setup_callbacks(object);
     
     blessed_obj = newSV(0);
     sv_setiv(newSVrv(blessed_obj, "Couchbase::Client"), PTR2IV(object));
+    
+    if( (object->my_flags & PLCBf_NO_CONNECT) == 0 &&
+       (err = libcouchbase_connect(instance) == LIBCOUCHBASE_SUCCESS))
+    {
+        libcouchbase_wait(instance);
+        object->connected = 1;
+    }
+    
     return blessed_obj;
 }
+
 
 #define mk_instance_vars(sv, inst_name, obj_name) \
     if(!SvROK(sv)) { die("self must be a reference"); } \
@@ -85,6 +90,26 @@ SV *PLCB_construct(const char *pkg, AV *options)
 
 #define bless_return(object, rv, av) \
     return plcb_ret_blessed_rv(object, av);
+
+
+int
+PLCB_connect(SV *self)
+{
+    libcouchbase_t instance;
+    libcouchbase_error_t err;
+    AV *retav;
+    PLCB_t *object;
+    mk_instance_vars(self, instance, object);
+    if(object->connected) {
+        return 1;
+    } else {
+        if( (err = libcouchbase_connect(instance)) == LIBCOUCHBASE_SUCCESS) {
+            object->connected = 1;
+            return 1;
+        }
+    }
+    return 0;
+}
 
 
 static SV *PLCB_set_common(SV *self,
@@ -369,6 +394,17 @@ static libcouchbase_storage_t PLCB_XS_setmap[] = {
     LIBCOUCHBASE_PREPEND,
 };
 
+/*used for settings accessors*/
+enum {
+    SETTINGS_ALIAS_BASE,
+    SETTINGS_ALIAS_COMPRESS,
+    SETTINGS_ALIAS_COMPRESS_COMPAT,
+    SETTINGS_ALIAS_SERIALIZE,
+    SETTINGS_ALIAS_CONVERT,
+    SETTINGS_ALIAS_DECONVERT,
+    SETTINGS_ALIAS_COMP_THRESHOLD
+};
+
 MODULE = Couchbase::Client PACKAGE = Couchbase::Client    PREFIX = PLCB_
 
 PROTOTYPES: DISABLE
@@ -382,12 +418,14 @@ PLCB_construct(pkg, options)
 void
 PLCB_DESTROY(self)
     SV *self
+    
     CODE:
     PLCB_t *object;
     libcouchbase_t instance;
-    mk_instance_vars(self, instance, object);
-    PLCB_cleanup(object);
     
+    mk_instance_vars(self, instance, object);
+    plcb_cleanup(object);
+    Safefree(object);
     
 SV *
 PLCB_get(self, key)
@@ -575,6 +613,102 @@ PLCB_stats(self, ...)
     
     OUTPUT:
     RETVAL
+
+
+IV
+PLCB__settings(self, ...)
+    SV *self
     
+    ALIAS:
+    enable_compress             = SETTINGS_ALIAS_COMPRESS_COMPAT
+    compression_settings        = SETTINGS_ALIAS_COMPRESS
+    serialization_settings      = SETTINGS_ALIAS_SERIALIZE
+    conversion_settings         = SETTINGS_ALIAS_CONVERT
+    deconversion_settings       = SETTINGS_ALIAS_DECONVERT
+    compress_threshold          = SETTINGS_ALIAS_COMP_THRESHOLD
+       
+    PREINIT:
+    int flag;
+    int new_value;
     
+    CODE:
+    switch(ix) {
+        case SETTINGS_ALIAS_COMPRESS:
+        case SETTINGS_ALIAS_COMPRESS_COMPAT:
+            flag = PLCBf_USE_COMPRESSION;
+            break;
+        case SETTINGS_ALIAS_SERIALIZE:
+            flag = PLCBf_USE_STORABLE;
+            break;
+        case SETTINGS_ALIAS_CONVERT:
+            flag = PLCBf_USE_STORABLE|PLCBf_USE_COMPRESSION;
+            break;
+        case SETTINGS_ALIAS_DECONVERT:
+            flag = PLCBf_NO_DECONVERT;
+            break;
+        case SETTINGS_ALIAS_COMP_THRESHOLD:
+            flag = PLCBf_COMPRESS_THRESHOLD;
+            break;
+        case 0:
+            die("This function should not be called directly. "
+                "use one of its aliases");
+        default:
+            die("Wtf?");
+            break;
+    }
+    if(items == 2) {
+        new_value = sv_2bool(ST(2));
+    } else if (items == 1) {
+        new_value = -1;
+    } else {
+        die("%s(self, [value])", GvNAME(GvCV(cv)));
+    }
+    
+    if(!SvROK(self)) {
+        die("%s: I was given a bad object", GvNAME(GvCV(cv)));
+    }
+    
+    RETVAL = plcb_convert_settings((PLCB_t*)SvRV(self), flag, new_value);
+    
+    OUTPUT:
+    RETVAL
+
+
+NV
+PLCB_timeout(self, ...)
+    SV *self
+    
+    PREINIT:
+    NV new_param;
+    uint32_t usecs;
+    NV ret;
+    
+    libcouchbase_t instance;
+    PLCB_t *object;
+    
+    CODE:
+    
+    mk_instance_vars(self, instance, object);
+    
+    ret = ((NV)(libcouchbase_get_timeout(instance))) / (1000*1000);
+    
+    if(items == 2) {
+        new_param = SvNV(ST(1));
+        if(!new_param) {
+            warn("Cannot disable timeouts.");
+            XSRETURN_UNDEF;
+        }
+        usecs = new_param * (1000*1000);
+        libcouchbase_set_timeout(instance, usecs);
+    }
+    
+    RETVAL = ret;
+    
+    OUTPUT:
+    RETVAL
+
+int
+PLCB_connect(self)
+    SV *self
+
 INCLUDE: Async.xs

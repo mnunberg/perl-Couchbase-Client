@@ -132,8 +132,7 @@ error_callback(libcouchbase_t instance,
 {
     PLCBA_t *async;
     dSP;
-    //warn("Error callback (err=%d, %s)",
-         //err, libcouchbase_strerror(instance, err));
+
     async = (PLCBA_t*)libcouchbase_get_cookie(instance);
     ENTER;
     SAVETMPS;

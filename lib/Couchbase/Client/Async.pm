@@ -41,6 +41,27 @@ sub new {
     return $o;
 }
 
+#Establish proxy methods:
+
+foreach my $subname (qw(
+    enable_compress
+    compression_settings
+    serialization_settings
+    conversion_settings
+    deconversion_settings
+    compress_threshold
+    timeout
+)) {
+    no strict 'refs';
+    *{$subname} = sub {
+        my ($self,@args) = @_;
+        my $base = $self->_get_base_rv;
+        
+        @_ = ($base, @args);
+        goto &{"Couchbase::Client::$subname"};
+    };
+}
+
 1;
 
 __END__

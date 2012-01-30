@@ -408,8 +408,9 @@ PLCBA_construct(const char *pkg, AV *options)
         die("Couldn't create instance!");
     }
     
-    plcb_ctor_init_common(&async->base, instance);
+    plcb_ctor_init_common(&async->base, instance, options);
     plcba_setup_callbacks(async);
+    async->base_rv = newRV_inc(newSViv(PTR2IV(&(async->base))));
     
     blessed_obj = newSV(0);
     sv_setiv(newSVrv(blessed_obj, pkg), PTR2IV(async));
@@ -444,4 +445,27 @@ PLCBA_connect(SV *self)
             libcouchbase_strerror(instance, err), err);
     }
     libcouchbase_wait(instance);
+}
+
+void
+PLCBA_DESTROY(SV *self)
+{
+    libcouchbase_t instance;
+    PLCBA_t *async;
+    PLCB_t *base;
+    
+    #define _DEC_AND_NULLIFY(fld) \
+        if(async->fld) { SvREFCNT_dec(async->fld); async->fld = NULL; }
+    
+    _DEC_AND_NULLIFY(base_rv);
+    _DEC_AND_NULLIFY(cv_evmod);
+    _DEC_AND_NULLIFY(cv_timermod);
+    _DEC_AND_NULLIFY(cv_err);
+    _DEC_AND_NULLIFY(cv_waitdone);
+    
+    #undef _DEC_AND_NULLIFY
+    
+    /*cleanup our base object. This will also cause the events to be destroyed*/
+    plcb_cleanup(&async->base);
+    Safefree(async);
 }

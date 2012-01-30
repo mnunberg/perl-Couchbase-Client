@@ -29,10 +29,10 @@ void plcb_ctor_conversion_opts(PLCB_t *object, AV *options)
     ((object->my_flags & flag) \
     ? \
         (((tmpsv = av_fetch(options, optidx, 0)) && SvROK(*tmpsv) && \
-            (methav = (AV*)SvRV(*tmpsv))) ? 1 : \
-                (void*)die(\
-                    "Flag %s specified but no methods provided", #flag)) \
-    : 0)
+            (methav = (AV*)SvRV(*tmpsv))) \
+            ? (void*)1 \
+            :  die("Flag %s specified but no methods provided", #flag)) \
+    : NULL)
     
 #define meth_assert_assign(target_field, source_idx, diemsg) \
     if((tmpsv = av_fetch(methav, source_idx, 0)) == NULL) { \
@@ -70,12 +70,32 @@ void plcb_ctor_conversion_opts(PLCB_t *object, AV *options)
     }
 }
 
-void plcb_ctor_init_common(PLCB_t *object, libcouchbase_t instance)
+void plcb_ctor_init_common(PLCB_t *object, libcouchbase_t instance,
+                           AV *options)
 {
+    NV timeout_value;
+    SV **tmpsv;
+    
     object->instance = instance;
     object->errors = newAV();
     if(! (object->ret_stash = gv_stashpv(PLCB_RET_CLASSNAME, 0)) ) {
         die("Could not load '%s'", PLCB_RET_CLASSNAME);
     }
-
+    
+    /*gather instance-related options from the constructor*/
+    if( (tmpsv = av_fetch(options, PLCB_CTORIDX_TIMEOUT, 0)) ) {
+        timeout_value = SvNV(*tmpsv);
+        if(!timeout_value) {
+            warn("Cannot use 0 for timeout");
+        } else {
+            libcouchbase_set_timeout(instance,
+                timeout_value * (1000*1000));
+        }
+    }
+    
+    if((tmpsv = av_fetch(options, PLCB_CTORIDX_NO_CONNECT, 0)) &&
+       SvTRUE(*tmpsv)) {
+        object->my_flags |= PLCBf_NO_CONNECT;
+    }
+    /*maybe more stuff here?*/
 }

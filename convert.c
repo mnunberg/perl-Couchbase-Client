@@ -164,7 +164,8 @@ SV* plcb_convert_retrieval(
     
     input_sv = newSVpvn(data, data_len);
     
-    if(!plcb_storeflags_has_conversion(object, flags)) {
+    if(plcb_storeflags_has_conversion(object, flags) == 0
+       || (object->my_flags & PLCBf_NO_DECONVERT) ) {
         return input_sv;
     }
     
@@ -185,4 +186,38 @@ SV* plcb_convert_retrieval(
     }
     
     return ret_sv;
+}
+
+
+/*this function provides an easy interface to fiddle with the module's settings*/
+int plcb_convert_settings(PLCB_t *object, int flag, int new_value)
+{
+    int ret;
+    
+    if(flag == PLCBf_COMPRESS_THRESHOLD) {
+        /*this isn't really a flag value, but a proper integer*/
+        ret = object->compress_threshold;
+        
+        object->compress_threshold = new_value >= 0
+            ? new_value
+            : object->compress_threshold;
+        return ret;
+    }
+    
+    ret = (object->my_flags & flag);
+    
+    
+    if(new_value > 0) {
+        object->my_flags |= flag;
+    } else {
+        if(new_value == 0) {
+            object->my_flags &= (~flag);
+        }
+    }
+    
+    if(flag == PLCBf_NO_DECONVERT && new_value > 0) {
+        object->my_flags &= (~ (PLCBf_USE_COMPRESSION|PLCBf_USE_STORABLE));
+    }
+    
+    return ret;
 }

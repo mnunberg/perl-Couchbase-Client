@@ -298,9 +298,31 @@ static void stop_event_loop(plcba_cbcio *cbcio)
     call_sv(async->cv_waitdone, G_DISCARD|G_NOARGS);
 }
 
-static void destructor(plcba_cbcio *cbcio)
+void destructor(plcba_cbcio *cbcio)
 {
-    /*noop*/
+    /*free any remaining events*/
+    PLCBA_c_event *cevent;
+    PLCBA_t *async;
+    if(!cbcio) {
+        return;
+    }
+    
+    if(! (async = cbcio->cookie) ) {
+        return; /*already freed*/
+    }
+    
+    cevent = async->cevents;
+    while(cevent) {
+        if(cevent->next) {
+            cevent = cevent->next;
+            free(cevent->prev);
+        } else {
+            free(cevent);
+            cevent = NULL;
+        }
+    }
+    async->cevents = NULL;
+    cbcio->cookie = NULL;
 }
 
 

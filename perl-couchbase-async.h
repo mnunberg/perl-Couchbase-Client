@@ -117,6 +117,9 @@ typedef struct {
     /*base object*/
     PLCB_t base;
     
+    /*reference to 'base' object*/
+    SV *base_rv;
+    
     SV *cv_evmod;
     SV *cv_timermod;
     SV *cv_err;

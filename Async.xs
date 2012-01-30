@@ -6,7 +6,25 @@ SV *
 PLCBA_construct(pkg, options)
     const char *pkg
     AV *options
+
+
+SV *
+PLCBA__get_base_rv(self)
+    SV *self
     
+    PREINIT:
+    SV *ret;
+    
+    CODE:
+    /*this returns the underlying 'base' object, for selected proxy-methods*/
+    if(!SvROK(self)) {
+        die("I was not given a reference");
+    }
+    RETVAL = newRV_inc(SvRV(self));
+    
+    OUTPUT:
+    RETVAL
+
 void
 PLCBA_connect(self)
     SV* self

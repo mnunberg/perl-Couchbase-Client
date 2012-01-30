@@ -51,8 +51,12 @@ typedef enum {
     PLCBf_USE_COMPRESSION       = 0x4,
     PLCBf_USE_STORABLE          = 0x8,
     PLCBf_USE_CONVERT_UTF8      = 0x10,
-    
     PLCBf_NO_CONNECT            = 0x20,
+    PLCBf_NO_DECONVERT          = 0x40,
+    
+    /*pseudo-flags*/
+    PLCBf_COMPRESS_THRESHOLD    = 0x80,
+    PLCBf_RET_EXTENDED_FIELDS   = 0x100,
 } PLCB_flags_t;
 
 #define PLCBf_DO_CONVERSION \
@@ -64,8 +68,10 @@ struct PLCB_st {
     HV *stats_hv; /*object to collect statistics from*/
     AV *errors; /*per-operation error stack*/
     HV *ret_stash; /*stash with which we bless our return objects*/
-    uint32_t store_flags; /*flags to use when storing values*/
+
     PLCB_flags_t my_flags;
+    /*maybe make this a bit more advanced?*/
+    int connected;
     
     SV *cv_serialize;
     SV *cv_deserialize;
@@ -147,6 +153,8 @@ typedef enum {
     
     /*provided object for event loop handling*/
     PLCB_CTORIDX_EVLOOP_OBJ,
+    PLCB_CTORIDX_TIMEOUT,
+    PLCB_CTORIDX_NO_CONNECT,
     
 } PLCB_ctor_idx_t;
 
@@ -157,7 +165,11 @@ void plcb_setup_callbacks(PLCB_t *object);
 void plcb_ctor_cbc_opts(AV *options,
     char **hostp, char **userp, char **passp, char **bucketp);
 void plcb_ctor_conversion_opts(PLCB_t *object, AV *options);
-void plcb_ctor_init_common(PLCB_t *object, libcouchbase_t instance);
+void plcb_ctor_init_common(PLCB_t *object, libcouchbase_t instance,
+                           AV *options);
+
+/*cleanup functions*/
+void plcb_cleanup(PLCB_t *object);
 
 /*conversion functions*/
 void plcb_convert_storage(
@@ -168,5 +180,7 @@ SV* plcb_convert_retrieval(
     PLCB_t *object, const char *data, size_t data_len, uint32_t flags);
 
 
+int
+plcb_convert_settings(PLCB_t *object, int flag, int new_value);
 
 #endif /* PERL_COUCHBASE_H_ */

@@ -53,7 +53,7 @@ WriteMakefile(
         
         #these are needed for asynchronous tests and modules
         'POE::Sugar::Attributes' => 0.02,
-        'POE'               => 1.350,
+        'POE'               => 1.312,
     },
     NEEDS_LINKING => 1,
     OPTIMIZE    => '-O0 -ggdb3',

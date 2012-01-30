@@ -8,15 +8,27 @@ typedef enum {
     PLCB_RETIDX_ERRNUM  = 1,
     PLCB_RETIDX_ERRSTR  = 2,
     PLCB_RETIDX_CAS     = 3,
+    
+    /*Extended Fields*/
+    PLCB_RETIDX_ORIGSIZE,
+    PLCB_RETIDX_KEYFLAGS,
 } PLCB_ret_idx_t;
 
 #define plcb_ret_set_cas(obj, ret, cas) \
-	av_store(ret, PLCB_RETIDX_CAS, newSVpvn((char*)cas, 8));
+    av_store(ret, PLCB_RETIDX_CAS, newSVpvn((char*)cas, 8));
 
 #define plcb_ret_set_strval(obj, ret, value, nvalue, flags, cas) \
     av_store(ret, PLCB_RETIDX_VALUE, \
-		plcb_convert_retrieval(obj, value, nvalue, flags)); \
-	plcb_ret_set_cas(obj, ret, &cas);
+        plcb_convert_retrieval(obj, value, nvalue, flags)); \
+    plcb_ret_set_cas(obj, ret, &cas);
+
+/*not currently used*/
+
+#define plcb_ret_set_extfields(obj, ret, orig_len, orig_flags) \
+    if(obj->my_flags & PLCBf_RET_EXTENDED_FLAGS) { \
+        av_store(ret, PLCB_RETIDX_ORIGSIZE, newSVuv(orig_len)); \
+        av_store(ret, PLCB_RETIDX_KEYFLAGS, newSVuv(orig_flags)); \
+    }
 
 static inline void
 plcb_ret_set_numval(PLCB_t *obj, AV *ret, uint64_t value, uint64_t cas)
@@ -29,13 +41,13 @@ plcb_ret_set_numval(PLCB_t *obj, AV *ret, uint64_t value, uint64_t cas)
 
 
 #define plcb_ret_set_err(obj, ret, err) \
-	av_store(ret, PLCB_RETIDX_ERRNUM, newSViv(err)); \
-	if(err != LIBCOUCHBASE_SUCCESS) { \
-		av_store(ret, PLCB_RETIDX_ERRSTR, \
-		newSVpv(libcouchbase_strerror(obj->instance, err), 0)); \
-	}
+    av_store(ret, PLCB_RETIDX_ERRNUM, newSViv(err)); \
+    if(err != LIBCOUCHBASE_SUCCESS) { \
+        av_store(ret, PLCB_RETIDX_ERRSTR, \
+        newSVpv(libcouchbase_strerror(obj->instance, err), 0)); \
+    }
 
 #define plcb_ret_blessed_rv(obj, ret) \
-	sv_bless(newRV_noinc( (SV*)(ret)), (obj)->ret_stash)
+    sv_bless(newRV_noinc( (SV*)(ret)), (obj)->ret_stash)
 
 #endif /*PLCB_RETURN_H_*/
