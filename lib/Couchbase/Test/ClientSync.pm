@@ -177,4 +177,86 @@ sub T05_conversion :Test(no_plan) {
     ok($@, "Got error for append/prepending a serialized structure ($@)");
 }
 
+sub _multi_check_ret {
+    my ($rv,$keys) = @_;
+    my $nkeys = scalar @$keys;
+    my $defined = scalar grep defined $_, values %$rv;
+    my $n_ok = scalar grep $_->is_ok, values %$rv;
+    
+    is(scalar keys %$rv, $nkeys, "Expected number of keys");
+    is($defined, $nkeys, "All values defined");
+    is($n_ok,$nkeys, "All returned ok (no errors)");
+    
+}
+
+sub T06_multi :Test(no_plan) {
+    my $self = shift;
+    my $o = $self->cbo;
+    my @keys = @{$self->{basic_keys}};
+    
+    my $rv = $o->set_multi(
+        map { [$_, $_] } @keys);
+    
+    ok($rv && ref $rv eq 'HASH', "Got hash result for multi operation");
+    ok(scalar keys %$rv == scalar @keys,
+       "got expected number of results");
+    
+    is(grep(defined $_, values %$rv), scalar @keys, "All values defined");
+    is(scalar grep(!$rv->{$_}->is_ok, @keys), 0, "No errors");
+    
+    $rv = $o->get_multi(@keys);
+    _multi_check_ret($rv, \@keys);
+    
+    is(scalar grep($rv->{$_}->value eq $_, @keys), scalar @keys,
+       "get_multi: Got expected values");
+    
+    $rv = $o->cas_multi(
+        map { [$_, scalar(reverse $_), $rv->{$_}->cas ] } @keys );
+    _multi_check_ret($rv, \@keys);
+    
+    #Remove them all:
+    
+    note "Remove (no CAS)";
+    $rv = $o->remove_multi(@keys);
+    _multi_check_ret($rv, \@keys);
+    
+    $rv = $o->set_multi(map { [$_, $_] } @keys);
+    _multi_check_ret($rv, \@keys);
+    
+    note "Remove (with CAS)";
+    $rv = $o->remove_multi(map { [ $_, $rv->{$_}->cas] } @keys);
+    _multi_check_ret($rv, \@keys);
+    
+    note "Trying arithmetic..";
+    
+    $rv = $o->arithmetic_multi(
+         map { [$_, 666, undef, 120] } @keys 
+    );
+    ok(scalar(
+        grep {$_->errnum == COUCHBASE_KEY_ENOENT} values %$rv
+        ) == scalar @keys,
+       "ENOENT for non-existent deleted arithmetic keys");
+    
+    
+    #try arithmetic again:
+    $rv = $o->arithmetic_multi(
+        map { [$_, 666, 42, 120] } @keys);
+    _multi_check_ret($rv, \@keys);
+    
+    is(scalar grep($_->value == 42, values %$rv), scalar @keys,
+       "all keys have expected value");
+    
+    $rv = $o->incr_multi(@keys);
+    _multi_check_ret($rv, \@keys);
+    
+    is(scalar grep($_->value == 43, values %$rv), scalar @keys,
+       "all keys have been incremented");
+    
+    $rv = $o->decr_multi(
+        map {[ $_, 41 ]} @keys);
+    _multi_check_ret($rv, \@keys);
+    is(scalar grep($_->value == 2, values %$rv), scalar @keys,
+       "all keys have been decremented");
+}
+
 1;

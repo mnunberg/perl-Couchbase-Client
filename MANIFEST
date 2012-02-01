@@ -23,6 +23,7 @@ lib/Couchbase/Test/Async.pm
 lib/Couchbase/Test/Async/Loop.pm
 
 Client.xs
+Client_multi.xs
 Async.xs
 
 perl-couchbase.h

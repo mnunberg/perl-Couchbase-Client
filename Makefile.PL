@@ -23,7 +23,8 @@ WriteMakefile(
     VERSION_FROM        => 'lib/Couchbase/Client.pm',
     ABSTRACT_FROM       => 'lib/Couchbase/Client.pm',
     OBJECT              => 'callbacks.o convert.o ctor.o Client.o ' .
-                            'async.o async_callbacks.o async_events.o',
+                            'async.o async_callbacks.o async_events.o ' .
+                            'Client_multi.o',
 
     ($ExtUtils::MakeMaker::VERSION >= 6.3002
       ? ('LICENSE'=> 'perl')

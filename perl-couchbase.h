@@ -25,24 +25,10 @@ typedef struct {
     PLCB_t *parent;
     const char *key;
     size_t nkey;
-    const char *value;
-    size_t nvalue;
-    uint64_t cas;
-    uint64_t arithmetic;
-    libcouchbase_error_t err;
-    uint32_t store_flags;
+    AV *ret;
 } PLCB_sync_t;
 
 #define plcb_sync_cast(p) (PLCB_sync_t*)(p)
-#define plcb_sync_initialize(syncp, object, k, ksz) \
-    syncp->parent = object; \
-    syncp->key = k; \
-    syncp->nkey = ksz; \
-    syncp->cas = syncp->nvalue = 0; \
-    syncp->value = NULL; \
-    syncp->err = 0; \
-    syncp->arithmetic = 0; \
-    syncp->store_flags = 0; \
 
 typedef enum {
     PLCBf_DIE_ON_ERROR          = 0x1,
@@ -159,7 +145,9 @@ typedef enum {
 } PLCB_ctor_idx_t;
 
 
-void plcb_setup_callbacks(PLCB_t *object);
+void plcb_callbacks_setup(PLCB_t *object);
+void plcb_callbacks_set_multi(PLCB_t *object);
+void plcb_callbacks_set_single(PLCB_t *object);
 
 /*options for common constructor settings*/
 void plcb_ctor_cbc_opts(AV *options,

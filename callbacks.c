@@ -16,19 +16,6 @@ signal_done(PLCB_sync_t *sync)
         sync->parent->io_ops);
 }
 
-#define syncp_assign_keys(syncp, err, key, nkey, cas) \
-    syncp->key = key; \
-    syncp->nkey = nkey; \
-    syncp->cas = cas; \
-    syncp->err = err;
-
-#define syncp_assign_strval(syncp, err, key, nkey, val, nval, cas, flags) \
-    syncp_assign_keys(syncp, err, key, nkey, cas); \
-    syncp->value = val; \
-    syncp->nvalue = nval; \
-    syncp->store_flags = flags;
-
-
 void plcb_callback_get(
     libcouchbase_t instance,
     const void *cookie,
@@ -38,7 +25,37 @@ void plcb_callback_get(
     uint32_t flags, uint64_t cas)
 {
     PLCB_sync_t *syncp = plcb_sync_cast(cookie);
-    syncp_assign_strval(syncp, err, key, nkey, value, nvalue, cas, flags);
+    plcb_ret_set_err(syncp->parent, syncp->ret, err);
+    if(err == LIBCOUCHBASE_SUCCESS && nvalue) {
+        plcb_ret_set_strval(
+            syncp->parent, syncp->ret, value, nvalue, flags, cas);
+    }
+    signal_done(syncp);
+}
+
+void plcb_callback_multi_get(
+    libcouchbase_t instance,
+    const void *cookie,
+    libcouchbase_error_t err,
+    const void *key, size_t nkey,
+    const void *value, size_t nvalue,
+    uint32_t flags, uint64_t cas)
+{
+    PLCB_sync_t *syncp = plcb_sync_cast(cookie);
+    AV *ret;
+    HV *results;
+        
+    ret = newAV();
+    results = (HV*)(syncp->ret);
+    
+    hv_store(results, key, nkey, plcb_ret_blessed_rv(syncp->parent, ret), 0);
+    
+    plcb_ret_set_err(syncp->parent, ret, err);
+    
+    if(err == LIBCOUCHBASE_SUCCESS && nvalue) {
+        plcb_ret_set_strval(
+            syncp->parent, ret, value, nvalue, flags, cas);
+    }
     signal_done(syncp);
 }
 
@@ -51,7 +68,10 @@ void plcb_callback_storage(
     uint64_t cas) 
 {
     PLCB_sync_t *syncp = plcb_sync_cast(cookie);
-    syncp_assign_keys(syncp, err, key, nkey, cas);
+    plcb_ret_set_err(syncp->parent, syncp->ret, err);
+    if(err == LIBCOUCHBASE_SUCCESS) {
+        plcb_ret_set_cas(syncp->parent, syncp->ret, &cas);
+    }
     signal_done(syncp);
 }
 
@@ -61,8 +81,10 @@ static void arithmetic_callback(
     uint64_t value, uint64_t cas)
 {
     PLCB_sync_t *syncp = plcb_sync_cast(cookie);
-    syncp_assign_keys(syncp, err, key, nkey, cas);
-    syncp->arithmetic = value;
+    plcb_ret_set_err(syncp->parent, syncp->ret, err);
+    if(err == LIBCOUCHBASE_SUCCESS) {
+        plcb_ret_set_numval(syncp->parent, syncp->ret, value, cas);
+    }
     signal_done(syncp);
 }
 
@@ -112,6 +134,15 @@ static void keyop_callback(
 {
     plcb_callback_get(instance, cookie, err, key, nkey,
                       NULL, 0, 0, 0);
+}
+
+static void keyop_multi_callback(
+    libcouchbase_t instance, const void *cookie,
+    libcouchbase_error_t err,
+    const void *key, size_t nkey)
+{
+    plcb_callback_multi_get(instance, cookie, err, key, nkey,
+                            NULL, 0, 0, 0);
 }
 
 static void stat_callback(
@@ -169,7 +200,21 @@ static void stat_callback(
     LEAVE;
 }
 
-void plcb_setup_callbacks(PLCB_t *object)
+void plcb_callbacks_set_multi(PLCB_t *object)
+{
+    libcouchbase_t instance = object->instance;
+    libcouchbase_set_get_callback(instance, plcb_callback_multi_get);
+    libcouchbase_set_touch_callback(instance, keyop_multi_callback);
+}
+
+void plcb_callbacks_set_single(PLCB_t *object)
+{
+    libcouchbase_t instance = object->instance;
+    libcouchbase_set_get_callback(instance, plcb_callback_get);
+    libcouchbase_set_touch_callback(instance, keyop_callback);
+}
+
+void plcb_callbacks_setup(PLCB_t *object)
 {
     libcouchbase_t instance = object->instance;
     libcouchbase_set_get_callback(instance, plcb_callback_get);

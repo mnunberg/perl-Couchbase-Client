@@ -1,6 +1,7 @@
 #include "perl-couchbase.h"
 #include "plcb-util.h"
 #include <libcouchbase/libevent_io_opts.h>
+
 static inline void
 wait_for_single_response(PLCB_t *object)
 {
@@ -66,7 +67,7 @@ SV *PLCB_construct(const char *pkg, AV *options)
     
     libcouchbase_set_cookie(instance, object);
     
-    plcb_setup_callbacks(object);
+    plcb_callbacks_setup(object);
     
     blessed_obj = newSV(0);
     sv_setiv(newSVrv(blessed_obj, "Couchbase::Client"), PTR2IV(object));
@@ -112,6 +113,19 @@ PLCB_connect(SV *self)
 }
 
 
+#define _sync_return_single(object, err, syncp) \
+    if(err != LIBCOUCHBASE_SUCCESS ) { \
+        plcb_ret_set_err(object, syncp->ret, err); \
+    } else { \
+        wait_for_single_response(object); \
+    } \
+    return plcb_ret_blessed_rv(object, syncp->ret);
+
+#define _sync_initialize_single(object, syncp); \
+    syncp = &object->sync; \
+    syncp->parent = object; \
+    syncp->ret = newAV();
+
 static SV *PLCB_set_common(SV *self,
     SV *key, SV *value,
     int storop,
@@ -123,23 +137,18 @@ static SV *PLCB_set_common(SV *self,
     STRLEN klen = 0, vlen = 0;
     char *skey, *sval;
     PLCB_sync_t *syncp;
-    AV *ret_av;
-    SV *ret_rv;
     time_t exp;
     uint32_t store_flags = 0;
     
     mk_instance_vars(self, instance, object);
         
     plcb_get_str_or_die(key, skey, klen, "Key");
-    plcb_get_str_or_die(value, sval, vlen, "Value");
-    
-    syncp = &(object->sync);
-    plcb_sync_initialize(syncp, object, skey, klen);
-    
+    plcb_get_str_or_die(value, sval, vlen, "Value");    
     
     /*Clear existing error status first*/
     av_clear(object->errors);
-    ret_av = newAV();
+    
+    _sync_initialize_single(object, syncp);
     
     exp = exp_offset ? time(NULL) + exp_offset : 0;
     
@@ -148,14 +157,7 @@ static SV *PLCB_set_common(SV *self,
         skey, klen, SvPVX(value), vlen, store_flags, exp, cas);
     plcb_convert_storage_free(object, value, store_flags);
     
-    if(err != LIBCOUCHBASE_SUCCESS) {
-        plcb_ret_set_err(object, ret_av, err);
-    } else {
-        wait_for_single_response(object);
-        plcb_ret_set_err(object, ret_av, syncp->err);
-        plcb_ret_set_cas(object, ret_av, &syncp->cas);
-    }
-    bless_return(object, ret_rv, ret_av);
+    _sync_return_single(object, err, syncp);
 }
 
 static SV *PLCB_arithmetic_common(SV *self,
@@ -167,9 +169,6 @@ static SV *PLCB_arithmetic_common(SV *self,
     libcouchbase_t instance;
 
     char *skey;
-    SV *ret_rv;
-    AV *ret_av;
-    
     STRLEN nkey;
     
     PLCB_sync_t *syncp;
@@ -180,26 +179,15 @@ static SV *PLCB_arithmetic_common(SV *self,
     exp = exp_offset ? time(NULL) + exp_offset : 0;
     
     plcb_get_str_or_die(key, skey, nkey, "Key");
-        
-    syncp = &(object->sync);
-    plcb_sync_initialize(syncp, object, skey, nkey);
-    ret_av = newAV();
+    
+    _sync_initialize_single(object, syncp);
     
     err = libcouchbase_arithmetic(
         instance, syncp, skey, nkey, delta,
         exp, do_create, initial
     );
-    if(err != LIBCOUCHBASE_SUCCESS) {
-        plcb_ret_set_err(object, ret_av, err);
-    } else {
-        wait_for_single_response(object);
-        plcb_ret_set_err(object, ret_av, syncp->err);
-        
-        if(syncp->err == LIBCOUCHBASE_SUCCESS) {
-            plcb_ret_set_numval(object, ret_av, syncp->arithmetic, syncp->cas);
-        }
-    }
-    bless_return(object, ret_rv, ret_av);
+    
+    _sync_return_single(object, err, syncp);    
 }
 
 static SV *PLCB_get_common(SV *self, SV *key, int exp_offset)
@@ -210,43 +198,22 @@ static SV *PLCB_get_common(SV *self, SV *key, int exp_offset)
     libcouchbase_error_t err;    
     STRLEN klen;
     char *skey;
-    AV *ret_av;
-    SV *ret_rv;
     
     time_t exp;
     time_t *exp_arg;
     
     mk_instance_vars(self, instance, object);
     plcb_get_str_or_die(key, skey, klen, "Key");
+    _sync_initialize_single(object, syncp);
     
-    ret_av = newAV();
-    syncp = &(object->sync);
-    plcb_sync_initialize(syncp, object, skey, klen);
     av_clear(object->errors);
-   
-    if(exp_offset) {
-        exp = time(NULL) + exp_offset;
-        exp_arg = &exp;
-    } else {
-        exp_arg = NULL;
-    }
+    exp_arg = (exp_offset && (exp = time(NULL) + exp_offset)) ? &exp : NULL;
+    
     err = libcouchbase_mget(instance, syncp, 1,
                             (const void * const*)&skey, &klen,
                             exp_arg);
     
-    if(err != LIBCOUCHBASE_SUCCESS) {
-        plcb_ret_set_err(object, ret_av, err);
-    } else {
-        wait_for_single_response(object);
-        
-        plcb_ret_set_err(object, ret_av, syncp->err);
-        if(syncp->err == LIBCOUCHBASE_SUCCESS) {
-            plcb_ret_set_strval(
-                object, ret_av, syncp->value, syncp->nvalue,
-                syncp->store_flags, syncp->cas);
-        }
-    }
-    bless_return(object, ret_rv, ret_av);
+    _sync_return_single(object, err, syncp);    
 }
 
 SV *PLCB_get_errors(SV *self)
@@ -300,21 +267,12 @@ SV *PLCB_remove(SV *self, SV *key, uint64_t cas)
     mk_instance_vars(self, instance, object);
     
     plcb_get_str_or_die(key, skey, key_len, "Key");
-    ret_av = newAV();
     av_clear(object->errors);
     
-    syncp = &(object->sync);
-    plcb_sync_initialize(syncp, object, skey, key_len);
+    _sync_initialize_single(object, syncp);
     
-    if( (err = libcouchbase_remove(instance, syncp, skey, key_len, cas))
-       != LIBCOUCHBASE_SUCCESS) {
-        plcb_ret_set_err(object, ret_av, err);
-    } else {
-        wait_for_single_response(object);
-        
-        plcb_ret_set_err(object, ret_av, syncp->err);
-    }
-    bless_return(object, ret_rv, ret_av);
+    err = libcouchbase_remove(instance, syncp, skey, key_len, cas);
+    _sync_return_single(object, err, syncp);        
 }
 
 SV *PLCB_stats(SV *self, AV *stats)
@@ -408,7 +366,6 @@ enum {
 MODULE = Couchbase::Client PACKAGE = Couchbase::Client    PREFIX = PLCB_
 
 PROTOTYPES: DISABLE
-
 
 SV *
 PLCB_construct(pkg, options)
@@ -545,6 +502,7 @@ PLCB_cas(self, key, value, cas_sv, ...)
     CODE:
     if(SvTYPE(cas_sv) == SVt_NULL) {
         /*don't bother the network if we know our CAS operation will fail*/
+        warn("I was given a null cas!");
         RETVAL = return_empty(self,
             LIBCOUCHBASE_KEY_EEXISTS, "I was given an undef cas");
         return;
@@ -557,7 +515,7 @@ PLCB_cas(self, key, value, cas_sv, ...)
         self, key, value,
         LIBCOUCHBASE_SET,
         exp_offset, *cas_val);
-    
+    assert(RETVAL != &PL_sv_undef);
     OUTPUT:
     RETVAL
 
@@ -710,5 +668,10 @@ PLCB_timeout(self, ...)
 int
 PLCB_connect(self)
     SV *self
+
+
+BOOT:
+boot_Couchbase__Client_multi(aTHX_ cv);
+
 
 INCLUDE: Async.xs

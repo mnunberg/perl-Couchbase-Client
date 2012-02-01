@@ -15,7 +15,8 @@ typedef enum {
 } PLCB_ret_idx_t;
 
 #define plcb_ret_set_cas(obj, ret, cas) \
-    av_store(ret, PLCB_RETIDX_CAS, newSVpvn((char*)cas, 8));
+    av_store(ret, PLCB_RETIDX_CAS, \
+        plcb_sv_from_u64_new(cas) );
 
 #define plcb_ret_set_strval(obj, ret, value, nvalue, flags, cas) \
     av_store(ret, PLCB_RETIDX_VALUE, \

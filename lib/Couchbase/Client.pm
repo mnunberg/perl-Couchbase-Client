@@ -1,5 +1,11 @@
 package Couchbase::Client;
-require XSLoader;
+
+BEGIN {
+    require XSLoader;
+    our $VERSION = '0.01_1';
+    XSLoader::load(__PACKAGE__, $VERSION);
+}
+
 use strict;
 use warnings;
 
@@ -13,11 +19,10 @@ my $have_zlib = eval "use Compress::Zlib; 1;";
 use Log::Fu;
 use Array::Assign;
 
-our $VERSION = '0.01_1';
-XSLoader::load(__PACKAGE__, $VERSION);
 {
     no warnings 'once';
     *gets = \&get;
+    *gets_multi = \&get_multi;
 }
 
 #this function converts hash options for compression and serialization
@@ -183,7 +188,7 @@ older memcached clients like L<Cache::Memcached> and L<Cache::Memcached::Fast>
 This client is mainly written in C and interacts with C<libcouchbase> - the common
 couchbase client library, which must be installed.
 
-=head2 METHODS
+=head2 BASIC METHODS
 
 All of the protocol methods (L</get>, L</set>, etc) return a common return value of
 L<Couchbase::Client::Return> which stores operation-specific information and
@@ -441,6 +446,94 @@ These two functions are identical. They will delete C<key> on the server.
 If C<cas> is also specified, the deletion will only be performed if C<key> still
 maintains the same CAS value as C<cas>.
 
+
+=head2 MULTI METHODS
+
+These methods gain performance and save on network I/O by batch-enqueueing
+operations.
+
+Of these, only the C<get> and C<touch> methods currently do 'true' multi batching.
+
+The other commands are still batched internally in the XS code, saving on xsub
+call overhead.
+
+All of these functions return a hash reference, whose keys are the keys specified
+for the operation, and whose values are L<Couchbase::Client::Return> objects
+specifying the result of the operation for that key.
+
+Calling the multi methods generally involves passing a series of array references.
+Each n-tuple passed in the list should contain arguments conforming to the
+calling convention of the non-multi command variant.
+
+Thus, where you would do:
+
+    $rv = $o->foo($arg1, $arg2, $arg3)
+    
+The C<_multi> version would be
+
+    $rvs = $o->foo_multi(
+        [$arg1_0, $arg2_0, $arg3_0],
+        [$arg1_1, $arg2_1, $arg3_1],
+    );
+
+The n-tuples themselves may either be grouped into a 'list', or an array reference
+itself:
+
+    my @arglist = map { [$h->{key}, $k->{value} ] };
+    
+    $o->set(@arglist);
+    
+    #the same as:
+    
+    $o->set( [ map [ { $h->{key}, $h->{value } ] }] );
+    
+    #and the same as:
+    
+    $o->set(map{ [$h->{key}, $h->{value}] });
+
+
+
+=head3 get_multi(@keys)
+
+=head3 get_multi(\@keys)
+
+=head3 gets_multi
+
+alias to L</get_multi>
+
+=head3 touch_multi([key, exp]..)
+
+
+=head3 set_multi([key => value, ...], [key => value, ...])
+
+
+Performs multiple set operations on a multitude of keys. Input parameters are
+array references. The contents of these array references follow the same
+convention as calls to L</set> do. Thus:
+
+    $o->set_multi(['Foo', 'foo_value', 120], ['Bar', 'bar_value']);
+
+will set the key C<foo> to C<foo_value>, with an expiry of 120 seconds in the
+future. C<bar> is set to C<bar_value>, without any expiry.
+
+=head3 cas_multi([key => value, $cas, ...])
+
+Multi version of L</cas>
+
+=head3 arithmetic_multi([key => $delta, ...])
+
+Multi version of L</arithmetic>
+
+=head3 incr_multi(@keys)
+
+=head3 decr_multi(@keys)
+
+=head3 incr_multi( [key, amount], ... )
+
+=head3 decr_multi( [key, amount], ... )
+
+
+=head2 INFORMATIONAL METHODS
 
 =head3 get_errors()
 
