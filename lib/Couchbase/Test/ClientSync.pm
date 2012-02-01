@@ -178,7 +178,7 @@ sub T05_conversion :Test(no_plan) {
 }
 
 sub _multi_check_ret {
-    my ($rv,$keys) = @_;
+    my ($rv,$keys) = @_;    
     my $nkeys = scalar @$keys;
     my $defined = scalar grep defined $_, values %$rv;
     my $n_ok = scalar grep $_->is_ok, values %$rv;

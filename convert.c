@@ -113,6 +113,7 @@ void plcb_convert_storage(
     uint32_t *flags)
 {
     SV *sv;
+    *flags = 0;
     
     if(object->my_flags & PLCBf_DO_CONVERSION == 0 && SvROK(*data_sv) == 0) {
         return;

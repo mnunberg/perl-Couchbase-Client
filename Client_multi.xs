@@ -107,12 +107,13 @@ _cmd2storop(int cmd)
 static SV*
 PLCB_multi_get_common(SV *self, AV *args, int cmd)
 {
-    _dMULTI_VARS;
+    _dMULTI_VARS
     
     void **keys;
     size_t *sizes;
     time_t *exps;
     SV **tmpsv;
+    PLCB_sync_t *syncp;
     
     void *keys_stacked[MULTI_STACK_ELEM];
     size_t sizes_stacked[MULTI_STACK_ELEM];
@@ -121,7 +122,7 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
     mk_instance_vars(self, instance, object);
     _MULTI_INIT_COMMON(object, ret, nreq, args, now);
     
-    PLCB_sync_t *syncp = &object->sync;
+    syncp = &object->sync;
     syncp->parent = object;
     syncp->ret = (AV*)ret;
     
@@ -196,7 +197,7 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
 static SV*
 PLCB_multi_set_common(SV *self, AV *args, int cmd)
 {
-    _dMULTI_VARS;
+    _dMULTI_VARS
     PLCB_sync_t *syncs = NULL;
     PLCB_sync_t syncs_stacked[MULTI_STACK_ELEM];
     libcouchbase_storage_t storop;
@@ -221,8 +222,8 @@ PLCB_multi_set_common(SV *self, AV *args, int cmd)
         SV **tmpsv;
         char *value;
         STRLEN nvalue;
-        SV *value_sv;
-        uint32_t store_flags;
+        SV *value_sv = NULL;
+        uint32_t store_flags = 0;
         uint64_t cas = 0;
         time_t exp = 0;
         
@@ -277,7 +278,7 @@ PLCB_multi_set_common(SV *self, AV *args, int cmd)
 static SV*
 PLCB_multi_arithmetic_common(SV *self, AV *args, int cmd)
 {
-    _dMULTI_VARS;
+    _dMULTI_VARS
     
     PLCB_sync_t *syncs;
     PLCB_sync_t syncs_stacked[MULTI_STACK_ELEM];
@@ -365,7 +366,7 @@ PLCB_multi_arithmetic_common(SV *self, AV *args, int cmd)
 static SV*
 PLCB_multi_remove(SV *self, AV *args)
 {
-    _dMULTI_VARS;
+    _dMULTI_VARS
     PLCB_sync_t *syncs = NULL;
     PLCB_sync_t syncs_stacked[MULTI_STACK_ELEM];
     

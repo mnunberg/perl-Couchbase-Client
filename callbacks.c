@@ -94,9 +94,9 @@ void plcb_callback_error(
     libcouchbase_error_t err,
     const char *errinfo) 
 {
-    warn("Got error callback");
     PLCB_t *object;
     SV *elem_list[2];
+    warn("Got error callback");
     
     if(err == LIBCOUCHBASE_SUCCESS) {
         return;
