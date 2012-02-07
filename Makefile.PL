@@ -1,3 +1,4 @@
+#!/usr/bin/perl
 use strict;
 use warnings;
 use ExtUtils::MakeMaker;
@@ -13,18 +14,35 @@ my $library_path = $plcb_config->{COUCHBASE_LIBRARY_PATH} || "";
 if($include_path) {
     $include_path = "-I$include_path";
 }
+
 if($library_path) {
     $library_path = "-L$library_path";
 }
+
+# .c files
+my @source_modules = qw(
+    callbacks
+    convert
+    ctor
+    async
+    async_callbacks
+    async_events
+);
+
+# .xs files
+my @xs_modules = qw(
+    Client
+    Client_multi
+);
+
+my @objects = map {$_ . '.o' } (@source_modules, @xs_modules);
 
 WriteMakefile(
     NAME                => 'Couchbase::Client',
     AUTHOR              => q{M. Nunberg <mnunberg@haskalah.org>},
     VERSION_FROM        => 'lib/Couchbase/Client.pm',
     ABSTRACT_FROM       => 'lib/Couchbase/Client.pm',
-    OBJECT              => 'callbacks.o convert.o ctor.o Client.o ' .
-                            'async.o async_callbacks.o async_events.o ' .
-                            'Client_multi.o',
+    OBJECT              => join(" ", @objects),
 
     ($ExtUtils::MakeMaker::VERSION >= 6.3002
       ? ('LICENSE'=> 'perl')
@@ -59,7 +77,7 @@ WriteMakefile(
     NEEDS_LINKING => 1,
     OPTIMIZE    => '-O0 -ggdb3 -Wdeclaration-after-statement -Werror -std=gnu89',
     #CCFLAGS  => '-Wdeclaration-after-statement',
-    LIBS    => ["$library_path -lcouchbase -lcouchbase_libevent"],
+    LIBS    => ["$library_path -lcouchbase -lcouchbase_libevent -lvbucket"],
     INC     => $include_path,
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean               => { FILES => 'Couchbase-Client-*' },

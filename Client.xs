@@ -27,7 +27,22 @@ void plcb_cleanup(PLCB_t *object)
     _free_cv(cv_compress); _free_cv(cv_decompress);
     _free_cv(cv_serialize); _free_cv(cv_deserialize);
 #undef _free_cv
+}
+
+void plcb_errstack_push(PLCB_t *object, libcouchbase_error_t err,
+                        const char *errinfo)
+{
+    libcouchbase_t instance;
+    SV *errsvs[2];
     
+    instance = object->instance;
+    if(!errinfo) {
+        errinfo = libcouchbase_strerror(instance, err);
+    }
+    errsvs[0] = newSViv(err);
+    errsvs[1] = newSVpv(errinfo, 0);
+    av_push(object->errors,
+            newRV_noinc( (SV*)av_make(2, errsvs)));
 }
 
 /*Construct a new libcouchbase object*/
@@ -72,11 +87,8 @@ SV *PLCB_construct(const char *pkg, AV *options)
     blessed_obj = newSV(0);
     sv_setiv(newSVrv(blessed_obj, "Couchbase::Client"), PTR2IV(object));
     
-    if( (object->my_flags & PLCBf_NO_CONNECT) == 0 &&
-       (err = libcouchbase_connect(instance) == LIBCOUCHBASE_SUCCESS))
-    {
-        libcouchbase_wait(instance);
-        object->connected = 1;
+    if( (object->my_flags & PLCBf_NO_CONNECT) == 0) {
+        PLCB_connect(blessed_obj);
     }
     
     return blessed_obj;
@@ -100,13 +112,24 @@ PLCB_connect(SV *self)
     libcouchbase_error_t err;
     AV *retav;
     PLCB_t *object;
+    
     mk_instance_vars(self, instance, object);
+    
+    av_clear(object->errors);
+    
     if(object->connected) {
+        warn("Already connected");
         return 1;
     } else {
         if( (err = libcouchbase_connect(instance)) == LIBCOUCHBASE_SUCCESS) {
             object->connected = 1;
+            libcouchbase_wait(instance);
+            if(av_len(object->errors) > -1) {
+                return 0;
+            }
             return 1;
+        } else {
+            plcb_errstack_push(object, err, NULL);
         }
     }
     return 0;
@@ -363,6 +386,8 @@ enum {
     SETTINGS_ALIAS_COMP_THRESHOLD
 };
 
+
+
 MODULE = Couchbase::Client PACKAGE = Couchbase::Client    PREFIX = PLCB_
 
 PROTOTYPES: DISABLE
@@ -588,8 +613,11 @@ PLCB__settings(self, ...)
     PREINIT:
     int flag;
     int new_value;
+    libcouchbase_t instance;
+    PLCB_t *object;
     
     CODE:
+    mk_instance_vars(self, instance, object);
     switch(ix) {
         case SETTINGS_ALIAS_COMPRESS:
         case SETTINGS_ALIAS_COMPRESS_COMPAT:
@@ -626,7 +654,9 @@ PLCB__settings(self, ...)
         die("%s: I was given a bad object", GvNAME(GvCV(cv)));
     }
     
-    RETVAL = plcb_convert_settings((PLCB_t*)SvRV(self), flag, new_value);
+    
+    
+    RETVAL = plcb_convert_settings(object, flag, new_value);
     
     OUTPUT:
     RETVAL
@@ -671,7 +701,17 @@ PLCB_connect(self)
 
 
 BOOT:
-boot_Couchbase__Client_multi(aTHX_ cv);
-
+{
+    
+    /*because xsubpp is stupid, we can't use an inline macro for this*/
+    
+    /*Client_multi.xs*/
+    PUSHMARK(SP);
+    mXPUSHs(newSVpv("Couchbase::Client",0));
+    mXPUSHs(newSVpv(XS_VERSION, 0));
+    PUTBACK;
+    boot_Couchbase__Client_multi(aTHX_ cv);
+    SPAGAIN; 
+}
 
 INCLUDE: Async.xs

@@ -21,6 +21,9 @@ my @const_bases = qw(
     
     CTORIDX_SERIALIZE_METHODS
     
+    CTORIDX_TIMEOUT
+    CTORIDX_NO_CONNECT
+    
     RETIDX_VALUE
     RETIDX_ERRSTR
     RETIDX_CAS
@@ -34,6 +37,8 @@ my @ctor_flags = qw(
     USE_COMPRESSION
     USE_STORABLE
     USE_CONVERT_UTF8
+    NO_CONNECT
+    NO_DECONVERT
 );
 
 constant("PLCBf_$_", name => "f$_") for (@ctor_flags);

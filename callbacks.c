@@ -95,22 +95,8 @@ void plcb_callback_error(
     const char *errinfo) 
 {
     PLCB_t *object;
-    SV *elem_list[2];
-    warn("Got error callback");
-    
-    if(err == LIBCOUCHBASE_SUCCESS) {
-        return;
-    }
-    elem_list[0] = newSViv(err);
-    if(errinfo) {
-        elem_list[1] = newSVpv(errinfo, 0);
-    } else {
-        elem_list[1] = &PL_sv_undef;
-    }
-    
     object = (PLCB_t*)libcouchbase_get_cookie(instance);
-    av_push(object->errors,
-        newRV_noinc((SV*)av_make(2, elem_list)));
+    plcb_errstack_push(object, err, errinfo);
 }
 
 #ifdef PLCB_HAVE_CONNFAIL

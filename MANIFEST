@@ -1,5 +1,6 @@
 Changes
 MANIFEST
+MANIFEST.SKIP
 Makefile.PL
 README.pod
 
@@ -21,6 +22,8 @@ lib/Couchbase/Test/ClientSync.pm
 lib/Couchbase/Test/Common.pm
 lib/Couchbase/Test/Async.pm
 lib/Couchbase/Test/Async/Loop.pm
+lib/Couchbase/Test/Settings.pm
+lib/Couchbase/Test/Interop.pm
 
 Client.xs
 Client_multi.xs

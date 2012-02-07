@@ -90,6 +90,15 @@ sub _MkCtorIDX {
         CTORIDX_BUCKET, delete $opts->{bucket});
     
     _make_conversion_settings(\@arglist, $opts);
+    
+    my $tmp = delete $opts->{io_timeout} ||
+            delete $opts->{select_timeout} ||
+            delete $opts->{connect_timeout};
+            
+    $arglist[CTORIDX_TIMEOUT] = $tmp if defined $tmp;
+    $arglist[CTORIDX_NO_CONNECT] = delete $opts->{no_init_connect};
+    
+    
     if(keys %$opts) {
         warn sprintf("Unused keys (%s) in constructor",
                      join(", ", keys %$opts));
@@ -341,7 +350,7 @@ L<Storable::thaw|Storable/thaw>.  I.e. serialization routine takes a
 reference and returns a scalar string; it should not fail.
 Deserialization routine takes scalar string and returns a reference;
 if deserialization fails (say, wrong data format) it should throw an
-exception (call I<die>).  The exception will be caught by the module
+exception (call I<die>). The exception will be caught by the module
 and L</get> will then pretend that the key hasn't been found.
 
 =back

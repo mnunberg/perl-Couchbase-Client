@@ -155,6 +155,8 @@ void plcb_ctor_cbc_opts(AV *options,
 void plcb_ctor_conversion_opts(PLCB_t *object, AV *options);
 void plcb_ctor_init_common(PLCB_t *object, libcouchbase_t instance,
                            AV *options);
+void plcb_errstack_push(PLCB_t *object,
+                        libcouchbase_error_t err, const char *errinfo);
 
 /*cleanup functions*/
 void plcb_cleanup(PLCB_t *object);

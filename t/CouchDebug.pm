@@ -6,6 +6,10 @@ use base qw(Couchbase::Client);
 use Data::Dumper;
 
 use Log::Fu { level => "debug" };
+use Getopt::Long;
+GetOptions(
+    'loop|l=i' => \my $Loops,
+    'sleep|s=i' => \my $Sleep);
 
 sub v_debug {
     my ($self,$key) = @_;
@@ -107,11 +111,23 @@ if(!caller) {
         compress_threshold => 100,
     });
     bless $o, __PACKAGE__;
-    
-    my $LOOPS = shift @ARGV;
-    if($LOOPS) {
-        $Log::Fu::SHUSH = 1;
-        $o->runloop() for (0..$LOOPS);
+
+    $Sleep = 0 unless defined $Sleep;
+
+    if($Loops) {
+        if($Sleep < 1) {
+            $Log::Fu::SHUSH = 1;
+        } elsif ($Sleep) {
+            Log::Fu::set_log_level(__PACKAGE__, "warn");
+        }
+        if(!$Sleep) {
+            $o->runloop() for (0..$Loops);
+        } else {
+            foreach (0..$Loops) {
+                $o->runloop();
+                sleep($Sleep);
+            }
+        }
     } else {
         $o->runloop();
     }

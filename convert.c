@@ -195,6 +195,7 @@ int plcb_convert_settings(PLCB_t *object, int flag, int new_value)
 {
     int ret;
     
+    
     if(flag == PLCBf_COMPRESS_THRESHOLD) {
         /*this isn't really a flag value, but a proper integer*/
         ret = object->compress_threshold;
@@ -206,7 +207,6 @@ int plcb_convert_settings(PLCB_t *object, int flag, int new_value)
     }
     
     ret = (object->my_flags & flag);
-    
     
     if(new_value > 0) {
         object->my_flags |= flag;

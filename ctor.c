@@ -42,7 +42,6 @@ void plcb_ctor_conversion_opts(PLCB_t *object, AV *options)
         die("Expected CODE reference at IDX=%d: %s",source_idx, diemsg); \
     } \
     object->target_field = newRV_inc(SvRV(*tmpsv));
-
     
     if( (tmpsv = av_fetch(options, PLCB_CTORIDX_MYFLAGS, 0))
        && SvIOK(*tmpsv)) {

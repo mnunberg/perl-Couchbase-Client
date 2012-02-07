@@ -28,6 +28,7 @@ my @constant_basenames = qw(
     UNKNOWN_COMMAND
     UNKNOWN_HOST
     PROTOCOL_ERROR
+    BUCKET_ENOENT
 );
 foreach my $cbase (@constant_basenames) {
     constant('LIBCOUCHBASE_'.$cbase, name => 'COUCHBASE_'.$cbase);
