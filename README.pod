@@ -31,6 +31,19 @@ etc. client for Couchbase.
 
 Interface to the Java C<CouchbaseMock.jar>. This is a work in progress.
 
+=head2 Extra Components
+
+=head3 Couchbase::Config - REST API module
+
+This module will probably be a dependency for full testing, but will not necessarily
+be part of this distribution. It's currently available as a separate repository
+on github.
+
+=head3 Couchbase::VBucket - VBucket server mapping module
+
+Just a little utility module. May be useful for testing.
+
+
 =head1 Installing
 
 I will be focusing on installing and configuring C<libcouchbase> itself, the C
@@ -129,3 +142,37 @@ There are some top-level scripts. Some have meaning to only the author, some mig
 be useful.
 
 Also, check out the runnable modules in the C<t/> directory
+
+=head2 Testing
+
+The tests in this module require java to run. Some tests furthermore will only
+work on a real cluster, due to some of the limitations in the Java client.
+
+To run the tests on a real cluster, you can make use of the
+C<PLCB_TEST_REAL_SERVER> environment variable.
+
+When set, it should/can contain something like this:
+
+    PLCB_TEST_REAL_SERVER='bucket=my_bucket,username=secret,memd_port=11212'
+    
+The keys available are
+
+=over
+
+=item username, password
+
+Authentication information
+
+=item bucket
+
+Which bucket to use (default is C<default>)
+
+=item server
+
+Which server to connect to (default is C<localhost:8091>)
+
+=item memd_port
+
+Required for some tests. This is the authless port for memcached client access.
+
+=back

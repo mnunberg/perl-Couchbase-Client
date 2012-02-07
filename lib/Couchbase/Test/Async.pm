@@ -42,7 +42,10 @@ sub _run_poe {
 
 sub cb_result_single {
     my ($key,$return,$errnum) = @_;
-    is($return->errnum, $errnum, "Got return for key $key ($errnum)");
+    if($errnum >= 0) {
+        is($return->errnum, $errnum,
+           "Got return for key $key (expected=$errnum)");
+    }
     $Return = $return;
 }
 
@@ -81,11 +84,12 @@ sub T12_get :Test(no_plan) {
     is($ret->value, $self->k2v($key), "Got expected value");
 }
 
-sub T13_arith_ext :Test(no_plan) {
+sub T14_arith_ext :Test(no_plan) {
     my $self = shift;
-    my $key = "arith";
+    my $key = "async_key";
     
     my $ret;
+    $self->post_to_loop(remove => [$key], -1);
     
     $ret = $self->post_to_loop(
         arithmetic => [ $key, 42, undef ], COUCHBASE_KEY_ENOENT);

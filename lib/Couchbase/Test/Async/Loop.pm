@@ -303,7 +303,8 @@ sub _arith_basic :Event(incr, decr) {
     $_[HEAP]->_numop_common($key, $delta, undef, $expiry, $cb_params);
 }
 
-sub _keyop :Event(touch, remove, delete) {
+sub _keyop :Event(touch, remove)
+{
     my ($op_params, $cb_params) = @_[ARG0,ARG1];
     my ($key,$expiry,$cas);
     my $command;

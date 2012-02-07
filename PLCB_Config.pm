@@ -1,8 +1,11 @@
+package PLCB_Config;
+use strict;
+use warnings;
 #this perl 'hash' contains configuration information necessary
 #to bootstrap and/or configure the perl couchbase client and run
 #necessary tests.
 
-{
+my $params = {
     COUCHBASE_INCLUDE_PATH  => "/sources/libcouchbase/include",
     COUCHBASE_LIBRARY_PATH  => "/sources/libcouchbase/.libs",
 
@@ -12,3 +15,5 @@
         "CouchbaseMock/0.5-SNAPSHOT/CouchbaseMock-0.5-20120202.071818-12.jar",
 };
 
+
+return $params; #return value

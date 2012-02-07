@@ -6,31 +6,39 @@ use Test::More;
 use Couchbase::Client::Errors;
 use Data::Dumper;
 use Class::XSAccessor {
-    accessors => [qw(cbo memds confua vbconf)]
+    accessors => [qw(cbo memds memd confua vbconf)]
 };
 
 my $MEMD_CLASS;
 my $have_memcached = 
 eval {
+    require Cache::Memcached::Fast;
+    $MEMD_CLASS = "Cache::Memcached::Fast";
+} ||
+eval {
+    require Cache::Memcached;
+    $MEMD_CLASS = "Cache::Memcached";
+} ||
+eval {
     require Cache::Memcached::libmemcached;
-    $MEMD_CLASS = "Cache::Memcached::libmemcached";
+    $MEMD_CLASS = "Cache::Memcaced::libmemcached";
 };
 
-my $have_libvbucket = eval 'use Couchbase::VBucket; 1;';
-my $have_couchconf = eval 'use Couchbase::Config::UA; 1;';
-
-if(!$have_memcached) {
-    __PACKAGE__->SKIP_ALL("Need Cache::Memcached::libmemcached");
-}
-if(!$have_libvbucket) {
-    __PACKAGE__->SKIP_ALL("Need Couchbase::VBucket");
-}
-if(!$have_couchconf) {
-    __PACKAGE__->SKIP_ALL("Need Couchbase::Config::UA");
-}
 
 sub setup_client :Test(startup) {
     my $self = shift;
+    if(!$have_memcached) {
+        $self->SKIP_ALL("Need Cache::Memcached::libmemcached");
+    }
+    
+    if(!$Couchbase::Test::Common::RealServer) {
+        $self->SKIP_ALL("Need connection to real cluster");
+    }
+    
+    if(!$Couchbase::Test::Common::MemdPort) {
+        $self->SKIP_ALL("Need dedicated memcached proxy port");
+    }
+
     $self->mock_init();
     my $server = $self->common_options->{server};
     
@@ -43,35 +51,13 @@ sub setup_client :Test(startup) {
     
     $self->cbo($cbo);
     
-    my $confua = Couchbase::Config::UA->new(
-        $server, username => $username, password => $password);
-    
-    #Get the actual memcached ports:
-    my $default_pool = $confua->list_pools();
-    my $pool_info = $confua->pool_info($default_pool);
-    my $buckets = $confua->list_buckets($pool_info);
-    
-    my $selected_bucket = (grep($_->name eq $self->common_options->{bucket},
-                               @$buckets))[0];
-    
-    die("Cannot find selected bucket") unless defined $selected_bucket;
-    my $vbconf = $selected_bucket->vbconf();
-    $self->vbconf($vbconf);
-    $self->memds({});
+    my $memd = $MEMD_CLASS->new($self->memd_options);
+    $self->memd($memd);
 }
 
 sub memd_for_key {
     my ($self,$key) = @_;
-    my $server = $self->vbconf->map($key);
-    die("Couldn't map key!") unless $server;
-    my $memd = $self->memds->{$server};
-    if(!$memd) {
-        $memd = $MEMD_CLASS->new({servers => [$server] } );
-        eval { $memd->set_binary_protocol(1) };
-        $self->memds->{$server} = $memd;
-        note "Created new memcached object for $server";
-    }
-    return $memd;
+    return $self->memd;
 }
 
 sub T30_interop_init :Test(no_plan)
@@ -80,7 +66,7 @@ sub T30_interop_init :Test(no_plan)
     my $key = "Foo";
     my $value = "foo_value";
     
-    my $memd = $self->memd_for_key($key);
+    my $memd = $self->memd;
     
     ok($memd->set($key, $value), "Set value OK");
     is($memd->get($key), $value, "Got back our value");
@@ -88,7 +74,30 @@ sub T30_interop_init :Test(no_plan)
     my $ret = $self->cbo->get($key);
     ok($ret->is_ok, "Found value for memcached key");
     is($ret->value, $value, "Got back same value");
-    #print Dumper($ret);
+    
+    $key = "bar";
+    $value = "bar_value";
+    
+    ok($self->cbo->set($key,$value)->is_ok, "set via cbc");
+    is($memd->get($key), $value, "get via memd");
+}
+
+sub T31_interop_serialization :Test(no_plan) {
+    my $self = shift;
+    my $key = "Serialized";
+    my $value = [ qw(foo bar baz), { "this is" => "a hash" } ];
+    my $memd = $self->memd_for_key($key);
+    
+    ok($memd->set($key, $value), "Set serialized structure");
+    my $ret;
+    $ret = $self->cbo->get($key);
+    ok($ret->is_ok, "Got ok result");
+    is_deeply($ret->value, $value, "Compared identical perl structures");
+    is_deeply($memd->get($key), $ret->value,"even deeper comparison");
+}
+
+sub T32_interop_compression :Test(no_plan) {
+    
 }
 
 1;
