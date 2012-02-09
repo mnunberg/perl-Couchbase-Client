@@ -5,45 +5,40 @@ use base qw(Couchbase::Test::Common);
 use Test::More;
 use Couchbase::Client::Errors;
 use Data::Dumper;
+Log::Fu::set_log_level('Couchbase::Config', 'info');
 use Class::XSAccessor {
-    accessors => [qw(cbo memds memd confua vbconf)]
+    accessors => [qw(cbo memd memds vbconf confua)]
 };
 
 my $MEMD_CLASS;
 my $have_memcached = 
 eval {
-    require Cache::Memcached::Fast;
-    $MEMD_CLASS = "Cache::Memcached::Fast";
+    require Cache::Memcached::libmemcached;
+    $MEMD_CLASS = "Cache::Memcached::libmemcached";
 } ||
 eval {
     require Cache::Memcached;
     $MEMD_CLASS = "Cache::Memcached";
 } ||
 eval {
-    require Cache::Memcached::libmemcached;
-    $MEMD_CLASS = "Cache::Memcaced::libmemcached";
+    require Cache::Memcached::Fast;
+    $MEMD_CLASS = "Cache::Memcached::Fast";
 };
 
+use Couchbase::Config::UA;
 
-sub setup_client :Test(startup) {
+sub _setup_client :Test(startup) {
     my $self = shift;
     if(!$have_memcached) {
         $self->SKIP_ALL("Need Cache::Memcached::libmemcached");
     }
     
-    if(!$Couchbase::Test::Common::RealServer) {
-        $self->SKIP_ALL("Need connection to real cluster");
-    }
-    
-    if(!$Couchbase::Test::Common::MemdPort) {
-        $self->SKIP_ALL("Need dedicated memcached proxy port");
-    }
-
     $self->mock_init();
-    my $server = $self->common_options->{server};
     
+    my $server = $self->common_options->{server};
     my $username = $self->common_options->{username};
     my $password = $self->common_options->{password};
+    my $bucket_name = $self->common_options->{bucket};
     
     my $cbo = Couchbase::Client->new({
         %{$self->common_options}
@@ -51,42 +46,65 @@ sub setup_client :Test(startup) {
     
     $self->cbo($cbo);
     
-    my $memd = $MEMD_CLASS->new($self->memd_options);
+    my $confua = Couchbase::Config::UA->new(
+        $server, username => $username, password => $password);
+    
+    my $pool = $confua->list_pools();
+    $confua->pool_info($pool);
+    my $buckets = $confua->list_buckets($pool);
+    
+    my $bucket = (grep {
+        $_->name eq $bucket_name &&
+        $_->port_proxy || $_->type eq 'memcached'
+    } @$buckets)[0];
+    
+    if(!$bucket) {
+        my $msg =
+        "Couldn't find appropriate bucket. Bucket must have an auth-less proxy ".
+        "port, and/or be of memcached type";
+        die $msg;
+    }
+    #print Dumper($bucket);
+    
+    my $node = $bucket->nodes->[0];
+    my $memd_host = sprintf("%s:%d",
+                        $node->base_addr,
+                        $bucket->port_proxy ||
+                        $node->port_proxy ||
+                        $node->port_direct);
+    
+    
+    note "Have $memd_host";
+    my $memd = $MEMD_CLASS->new({servers => [ $memd_host] });
     $self->memd($memd);
-}
-
-sub memd_for_key {
-    my ($self,$key) = @_;
-    return $self->memd;
+    if($memd->can('set_binary_protocol')) {
+        $memd->set_binary_protocol(1);
+    }
 }
 
 sub T30_interop_init :Test(no_plan)
 {
     my $self = shift;
-    my $key = "Foo";
-    my $value = "foo_value";
-    
-    my $memd = $self->memd;
-    
-    ok($memd->set($key, $value), "Set value OK");
-    is($memd->get($key), $value, "Got back our value");
-    
-    my $ret = $self->cbo->get($key);
-    ok($ret->is_ok, "Found value for memcached key");
-    is($ret->value, $value, "Got back same value");
-    
-    $key = "bar";
-    $value = "bar_value";
-    
-    ok($self->cbo->set($key,$value)->is_ok, "set via cbc");
-    is($memd->get($key), $value, "get via memd");
+    my $memd = $self->memd();
+    foreach my $key qw(foo bar baz) {
+        my $value = scalar reverse($key);
+        ok($memd->set($key, $value), "Set value OK");
+        is($memd->get($key), $value, "Got back our value");
+        
+        my $ret = $self->cbo->get($key);
+        ok($ret->is_ok, "Found value for memcached key");
+        is($ret->value, $value, "Got back same value");
+            
+        ok($self->cbo->set($key,$value)->is_ok, "set via cbc");
+        is($memd->get($key), $value, "get via memd");
+    }
 }
 
 sub T31_interop_serialization :Test(no_plan) {
     my $self = shift;
     my $key = "Serialized";
     my $value = [ qw(foo bar baz), { "this is" => "a hash" } ];
-    my $memd = $self->memd_for_key($key);
+    my $memd = $self->memd();
     
     ok($memd->set($key, $value), "Set serialized structure");
     my $ret;
@@ -97,7 +115,9 @@ sub T31_interop_serialization :Test(no_plan) {
 }
 
 sub T32_interop_compression :Test(no_plan) {
-    
+    my $self = shift;
+    my $key = "Compressed";
+    my $value = "foobarbaz" x 1000;
 }
 
 1;

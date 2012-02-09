@@ -135,7 +135,7 @@ sub new {
     
     unlink("$dir/$SYMLINK");
     symlink($fqpath, "$dir/$SYMLINK");
-    
+    #
     #Initialize buckets to their defaults
     if(!$o->buckets) {
         $o->buckets([{
@@ -158,6 +158,35 @@ sub new {
 sub GetInstance {
     my $cls = shift;
     return $INSTANCE;
+}
+
+sub suspend_process {
+    my $self = shift;
+    my $pid = $self->pid;
+    return unless defined $pid;
+    kill SIGSTOP, $pid;
+}
+sub resume_process {
+    my $self = shift;
+    my $pid = $self->pid;
+    return unless defined $pid;
+    kill SIGCONT, $pid;
+}
+
+sub failover_node {
+    my ($self,$nodeidx,$bucket_name) = @_;
+    $bucket_name ||= "default";
+    my $cmd = "failover,$nodeidx,$bucket_name\n";
+    log_warn($cmd);
+    $self->harakiri_socket->send($cmd, 0) or die "Couldn't send";
+}
+
+sub respawn_node {
+    my ($self,$nodeidx,$bucket_name) = @_;
+    $bucket_name ||= "default";
+    my $cmd = "respawn,$nodeidx,$bucket_name\n";
+    log_warn($cmd);
+    $self->harakiri_socket->send($cmd, 0) or die "Couldn't send";
 }
 
 sub DESTROY {

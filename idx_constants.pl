@@ -1,12 +1,15 @@
 use ExtUtils::H2PM;
+use PLCB_ConfUtil;
 
 module "Couchbase::Client::IDXConst";
 use_export;
-$ENV{C_INCLUDE_PATH} = './';
+
 
 include "sys/types.h";
 include "perl-couchbase.h";
 include "perl-couchbase-async.h";
+
+PLCB_ConfUtil::set_gcc_env();
 
 my @const_bases = qw(
     CTORIDX_SERVERS
@@ -38,7 +41,8 @@ my @ctor_flags = qw(
     USE_STORABLE
     USE_CONVERT_UTF8
     NO_CONNECT
-    NO_DECONVERT
+    DECONVERT
+    DEREF_RVPV
 );
 
 constant("PLCBf_$_", name => "f$_") for (@ctor_flags);

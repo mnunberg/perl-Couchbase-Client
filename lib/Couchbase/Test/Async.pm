@@ -22,12 +22,14 @@ $poe_kernel->run();
 
 my $ReadyReceived = 0;
 my $Return = undef;
+my $Errnum;
 
 sub setup_async :Test(startup) {
     my $self = shift;
     $self->mock_init();
     Couchbase::Test::Async::Loop->spawn($loop_session,
         on_ready => \&loop_ready,
+        on_error => sub { $Errnum = $_[0]; diag "Grrr!"; },
         %{$self->common_options}
     );
 }
@@ -52,6 +54,7 @@ sub cb_result_single {
 sub reset_vars :Test(setup) {
     $ReadyReceived = 0;
     $Return = undef;
+    $Errnum = -1;
 }
 
 sub post_to_loop {
@@ -65,8 +68,15 @@ sub post_to_loop {
 }
 
 sub T10_connect :Test(no_plan) {
+    my $self = shift;
     $poe_kernel->run_one_timeslice() while ($ReadyReceived == 0);
+    
     ok($ReadyReceived, "Eventually connected..");
+    ok($Errnum <= 0, "Got no errors ($Errnum)");
+    if($Errnum > 0) {
+        die("Got errors. Cannot continue");
+        $self->FAIL_ALL("Async tests cannot continue without hanging");
+    }
 }
 
 sub T11_set :Test(no_plan) {

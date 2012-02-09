@@ -13,17 +13,19 @@ Couchbase::Test::Common->Initialize(
     url => $config->{COUCHBASE_MOCK_JARURL},
     dir => __DIR__ . "/tmp",
     port => 8092,
-    nodes => 2,
+    nodes => 5,
+    buckets => [{name => "default", type => "memcache"}],
 );
 
 use Couchbase::Test::ClientSync;
 use Couchbase::Test::Async;
 use Couchbase::Test::Settings;
 use Couchbase::Test::Interop;
+use Couchbase::Test::Netfail;
 
 Couchbase::Test::ClientSync->runtests();
 Couchbase::Test::Async->runtests();
 Couchbase::Test::Settings->runtests();
 Couchbase::Test::Interop->runtests();
-
+Couchbase::Test::Netfail->runtests();
 #Test::Class->runtests();

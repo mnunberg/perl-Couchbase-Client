@@ -1,4 +1,6 @@
 use ExtUtils::H2PM;
+use PLCB_ConfUtil;
+PLCB_ConfUtil::set_gcc_env();
 
 module "Couchbase::Client::Errors";
 use_export;
@@ -28,6 +30,8 @@ my @constant_basenames = qw(
     UNKNOWN_COMMAND
     UNKNOWN_HOST
     PROTOCOL_ERROR
+    ETIMEDOUT
+    CONNECT_ERROR
     BUCKET_ENOENT
 );
 foreach my $cbase (@constant_basenames) {

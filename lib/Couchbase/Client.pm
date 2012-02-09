@@ -2,7 +2,7 @@ package Couchbase::Client;
 
 BEGIN {
     require XSLoader;
-    our $VERSION = '0.01_1';
+    our $VERSION = '0.10_0';
     XSLoader::load(__PACKAGE__, $VERSION);
 }
 
@@ -16,7 +16,6 @@ use Couchbase::Client::Return;
 my $have_storable = eval "use Storable; 1;";
 my $have_zlib = eval "use Compress::Zlib; 1;";
 
-use Log::Fu;
 use Array::Assign;
 
 {
@@ -30,24 +29,43 @@ use Array::Assign;
 
 sub _make_conversion_settings {
     my ($arglist,$options) = @_;
-    my $compress_threshold = delete $options->{compress_threshold};
     my $flags = 0;
     
-    $compress_threshold = 0 unless defined $compress_threshold;
-    $compress_threshold = 0 if $compress_threshold < 0;
-    $arglist->[CTORIDX_COMP_THRESHOLD] = $compress_threshold;
     
-    my $meth_comp = 0;
-    if(exists $options->{compress_methods}) {
-        $meth_comp = delete $options->{compress_threshold};
+    $arglist->[CTORIDX_MYFLAGS] ||= 0;
+    
+    if($options->{dereference_scalar_ref}) {
+        $arglist->[CTORIDX_MYFLAGS] |= fDEREF_RVPV;
     }
-    if($meth_comp == 0 && $have_zlib) {
+    
+    if(exists $options->{deconversion}) {
+        if(! delete $options->{deconversion}) {
+            return;
+        }
+    } else {
+        $flags |= fDECONVERT;
+    }
+    
+    if(exists $options->{compress_threshold}) {
+        my $compress_threshold = delete $options->{compress_threshold};
+        $compress_threshold =
+            (!$compress_threshold || $compress_threshold < 0)
+            ? 0 : $compress_threshold;
+        $arglist->[CTORIDX_COMP_THRESHOLD] = $compress_threshold;
+        if($compress_threshold) {
+            $flags |= fUSE_COMPRESSION;
+        }
+    }
+    
+    my $meth_comp;
+    if(exists $options->{compress_methods}) {
+        $meth_comp = delete $options->{compress_methods};
+    } elsif($have_zlib) {
         $meth_comp = [ sub { ${$_[1]} = Compress::Zlib::memGzip(${$_[0]}) },
                       sub { ${$_[1]} = Compress::Zlib::memGunzip(${$_[0]}) }]
     }
     
-    if($meth_comp) {
-        $flags |= fUSE_COMPRESSION;
+    if(defined $meth_comp) {
         $arglist->[CTORIDX_COMP_METHODS] = $meth_comp;
     }
     
@@ -65,24 +83,14 @@ sub _make_conversion_settings {
         $arglist->[CTORIDX_SERIALIZE_METHODS] = $meth_serialize;
     }
     
-    $arglist->[CTORIDX_MYFLAGS] = $flags;
+    $arglist->[CTORIDX_MYFLAGS] |= $flags;
 }
 
 sub _MkCtorIDX {
     my $opts = shift;
     
-    my $server;
     my @arglist;
-    my $servers = delete $opts->{servers};
-    if(!$servers) {
-        $server = delete $opts->{server};
-    } else {
-        $server = $servers->[0];
-    }
-    
-    if(!$server) {
-        die("Must have server");
-    }
+    my $server = delete $opts->{server} or die "Must have server";
     arry_assign_i(@arglist,
         CTORIDX_SERVERS, $server,
         CTORIDX_USERNAME, delete $opts->{username},
@@ -93,8 +101,10 @@ sub _MkCtorIDX {
     
     my $tmp = delete $opts->{io_timeout} ||
             delete $opts->{select_timeout} ||
-            delete $opts->{connect_timeout};
-            
+            delete $opts->{connect_timeout} ||
+            delete $opts->{timeout};
+    
+    $tmp ||= 2.5;
     $arglist[CTORIDX_TIMEOUT] = $tmp if defined $tmp;
     $arglist[CTORIDX_NO_CONNECT] = delete $opts->{no_init_connect};
     
@@ -106,17 +116,63 @@ sub _MkCtorIDX {
     return \@arglist;
 }
 
+my %RETRY_ERRORS = (
+    COUCHBASE_NETWORK_ERROR, 1,
+    COUCHBASE_CONNECT_ERROR, 1,
+    COUCHBASE_ETIMEDOUT, 1
+);
+
 sub new {
     my ($pkg,$opts) = @_;
-    my $arglist = _MkCtorIDX($opts);
-    
-    my $o = $pkg->construct($arglist);
-    my $errors = $o->get_errors;
-    foreach (@$errors) {
-        my ($errno,$errstr) = @$_;
-        log_err($errstr);
+    my $server_list;
+    if($opts->{servers}) {
+        $server_list = delete $opts->{servers};
+        if(ref $server_list ne 'ARRAY') {
+            $server_list = [$server_list];
+        }
+    } elsif ($opts->{server}) {
+        $server_list = [ delete $opts->{server} or die "server is false" ];
+    } else {
+        die("Must have server or servers");
     }
-    return $o;
+    
+    my $connected_ok;
+    my $no_init_connect = $opts->{no_init_connect};
+    my $self;
+    
+    my @all_errors;
+    
+    my $privopts;
+    while(!$connected_ok && (my $server = shift @$server_list)) {
+        $opts->{server} = $server;
+        $privopts = {%$opts};
+        my $arglist = _MkCtorIDX($privopts);
+        $self = $pkg->construct($arglist);
+        my $errors = $self->get_errors;
+        my $error_retriable;
+        if(scalar @$errors) {
+            push @all_errors, @$errors;
+            foreach (@$errors) {
+                my ($errno,$errstr) = @$_;
+                warn("(cbc_errno=$errno)");
+                if(exists $RETRY_ERRORS{$errno}) {
+                    $error_retriable++;
+                }
+            }
+            if(!$error_retriable) {
+                warn("Didn't find any non-retriable errors");
+                last;
+            }
+        } else {
+            last;
+        }
+        if($no_init_connect) {
+            last;
+        }
+    }
+    @{$self->get_errors} = @all_errors;
+    return $self;
+    
 }
 
 #This is called from within C to record our stats:
@@ -222,8 +278,17 @@ C<localhost:8091>.
 
 =item servers
 
-Takes an arrayref of servers, currently only the first server is used, but this
-will change.
+A list of servers to try, in order. C<Couchbase::Client> will connect to the first
+responsive server (optionally complaining with warnings about failed servers).
+
+This is a special construction-time option. It will not work in conjunction with
+the L</no_init_connect> option.
+
+By virtue of the design of the Couchbase architecture, already-connected clients
+will learn about alternate entry points once an initial entry into the cluster
+has been established. Therefore if a connection fails in-situ, the client is
+likely to know of alternate entry points, and thus the server list is only
+useful for discovering the initial entry point.
 
 =item username, password
 
@@ -232,6 +297,22 @@ Authentication credentials for the connection. Defaults to NULL
 =item bucket
 
 The bucket name for the connection. Defaults to C<default>
+
+=item io_timeout
+
+=item connect_timeout
+
+=item select_timeout
+
+=item timeout
+
+These all alias to the same setting, and control the time the client waits
+for a response after it sends a request to the server.
+
+The value should be specified in seconds (fractional values are allowed)
+
+Defaults to C<2.5>
+
 
 =back
 
@@ -332,7 +413,7 @@ By default we use L<Compress::Zlib|Compress::Zlib> because as of this
 writing it appears to be much faster than
 L<IO::Uncompress::Gunzip|IO::Uncompress::Gunzip>.
 
-=item I<serialize_methods>
+=item serialize_methods
 
   serialize_methods => [ \&Storable::freeze, \&Storable::thaw ],
   (default: [ \&Storable::nfreeze, \&Storable::thaw ])
@@ -353,8 +434,26 @@ if deserialization fails (say, wrong data format) it should throw an
 exception (call I<die>). The exception will be caught by the module
 and L</get> will then pretend that the key hasn't been found.
 
-=back
+=item deconversion
 
+    deconversion => 1
+    (default: deconversion => 1)
+    
+Controls whether I<de>-compression and I<de>-serialization are performed on
+apparently serialized or compressed values.
+
+Default is enabled.
+
+=item dereference_scalar_ref
+
+    dereference_scalar_ref => 1
+    (default: dereference_scalar_ref => 0)
+    
+Controls whether a SCALAR reference is 'serialized' as normal via storable,
+or whether it should be dereferenced, and its underlying string used as a plain
+scalar value.
+
+=back
 
 =head3 get(key)
 
@@ -540,6 +639,59 @@ Multi version of L</arithmetic>
 =head3 incr_multi( [key, amount], ... )
 
 =head3 decr_multi( [key, amount], ... )
+
+
+=head2 RUNTIME SETTINGS
+
+The following methods can be called without an argument, in which case it acts
+as a getter, and returns the boolean status of the relevant setting.
+
+If called with a single argument, that argument is a boolean value and the
+method acts as a mutator. The old value for the setting is returned.
+
+
+=head3 enable_compress(...), compression_settings(...)
+
+=head3 serialization_settings(...)
+
+These methods, when called with no arguments, will return the boolean status about
+whether compression or serialization is enabled.
+
+If passed an argument, the argument is converted to a boolean value, and the
+previous setting is returned.
+
+C<enable_compress> is an alias to C<compression_settings>, for API familiarity
+with older clients.
+
+=head3 conversion_settings(...)
+
+This is a catch-all setting for all modes of conversion; i.e. serialization
+B<and> compression. Disabling conversion will disable compression and serialization.
+
+Enabling conversion will restore the previous serialization and compression
+settings.
+
+=head3 deconversion_settings(...)
+
+This controls and accesses the deconversion setting. Deconversion is any
+I<decompression> or I<deserialization> when retrieving a remote value. This can
+be particularly handy if you wish to perform more heuristics on the type of
+the value, rather than possibly have the deconversion settings fail.
+
+When deconversion is disabled, all conversion settings are disabled as well.
+
+=head3 compress_threshold(...)
+
+Gets or sets the compression threshold, i.e. the minimum value length before
+compression is applied.
+
+
+=head3 timeout(...)
+
+Get or set the timeout for enqueued operations. The timeout is the time the client
+waits for a response after sending the request to the server.
+
+Timeouts cannot be disabled. See documentation on constructor options.
 
 
 =head2 INFORMATIONAL METHODS

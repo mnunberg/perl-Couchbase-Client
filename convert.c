@@ -108,6 +108,10 @@ compression_convert(SV *meth, SV *input, int direction)
     return converted;
 }
 
+#define plcb_can_convert(object, flags) \
+    ((object->my_flags & (PLCBf_DECONVERT|flags)) == \
+        (PLCBf_DECONVERT|flags))
+
 void plcb_convert_storage(
     PLCB_t *object, SV **data_sv, STRLEN *data_len,
     uint32_t *flags)
@@ -115,16 +119,27 @@ void plcb_convert_storage(
     SV *sv;
     *flags = 0;
     
-    if(object->my_flags & PLCBf_DO_CONVERSION == 0 && SvROK(*data_sv) == 0) {
+    /* dereference SCALAR reference. bypass all conversion checks because
+     * this is an internal setting
+     */
+    if( (object->my_flags & PLCBf_DEREF_RVPV) &&
+       SvROK(*data_sv) && SvTYPE(SvRV(*data_sv)) == SVt_PV) {
+        *data_sv = SvRV(*data_sv);
+        *data_len = SvCUR(*data_sv);
+    }
+    
+    if( (object->my_flags & PLCBf_DO_CONVERSION == 0 ||
+         object->my_flags & PLCBf_DECONVERT == 0)
+       && SvROK(*data_sv) == 0) {
         return;
     }
     
     sv = *data_sv;
     
+    /*only serialize references*/
     if(SvROK(sv)) {
-        if(!(object->my_flags & PLCBf_USE_STORABLE)) {
-            die("Serialization not enabled "
-                "but we were passed a reference");
+        if(!plcb_can_convert(object, PLCBf_USE_STORABLE)) {
+            croak("serialization requested but output conversion disabled");
         }
         
         sv = serialize_convert(object->cv_serialize, sv,
@@ -133,7 +148,7 @@ void plcb_convert_storage(
         *data_len = SvCUR(sv); /*set this so compression method sees new length*/
     }
     
-    if( (object->my_flags & PLCBf_USE_COMPRESSION)
+    if( plcb_can_convert(object, PLCBf_USE_COMPRESSION)
        && object->compress_threshold
        && *data_len >= object->compress_threshold ) {
         
@@ -166,7 +181,7 @@ SV* plcb_convert_retrieval(
     input_sv = newSVpvn(data, data_len);
     
     if(plcb_storeflags_has_conversion(object, flags) == 0
-       || (object->my_flags & PLCBf_NO_DECONVERT) ) {
+       || (object->my_flags & PLCBf_DECONVERT) == 0 ) {
         return input_sv;
     }
     
@@ -194,8 +209,6 @@ SV* plcb_convert_retrieval(
 int plcb_convert_settings(PLCB_t *object, int flag, int new_value)
 {
     int ret;
-    
-    
     if(flag == PLCBf_COMPRESS_THRESHOLD) {
         /*this isn't really a flag value, but a proper integer*/
         ret = object->compress_threshold;
@@ -203,6 +216,9 @@ int plcb_convert_settings(PLCB_t *object, int flag, int new_value)
         object->compress_threshold = new_value >= 0
             ? new_value
             : object->compress_threshold;
+        if(new_value >= 0) {
+            object->my_flags |= PLCBf_USE_COMPRESSION;
+        }
         return ret;
     }
     
@@ -214,10 +230,6 @@ int plcb_convert_settings(PLCB_t *object, int flag, int new_value)
         if(new_value == 0) {
             object->my_flags &= (~flag);
         }
-    }
-    
-    if(flag == PLCBf_NO_DECONVERT && new_value > 0) {
-        object->my_flags &= (~ (PLCBf_USE_COMPRESSION|PLCBf_USE_STORABLE));
     }
     
     return ret;

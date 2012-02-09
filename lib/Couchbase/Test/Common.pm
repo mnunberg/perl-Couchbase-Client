@@ -5,10 +5,22 @@ use base qw(Test::Class);
 use Test::More;
 use Couchbase::MockServer;
 use Data::Dumper;
+use Class::XSAccessor {
+    accessors => [qw(mock res_buckets)]
+};
+
+my $have_confua = eval {
+    require Couchbase::Config::UA; 1;
+};
+
+my $have_vbucket = eval {
+    require Couchbase::VBucket; 1;
+};
 
 our $Mock;
 our $RealServer = $ENV{PLCB_TEST_REAL_SERVER};
 our $MemdPort = $ENV{PLCB_TEST_MEMD_PORT};
+
 sub mock_init
 {
     my $self = shift;
@@ -18,24 +30,67 @@ sub mock_init
     $self->{mock} = $Mock;
 }
 
-sub mock { $_[0]->{mock} }
+sub fetch_config {
+    my $self = shift;
+    if(!$have_confua) {
+        return;
+    }
+    my $confua = Couchbase::Config::UA->new(
+        $self->common_options->{server},
+        username => $self->common_options->{username},
+        password => $self->common_options->{password}
+    );
+    my $defpool = $confua->list_pools();
+    $confua->pool_info($defpool);
+    my $buckets = $confua->list_buckets($defpool);
+    $self->confua($confua);
+    $self->res_buckets($buckets);
+}
+
+use constant {
+    BUCKET_MEMCACHED => 1,
+    BUCKET_COUCHBASE => 2,
+    BUCKET_DEFAULT => 3
+};
 
 sub common_options {
-    my $self = shift;
+    my ($self,$bucket_type) = @_;
     
     if($RealServer) {
         return { %$RealServer };
     }
-    
+    my $mock = $self->mock;
     my $opthash = {};
-    my $defbucket = $self->mock->buckets->[0];
     
-    if($defbucket->{password}) {
+    if(!$bucket_type) {
+        $bucket_type = BUCKET_DEFAULT;
+    } elsif ($bucket_type =~ /mem/) {
+        $bucket_type = BUCKET_MEMCACHED;
+    } elsif ($bucket_type =~ /couch/) {
+        $bucket_type = BUCKET_COUCHBASE;
+    } else {
+        warn("No such bucket type $bucket_type");
+        $bucket_type = BUCKET_DEFAULT;
+    }
+    
+    my $bucket = $self->mock->buckets->[0] or die "No buckets!";
+    if($bucket_type == BUCKET_MEMCACHED) {
+        $bucket = (grep $_->{type} eq 'memcache',
+                        @{$mock->buckets})[0];
+    } elsif ($bucket == BUCKET_COUCHBASE) {
+        $bucket = (grep { (!$_->{type}) || $_->{type} eq 'couchbase' }
+                        @{$mock->buckets})[0];
+    }
+    if(!$bucket) {
+        die("Can't find common options for bucket (@_)");
+    }
+    
+    if($bucket->{password}) {
         $opthash->{username} = "some_user";
-        $opthash->{password} = $defbucket->{password};
+        $opthash->{password} = $bucket->{password};
     }
     $opthash->{server} = "127.0.0.1:" . $self->mock->port;
-    $opthash->{bucket} = $defbucket->{name};
+    $opthash->{bucket} = $bucket->{name};
     return $opthash;
 }
 
@@ -68,13 +123,15 @@ sub Initialize {
         $RealServer = {};
         foreach my $pair (@kvpairs) {
             my ($k,$v) = split(/=/, $pair);
-            $RealServer->{$k} = $v if $k =~ /server|bucket|username|password|memd_port/;
+            $RealServer->{$k} = $v if $k =~
+                /server|bucket|username|password|memd_port/;
         }
         $RealServer->{server} ||= "localhost:8091";
         $RealServer->{bucket} ||= "default";
         $MemdPort ||= delete $RealServer->{memd_port};
         $Mock = 1;
     } else {
+        
         $Mock = Couchbase::MockServer->new(%opts);
         return $Mock;
     }

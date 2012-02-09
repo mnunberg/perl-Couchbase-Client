@@ -122,11 +122,11 @@ PLCB_connect(SV *self)
         return 1;
     } else {
         if( (err = libcouchbase_connect(instance)) == LIBCOUCHBASE_SUCCESS) {
-            object->connected = 1;
             libcouchbase_wait(instance);
             if(av_len(object->errors) > -1) {
                 return 0;
             }
+            object->connected = 1;
             return 1;
         } else {
             plcb_errstack_push(object, err, NULL);
@@ -237,16 +237,6 @@ static SV *PLCB_get_common(SV *self, SV *key, int exp_offset)
                             exp_arg);
     
     _sync_return_single(object, err, syncp);    
-}
-
-SV *PLCB_get_errors(SV *self)
-{
-    libcouchbase_t instance;
-    PLCB_t *object;
-    AV *errors;
-    
-    mk_instance_vars(self, instance, object);
-    return newRV_inc((SV*)object->errors);
 }
 
 #define set_plst_get_offset(exp_idx, exp_var, diemsg) \
@@ -383,7 +373,8 @@ enum {
     SETTINGS_ALIAS_SERIALIZE,
     SETTINGS_ALIAS_CONVERT,
     SETTINGS_ALIAS_DECONVERT,
-    SETTINGS_ALIAS_COMP_THRESHOLD
+    SETTINGS_ALIAS_COMP_THRESHOLD,
+    SETTINGS_ALIAS_DEREF_RVPV
 };
 
 
@@ -574,6 +565,18 @@ PLCB_remove(self, key, ...)
 SV *
 PLCB_get_errors(self)
     SV *self
+    
+    PREINIT:
+    libcouchbase_t instance;
+    PLCB_t *object;
+    AV *errors;
+    
+    CODE:
+    mk_instance_vars(self, instance, object);
+    RETVAL = newRV_inc((SV*)object->errors);
+    
+    OUTPUT:
+    RETVAL
 
 
 SV *
@@ -609,6 +612,7 @@ PLCB__settings(self, ...)
     conversion_settings         = SETTINGS_ALIAS_CONVERT
     deconversion_settings       = SETTINGS_ALIAS_DECONVERT
     compress_threshold          = SETTINGS_ALIAS_COMP_THRESHOLD
+    dereference_scalar_ref_settings  = SETTINGS_ALIAS_DEREF_RVPV
        
     PREINIT:
     int flag;
@@ -630,10 +634,13 @@ PLCB__settings(self, ...)
             flag = PLCBf_USE_STORABLE|PLCBf_USE_COMPRESSION;
             break;
         case SETTINGS_ALIAS_DECONVERT:
-            flag = PLCBf_NO_DECONVERT;
+            flag = PLCBf_DECONVERT;
             break;
         case SETTINGS_ALIAS_COMP_THRESHOLD:
             flag = PLCBf_COMPRESS_THRESHOLD;
+            break;
+        case SETTINGS_ALIAS_DEREF_RVPV:
+            flag = PLCBf_DEREF_RVPV;
             break;
         case 0:
             die("This function should not be called directly. "
@@ -643,7 +650,7 @@ PLCB__settings(self, ...)
             break;
     }
     if(items == 2) {
-        new_value = sv_2bool(ST(2));
+        new_value = sv_2bool(ST(1));
     } else if (items == 1) {
         new_value = -1;
     } else {
@@ -657,7 +664,8 @@ PLCB__settings(self, ...)
     
     
     RETVAL = plcb_convert_settings(object, flag, new_value);
-    
+    //warn("Report flag %d = %d", flag, RETVAL);
+
     OUTPUT:
     RETVAL
 
@@ -682,7 +690,7 @@ PLCB_timeout(self, ...)
     
     if(items == 2) {
         new_param = SvNV(ST(1));
-        if(!new_param) {
+        if(new_param <= 0) {
             warn("Cannot disable timeouts.");
             XSRETURN_UNDEF;
         }
@@ -699,12 +707,18 @@ int
 PLCB_connect(self)
     SV *self
 
-
+    
 BOOT:
 {
-    
-    /*because xsubpp is stupid, we can't use an inline macro for this*/
-    
+    {
+        libcouchbase_uint32_t cbc_version = 0;
+        const char *cbc_version_string;
+        cbc_version_string = libcouchbase_get_version(&cbc_version);
+        /*
+        warn("Couchbase library version is (%s) %x",
+             cbc_version_string, cbc_version);
+        */
+    }
     /*Client_multi.xs*/
     PUSHMARK(SP);
     mXPUSHs(newSVpv("Couchbase::Client",0));

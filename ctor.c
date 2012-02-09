@@ -82,7 +82,8 @@ void plcb_ctor_init_common(PLCB_t *object, libcouchbase_t instance,
     }
     
     /*gather instance-related options from the constructor*/
-    if( (tmpsv = av_fetch(options, PLCB_CTORIDX_TIMEOUT, 0)) ) {
+    if( (tmpsv = av_fetch(options, PLCB_CTORIDX_TIMEOUT, 0))  && 
+            (SvIOK(*tmpsv) || SvNOK(*tmpsv))) {
         timeout_value = SvNV(*tmpsv);
         if(!timeout_value) {
             warn("Cannot use 0 for timeout");

@@ -38,11 +38,13 @@ typedef enum {
     PLCBf_USE_STORABLE          = 0x8,
     PLCBf_USE_CONVERT_UTF8      = 0x10,
     PLCBf_NO_CONNECT            = 0x20,
-    PLCBf_NO_DECONVERT          = 0x40,
+    PLCBf_DECONVERT             = 0x40,
     
     /*pseudo-flags*/
     PLCBf_COMPRESS_THRESHOLD    = 0x80,
     PLCBf_RET_EXTENDED_FIELDS   = 0x100,
+    
+    PLCBf_DEREF_RVPV            = 0x200,
 } PLCB_flags_t;
 
 #define PLCBf_DO_CONVERSION \

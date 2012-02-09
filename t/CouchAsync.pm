@@ -9,7 +9,7 @@ use Couchbase::Client::Errors;
 use POE;
 use POE::Kernel;
 use Data::Dumper;
-use Log::Fu { level => "info" };
+use Log::Fu { level => "debug" };
 use Devel::Peek;
 use Array::Assign;
 
@@ -212,6 +212,7 @@ sub update_timer :Event {
     
     if($usecs) {
         $seconds = ($usecs / (1000*1000));
+        log_err($usecs);
     }
     if($action == EVACTION_WATCH) {
         if(defined $timer_id) {

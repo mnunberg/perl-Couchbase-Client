@@ -5,19 +5,7 @@ use ExtUtils::MakeMaker;
 use Dir::Self;
 
 use lib __DIR__;
-
-my $plcb_config = do 'PLCB_Config.pm';
-
-my $include_path = $plcb_config->{COUCHBASE_INCLUDE_PATH} || "";
-my $library_path = $plcb_config->{COUCHBASE_LIBRARY_PATH} || "";
-
-if($include_path) {
-    $include_path = "-I$include_path";
-}
-
-if($library_path) {
-    $library_path = "-L$library_path";
-}
+use PLCB_ConfUtil;
 
 # .c files
 my @source_modules = qw(
@@ -77,8 +65,8 @@ WriteMakefile(
     NEEDS_LINKING => 1,
     OPTIMIZE    => '-O0 -ggdb3 -Wdeclaration-after-statement -Werror -std=gnu89',
     #CCFLAGS  => '-Wdeclaration-after-statement',
-    LIBS    => ["$library_path -lcouchbase -lcouchbase_libevent -lvbucket"],
-    INC     => $include_path,
+    LIBS    => [PLCB_ConfUtil::get_gcc_linker_flags],
+    INC     => PLCB_ConfUtil::get_include_dir,
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean               => { FILES => 'Couchbase-Client-*' },
 );

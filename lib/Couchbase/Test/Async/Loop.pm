@@ -28,6 +28,7 @@ sub unhandled :Event(_default) {
 sub got_error :Event {
     log_errf("Got errnum=%d, errstr=%s",
              $_[ARG0], $_[ARG1]);
+    $_[HEAP]->on_error(@_[ARG0,ARG1]);
 }
 
 
@@ -154,14 +155,15 @@ sub dispatch_timeout :Event {
 
 use Class::XSAccessor {
     constructor => 'new',
-    accessors => [qw(object alias on_ready)]
+    accessors => [qw(object alias on_ready on_error)]
 };
 
 sub spawn {
     my ($cls,$session_name,%options) = @_;
     my $cb_ready = delete $options{on_ready}
         or die ("Must have on_ready callback");
-
+    my $user_error_callback = delete $options{on_error};
+    
     my $async = Couchbase::Client::Async->new({
         %options,
         cb_error =>
@@ -175,7 +177,8 @@ sub spawn {
             sub { $poe_kernel->call($session_name, "update_timer", @_) }
     });
     
-    my $o = __PACKAGE__->new(alias => $session_name, object => $async);
+    my $o = __PACKAGE__->new(alias => $session_name, object => $async,
+                             on_error => $user_error_callback);
     POE::Session->create(
         heap => $o,
         inline_states =>
