@@ -18,13 +18,14 @@ my $have_vbucket = eval {
     1;
 };
 
+if($Couchbase::Test::Common::RealServer) {
+    __PACKAGE__->SKIP_CLASS("Can't perform network tests on real server");
+}
+
 sub startup_tests :Test(startup)
 {
     my $self = shift;
     $self->mock_init();
-    if($Couchbase::Test::Common::RealServer) {
-        $self->SKIP_ALL("Can't perform network tests on real server");
-    }
     if($have_vbucket) {
         my $confua = Couchbase::Config::UA->new(
             $self->common_options->{server},
@@ -50,7 +51,6 @@ sub setup_test :Test(setup) {
     $self->cbo($cbo);
     alarm(30); #things can hang, so don't wait more than a minute for each
     #function
-    #$SIG{ALRM} = sub { diag "Alarm triggered"; die("grrr..."); }
 }
 
 sub teardown_test :Test(teardown) {
@@ -67,7 +67,7 @@ sub T40_tmpfail_basic :Test(no_plan) {
     
     note "Suspending mock server";
     $mock->suspend_process();
-    $cbo->timeout(2);
+    $cbo->timeout(0.5);
     ok(!$cbo->connect(), "Connect failed");
     my $errors = $cbo->get_errors;
     ok(scalar @$errors, "Have connection error");
@@ -83,8 +83,11 @@ sub T40_tmpfail_basic :Test(no_plan) {
 }
 
 sub T41_degraded :Test(no_plan) {
-    return; #nothing to do here unfortunately
     my $self = shift;
+    
+    local $TODO = "CouchbaseMock does not have 'server-down' mode";
+    return;
+
     my $cbo = $self->cbo;
     my $mock = $self->mock;
     

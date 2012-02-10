@@ -17,7 +17,13 @@
 #error "Perl needs 64 bit integer support"
 #endif
 
+#ifndef mXPUSHs
+#define mXPUSHs(sv) XPUSHs(sv_2mortal(sv))
+#endif
+
 #include "plcb-util.h"
+
+
 
 typedef struct PLCB_st PLCB_t;
 

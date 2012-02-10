@@ -4,21 +4,28 @@ use warnings;
 
 use base qw(Couchbase::Test::Common);
 use base qw(POE::Sugar::Attributes);
-use POE::Kernel;
 use Test::More;
 use Couchbase::Client::Async;
 use Couchbase::Client::Errors;
 use Couchbase::Client::IDXConst;
-use Couchbase::Test::Async::Loop;
 use Array::Assign;
 use Data::Dumper;
 use Log::Fu;
 
 my $loop_session = "cbc_test_async";
 my $client_session = 'our_client';
-
 my $poe_kernel = 'POE::Kernel';
+
+my $can_async = eval {
+    use Couchbase::Test::Async::Loop;
+    use POE::Kernel; 1;
+};
+
+if(!$can_async) {
+    __PACKAGE__->SKIP_CLASS("Can't run async tests: $@");
+}
 $poe_kernel->run();
+
 
 my $ReadyReceived = 0;
 my $Return = undef;
@@ -27,6 +34,7 @@ my $Errnum;
 sub setup_async :Test(startup) {
     my $self = shift;
     $self->mock_init();
+
     Couchbase::Test::Async::Loop->spawn($loop_session,
         on_ready => \&loop_ready,
         on_error => sub { $Errnum = $_[0]; diag "Grrr!"; },

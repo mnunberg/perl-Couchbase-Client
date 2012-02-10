@@ -154,13 +154,11 @@ sub new {
             push @all_errors, @$errors;
             foreach (@$errors) {
                 my ($errno,$errstr) = @$_;
-                warn("(cbc_errno=$errno)");
                 if(exists $RETRY_ERRORS{$errno}) {
                     $error_retriable++;
                 }
             }
             if(!$error_retriable) {
-                warn("Didn't find any non-retriable errors");
                 last;
             }
         } else {

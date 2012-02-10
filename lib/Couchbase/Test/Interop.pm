@@ -7,7 +7,7 @@ use Couchbase::Client::Errors;
 use Data::Dumper;
 Log::Fu::set_log_level('Couchbase::Config', 'info');
 use Class::XSAccessor {
-    accessors => [qw(cbo memd memds vbconf confua)]
+    accessors => [qw(cbo memd)]
 };
 
 my $MEMD_CLASS;
@@ -15,24 +15,19 @@ my $have_memcached =
 eval {
     require Cache::Memcached::libmemcached;
     $MEMD_CLASS = "Cache::Memcached::libmemcached";
-} ||
-eval {
-    require Cache::Memcached;
-    $MEMD_CLASS = "Cache::Memcached";
-} ||
-eval {
-    require Cache::Memcached::Fast;
-    $MEMD_CLASS = "Cache::Memcached::Fast";
-};
+}; if ($@) {
+    diag "Memcached interop tests will not be available: $@";
+    __PACKAGE__->SKIP_CLASS("Need Cache::Memcached::libmemcached");
+}
 
-use Couchbase::Config::UA;
+if($] < 5.010) {
+    __PACKAGE__->SKIP_CLASS("Cache::Memcached::libmemcached ".
+                    "segfaults on perls < 5.10");
+}
+
 
 sub _setup_client :Test(startup) {
     my $self = shift;
-    if(!$have_memcached) {
-        $self->SKIP_ALL("Need Cache::Memcached::libmemcached");
-    }
-    
     $self->mock_init();
     
     my $server = $self->common_options->{server};
@@ -45,14 +40,12 @@ sub _setup_client :Test(startup) {
     });
     
     $self->cbo($cbo);
+    unless($self->fetch_config()) {
+        diag "Skipping Cache::Memcached interop tests";
+        $self->SKIP_CLASS("Couldn't fetch buckets");
+    }
     
-    my $confua = Couchbase::Config::UA->new(
-        $server, username => $username, password => $password);
-    
-    my $pool = $confua->list_pools();
-    $confua->pool_info($pool);
-    my $buckets = $confua->list_buckets($pool);
-    
+    my $buckets = $self->res_buckets();
     my $bucket = (grep {
         $_->name eq $bucket_name &&
         $_->port_proxy || $_->type eq 'memcached'
@@ -94,7 +87,7 @@ sub T30_interop_init :Test(no_plan)
         my $ret = $self->cbo->get($key);
         ok($ret->is_ok, "Found value for memcached key");
         is($ret->value, $value, "Got back same value");
-            
+        
         ok($self->cbo->set($key,$value)->is_ok, "set via cbc");
         is($memd->get($key), $value, "get via memd");
     }

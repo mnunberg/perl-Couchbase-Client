@@ -22,7 +22,6 @@ sub setup_client :Test(startup)
     $self->cbo( $o );
     $self->{basic_keys} = [qw(
         Foo Bar Baz Blargh Bleh Meh Grr Gah)];
-    $self->err_ok();
 }
 
 sub cbo {
@@ -73,6 +72,7 @@ sub get_ok {
 
 sub T00_set_values_simple :Test(no_plan) {
     my $self = shift;
+    $self->err_ok();
     foreach my $k (@{$self->{basic_keys}}) {
         $self->set_ok("Key '$k'", $k, $self->k2v($k));
         $self->get_ok($k, $self->k2v($k))

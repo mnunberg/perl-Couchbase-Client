@@ -130,7 +130,7 @@ sub update_timer :Event {
             $poe_kernel->alarm_remove($timer_id);
             $evdata->[EVIDX_PLDATA] = undef;
         } else {
-            log_err("Requested to delete non-existent timer ID");
+            log_debug("Requested to delete non-existent timer ID");
         }
     }
 }

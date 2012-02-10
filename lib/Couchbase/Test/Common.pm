@@ -21,6 +21,20 @@ our $Mock;
 our $RealServer = $ENV{PLCB_TEST_REAL_SERVER};
 our $MemdPort = $ENV{PLCB_TEST_MEMD_PORT};
 
+sub SKIP_CLASS {
+    my ($cls,$msg) = @_;
+    if(defined $msg) {
+        my $cstr = ref $cls ? ref $cls : $cls;
+        my $header = ("#" x 10) . " $cstr SKIP " . ("#" x 10);
+        
+        diag $header;
+        diag "";
+        diag $msg;
+        diag "";
+    }
+    goto &Test::Class::SKIP_CLASS;
+}
+
 sub mock_init
 {
     my $self = shift;
@@ -43,7 +57,6 @@ sub fetch_config {
     my $defpool = $confua->list_pools();
     $confua->pool_info($defpool);
     my $buckets = $confua->list_buckets($defpool);
-    $self->confua($confua);
     $self->res_buckets($buckets);
 }
 
@@ -115,10 +128,10 @@ sub v2k {
     reverse($v);
 }
 
+my $init_pid = $$;
 sub Initialize {
     my ($cls,%opts) = @_;
     if($RealServer && (!ref $RealServer) ) {
-        warn("Using real server..");
         my @kvpairs = split(/,/, $RealServer);
         $RealServer = {};
         foreach my $pair (@kvpairs) {
@@ -131,8 +144,11 @@ sub Initialize {
         $MemdPort ||= delete $RealServer->{memd_port};
         $Mock = 1;
     } else {
-        
-        $Mock = Couchbase::MockServer->new(%opts);
+        eval {
+            $Mock = Couchbase::MockServer->new(%opts);
+        }; if( ($@ || (!$Mock)) && $$ == $init_pid) {
+            $cls->SKIP_ALL("Cannot run tests without mock server");
+        }
         return $Mock;
     }
 }

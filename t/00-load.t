@@ -1,10 +1,10 @@
-#!perl -T
-
-use Test::More tests => 1;
+#!/usr/bin/perl
+use strict;
+use warnings;
+use Test::More;
 
 BEGIN {
-    use_ok( 'Couchbase::Client' ) || print "Bail out!
-";
+    use_ok('Couchbase::Client');
+    use_ok('Couchbase::Client::Async');
 }
-
-diag( "Testing Couchbase::Client $Couchbase::Client::VERSION, Perl $], $^X" );
+done_testing();

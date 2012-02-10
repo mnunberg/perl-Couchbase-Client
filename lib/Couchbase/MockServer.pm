@@ -7,12 +7,11 @@ use URI;
 use File::Path qw(mkpath);
 use IO::Socket::INET;
 use Socket;
-use POSIX qw(:errno_h :signal_h);
+use POSIX qw(:errno_h :signal_h :sys_wait_h);
 use Time::HiRes;
-use Log::Fu;
+use Log::Fu { level => "warn" };
 use Data::Dumper;
-
-
+use Time::HiRes qw(sleep);
 
 my $SYMLINK = "CouchbaseMock_PLTEST.jar";
 our $INSTANCE;
@@ -78,6 +77,10 @@ sub _do_run {
     if($pid) {
         #Parent: setup harakiri monitoring socket
         $self->pid($pid);
+        sleep(0.05);
+        if(waitpid($pid, WNOHANG) > 0) {
+            die("Child process died prematurely");
+        }
         log_info("Launched CouchbaseMock PID=$pid");
         if($self->harakiri_socket) {
             $self->harakiri_socket->blocking(0);
@@ -103,8 +106,10 @@ sub _do_run {
             $self->harakiri_socket->blocking(1);
         }
     } else {
-        log_infof("Executing %s", join(" ", @command));
+        log_warnf("Executing %s", join(" ", @command));
         exec(@command);
+        warn"exec @command failed: $!";
+        exit(1);
     }
 }
 
@@ -191,7 +196,9 @@ sub respawn_node {
 
 sub DESTROY {
     my $self = shift;
+    return unless $self->pid;
     kill SIGTERM, $self->pid;
+    log_debugf("Waiting for process to terminate");
     waitpid($self->pid, 0);
     log_infof("Reaped PID %d, status %d", $self->pid, $? >> 8);
     
