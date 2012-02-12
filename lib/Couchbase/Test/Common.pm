@@ -13,10 +13,6 @@ my $have_confua = eval {
     require Couchbase::Config::UA; 1;
 };
 
-my $have_vbucket = eval {
-    require Couchbase::VBucket; 1;
-};
-
 our $Mock;
 our $RealServer = $ENV{PLCB_TEST_REAL_SERVER};
 our $MemdPort = $ENV{PLCB_TEST_MEMD_PORT};

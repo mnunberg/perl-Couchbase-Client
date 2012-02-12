@@ -189,6 +189,29 @@ __END__
 
 Couchbase::Client - Perl Couchbase Client
 
+=head1 README
+
+This page documents the API of C<Couchbase::Client>. To install this module,
+see L<Couchbase::Client::README> for a broader overview.
+
+Just downloading and doing the traditional dance via CPAN I<might> work.
+
+=head1 WARNING
+
+The bundled C<libcouchbase> is not an official release version, and might break.
+
+Until this module is bundled with an official release version, assume any bug is
+a result of the perl bindings, and/or my modifications to the library, and not
+something in C<libcouchbase> itself.
+
+This warning will probably be removed in a stable version.
+
+The only reason this module is on CPAN is to get smoke tests.
+
+That being said, the module has been quite stable for me, and should be offered
+in a non-underscore release in the near future.
+
+
 =head1 SYNOPSIS
 
     use Couchbase::Client;

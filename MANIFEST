@@ -3,12 +3,16 @@ MANIFEST
 MANIFEST.SKIP
 Makefile.PL
 README.pod
+
 PLCB_ConfUtil.pm
+PLCB_Config.pm
 
 lib/Couchbase/Client.pm
 lib/Couchbase/Client/Return.pm
 lib/Couchbase/Client/Errors.pm
 lib/Couchbase/Client/IDXConst.pm
+
+lib/Couchbase/Client/README.pod
 
 lib/Couchbase/Client/Errors_const.pm
 lib/Couchbase/Client/IDXConst_const.pm
@@ -43,9 +47,15 @@ async.c
 async_callbacks.c
 async_events.c
 
+build_libraries.pl
 idx_constants.pl
 error_constants.pl
 print_constants.pl
 
 t/00-load.t
 t/01-main.t
+
+src/memcached-headers.tar.gz
+
+src/libcouchbase-1.0.0_45_g58818c5.tar.gz
+src/libvbucket-1.8.0.1_4_g677e403.tar.gz

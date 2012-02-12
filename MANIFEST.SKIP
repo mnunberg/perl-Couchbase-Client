@@ -1,3 +1,5 @@
 ^VBucket/
 ^Config/
 ^\.
+^src/
+^inst_dir/

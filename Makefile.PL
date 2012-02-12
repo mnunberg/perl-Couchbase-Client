@@ -3,9 +3,54 @@ use strict;
 use warnings;
 use ExtUtils::MakeMaker;
 use Dir::Self;
+use Getopt::Long;
+use Config;
+use File::Spec;
+use Config;
 
 use lib __DIR__;
-use PLCB_ConfUtil;
+
+GetOptions(
+    'dynamic' => \my $UseDynamic,
+    'include=s' => \my $ExtraInclude,
+    'ldpath=s' => \my $ExtraLDPath,
+);
+
+
+
+#We might want to figure out right now if we're linking against an existent
+#libcouchbase, using a user-provided custom dynamic link, or dynamic link
+my $myextlib;
+my $inc;
+my $libs;
+
+if(!$UseDynamic) {
+    my $inst_dir = File::Spec->catfile('src', 'inst');
+    my $lib_dir = File::Spec->catfile($inst_dir, 'lib');
+    
+    #Set path for linker and friends
+    $myextlib = join(' ',
+        map(File::Spec->catfile($lib_dir, $_.'$(LIB_EXT)'),
+            qw(libcouchbase libvbucket)));
+    
+    #set include path
+    $inc = '-I' . File::Spec->catfile($inst_dir, 'include');
+    $libs = '-lsasl2 -levent -ldl -lresolv';
+    {
+        no warnings 'once';
+        *MY::postamble = \&_static_my_postamble;
+    }
+} else {
+    $myextlib = "";
+    $libs = " -lcouchbase -lvbucket -lcouchbase_libevent";
+}
+
+foreach ([\$inc, \$ExtraInclude], [\$libs, \$ExtraLDPath]) {
+    my ($defl,$extra) = @$_;
+    if($$extra) {
+        $$defl = "$$extra $$defl";
+    }
+}
 
 # .c files
 my @source_modules = qw(
@@ -62,11 +107,25 @@ WriteMakefile(
         'POE::Sugar::Attributes' => 0.02,
         'POE'               => 1.312,
     },
+    'MYEXTLIB' => $myextlib,
     NEEDS_LINKING => 1,
-    OPTIMIZE    => '-O0 -ggdb3 -Wdeclaration-after-statement -Werror -std=gnu89',
-    #CCFLAGS  => '-Wdeclaration-after-statement',
-    LIBS    => [PLCB_ConfUtil::get_gcc_linker_flags],
-    INC     => PLCB_ConfUtil::get_include_dir,
+    
+    OPTIMIZE    => 
+                ' -Wdeclaration-after-statement -Werror -std=gnu89 -fPIC',
+                
+    LIBS    => $libs,
+    INC     => $inc,
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean               => { FILES => 'Couchbase-Client-*' },
 );
+
+
+sub _static_my_postamble {
+    my $make_text = <<'EOM';
+$(MYEXTLIB):
+    $(PERLRUN) build_libraries.pl
+EOM
+
+    $make_text =~ s/^\s+/\t/msg;
+    $make_text;
+}

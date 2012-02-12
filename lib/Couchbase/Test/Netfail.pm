@@ -15,6 +15,7 @@ use Class::XSAccessor {
 my $have_vbucket = eval {
     require Couchbase::Config::UA;
     require Couchbase::VBucket;
+    die('');
     1;
 };
 
