@@ -10,9 +10,7 @@ use Couchbase::Test::Common;
 my $TEST_PORT;
 
 Couchbase::Test::Common->Initialize(
-    url => $config->{COUCHBASE_MOCK_JARURL},
-    dir => __DIR__ . "/tmp",
-    port => 8092,
+    jarfile => __DIR__ . "/tmp/CouchbaseMock.jar",
     nodes => 5,
     buckets => [{name => "default", type => "memcache"}],
 );

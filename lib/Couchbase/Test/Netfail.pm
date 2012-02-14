@@ -20,7 +20,7 @@ my $have_vbucket = eval {
 };
 
 if($Couchbase::Test::Common::RealServer) {
-    __PACKAGE__->SKIP_CLASS("Can't perform network tests on real server");
+    __PACKAGE__->SKIP_CLASS("Can't perform network failure tests on real cluster");
 }
 
 sub startup_tests :Test(startup)

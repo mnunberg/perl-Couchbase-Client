@@ -143,7 +143,7 @@ sub Initialize {
         eval {
             $Mock = Couchbase::MockServer->new(%opts);
         }; if( ($@ || (!$Mock)) && $$ == $init_pid) {
-            $cls->SKIP_ALL("Cannot run tests without mock server");
+            $cls->SKIP_ALL("Cannot run tests without mock server ($@)");
         }
         return $Mock;
     }

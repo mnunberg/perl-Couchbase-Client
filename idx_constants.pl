@@ -1,6 +1,10 @@
-use ExtUtils::H2PM;
 use PLCB_ConfUtil;
 
+BEGIN {
+    PLCB_ConfUtil::env_from_tmpflags();
+}
+
+use ExtUtils::H2PM;
 module "Couchbase::Client::IDXConst";
 use_export;
 
@@ -9,8 +13,6 @@ include "sys/types.h";
 include "perl-couchbase.h";
 include "perl-couchbase-async.h";
 
-PLCB_ConfUtil::set_gcc_env();
-
 my @const_bases = qw(
     CTORIDX_SERVERS
     CTORIDX_USERNAME
@@ -18,15 +20,15 @@ my @const_bases = qw(
     CTORIDX_BUCKET
     CTORIDX_STOREFLAGS
     CTORIDX_MYFLAGS
-    
+
     CTORIDX_COMP_THRESHOLD
     CTORIDX_COMP_METHODS
-    
+
     CTORIDX_SERIALIZE_METHODS
-    
+
     CTORIDX_TIMEOUT
     CTORIDX_NO_CONNECT
-    
+
     RETIDX_VALUE
     RETIDX_ERRSTR
     RETIDX_CAS

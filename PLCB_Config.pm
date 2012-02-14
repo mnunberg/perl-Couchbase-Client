@@ -1,6 +1,9 @@
 package PLCB_Config;
 use strict;
 use warnings;
+use Dir::Self;
+use File::Spec;
+use Hash::Util qw(lock_keys);
 
 #this perl 'hash' contains configuration information necessary
 #to bootstrap and/or configure the perl couchbase client and run
@@ -8,13 +11,19 @@ use warnings;
 
 my $params = {
     #URL from which to download the mock JAR file for tests
-    #COUCHBASE_MOCK_JARURL   => 
-    #    "http://files.couchbase.com/maven2/org/couchbase/mock/".
-    #    "CouchbaseMock/0.5-SNAPSHOT/CouchbaseMock-0.5-20120202.071818-12.jar",
-    COUCHBASE_MOCK_JARURL => 'http://files.avsej.net/CouchbaseMock.jar',
-    LIBVBUCKET_RELEASE => '1.8.0.1_4_g677e403',
-    LIBCOUCHBASE_RELEASE => '1.0.0_45_g58818c5'
+    COUCHBASE_MOCK_JARURL => 'https://github.com/downloads/mnunberg/' .
+        'perl-Couchbase-Client/CouchbaseMock-0.5-SNAPSHOT.jar',
+
+    #version numbers for libcouchbase and libvbucket
+    LIBVBUCKET_RELEASE => '1.8.0.1_5_ga4397f3',
+    LIBCOUCHBASE_RELEASE => '1.0.0_50_g1a42d9e'
 };
 
+
+#don't change these, or there may be bad consequences
+$params->{SRC_DIR} = File::Spec->catfile(__DIR__, 'src');
+$params->{SRC_INST} = File::Spec->catfile($params->{SRC_DIR}, 'inst');
+
+lock_keys(%$params);
 
 return $params; #return value

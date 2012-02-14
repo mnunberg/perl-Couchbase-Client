@@ -1,7 +1,10 @@
-use ExtUtils::H2PM;
+#!/usr/bin/perl
 use PLCB_ConfUtil;
-PLCB_ConfUtil::set_gcc_env();
+BEGIN {
+    PLCB_ConfUtil::env_from_tmpflags();
+}
 
+use ExtUtils::H2PM;
 module "Couchbase::Client::Errors";
 use_export;
 

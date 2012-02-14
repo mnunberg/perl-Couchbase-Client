@@ -55,5 +55,5 @@ t/01-main.t
 t/tmp/CouchbaseMock.jar
 
 src/memcached-headers.tar.gz
-src/libcouchbase-1.0.0_50_g1a42d9e.tar.gz
-src/libvbucket-1.8.0.1_5_ga4397f3.tar.gz
+src/libcouchbase-__LIBCOUCHBASE_RELEASE__.tar.gz
+src/libvbucket-__LIBVBUCKET_RELEASE__.tar.gz
