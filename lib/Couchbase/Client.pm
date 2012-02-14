@@ -2,7 +2,7 @@ package Couchbase::Client;
 
 BEGIN {
     require XSLoader;
-    our $VERSION = '0.10_0';
+    our $VERSION = '0.11_0';
     XSLoader::load(__PACKAGE__, $VERSION);
 }
 
@@ -30,14 +30,14 @@ use Array::Assign;
 sub _make_conversion_settings {
     my ($arglist,$options) = @_;
     my $flags = 0;
-    
-    
+
+
     $arglist->[CTORIDX_MYFLAGS] ||= 0;
-    
+
     if($options->{dereference_scalar_ref}) {
         $arglist->[CTORIDX_MYFLAGS] |= fDEREF_RVPV;
     }
-    
+
     if(exists $options->{deconversion}) {
         if(! delete $options->{deconversion}) {
             return;
@@ -45,7 +45,7 @@ sub _make_conversion_settings {
     } else {
         $flags |= fDECONVERT;
     }
-    
+
     if(exists $options->{compress_threshold}) {
         my $compress_threshold = delete $options->{compress_threshold};
         $compress_threshold =
@@ -56,7 +56,7 @@ sub _make_conversion_settings {
             $flags |= fUSE_COMPRESSION;
         }
     }
-    
+
     my $meth_comp;
     if(exists $options->{compress_methods}) {
         $meth_comp = delete $options->{compress_methods};
@@ -64,31 +64,31 @@ sub _make_conversion_settings {
         $meth_comp = [ sub { ${$_[1]} = Compress::Zlib::memGzip(${$_[0]}) },
                       sub { ${$_[1]} = Compress::Zlib::memGunzip(${$_[0]}) }]
     }
-    
+
     if(defined $meth_comp) {
         $arglist->[CTORIDX_COMP_METHODS] = $meth_comp;
     }
-    
+
     my $meth_serialize = 0;
     if(exists $options->{serialize_methods}) {
         $meth_serialize = delete $options->{serialize_methods};
     }
-    
+
     if($meth_serialize == 0 && $have_storable) {
         $meth_serialize = [ \&Storable::freeze, \&Storable::thaw ];
     }
-    
+
     if($meth_serialize) {
         $flags |= fUSE_STORABLE;
         $arglist->[CTORIDX_SERIALIZE_METHODS] = $meth_serialize;
     }
-    
+
     $arglist->[CTORIDX_MYFLAGS] |= $flags;
 }
 
 sub _MkCtorIDX {
     my $opts = shift;
-    
+
     my @arglist;
     my $server = delete $opts->{server} or die "Must have server";
     arry_assign_i(@arglist,
@@ -96,19 +96,19 @@ sub _MkCtorIDX {
         CTORIDX_USERNAME, delete $opts->{username},
         CTORIDX_PASSWORD, delete $opts->{password},
         CTORIDX_BUCKET, delete $opts->{bucket});
-    
+
     _make_conversion_settings(\@arglist, $opts);
-    
+
     my $tmp = delete $opts->{io_timeout} ||
             delete $opts->{select_timeout} ||
             delete $opts->{connect_timeout} ||
             delete $opts->{timeout};
-    
+
     $tmp ||= 2.5;
     $arglist[CTORIDX_TIMEOUT] = $tmp if defined $tmp;
     $arglist[CTORIDX_NO_CONNECT] = delete $opts->{no_init_connect};
-    
-    
+
+
     if(keys %$opts) {
         warn sprintf("Unused keys (%s) in constructor",
                      join(", ", keys %$opts));
@@ -136,13 +136,13 @@ sub new {
     } else {
         die("Must have server or servers");
     }
-    
+
     my $connected_ok;
     my $no_init_connect = $opts->{no_init_connect};
     my $self;
-    
+
     my @all_errors;
-    
+
     my $privopts;
     while(!$connected_ok && (my $server = shift @$server_list)) {
         $opts->{server} = $server;
@@ -171,7 +171,7 @@ sub new {
     }
     @{$self->get_errors} = @all_errors;
     return $self;
-    
+
 }
 
 #This is called from within C to record our stats:
@@ -217,14 +217,14 @@ in a non-underscore release in the near future.
 
     use Couchbase::Client;
     use Couchbase::Client::Errors;
-    
+
     my $client = Couchbase::Client->new({
         server => 'localhost:8091',
         username => 'some_user',
         password => 'secret',
         bucket => 'my_bucket'
     });
-    
+
 Possible connection errors:
 
     foreach my $err (@{$client->get_errors}) {
@@ -232,38 +232,38 @@ Possible connection errors:
         warn("Trouble ahead! Couchbase client says: $errstr.");
     }
     my $opret;
-    
+
 Simple get and set:
 
     $opret = $client->set(Hello => "World", 3600);
     if(!$opret->is_ok) {
         warn("Couldn't set 'Hello': ". $opret->errstr);
     }
-    
+
     $opret = $client->get("Hello");
     if($opret->value) {
         printf("Got %s for 'Hello'\n", $opret->value);
     } else {
         warn("Couldn't get value for 'Hello': ". $opret->errstr);
     }
-    
+
 Update expiration:
 
     #make 'Hello' entry expire in 120 seconds
     $client->touch("Hello", 120);
-    
+
 Atomic CAS
 
     $opret = $client->get("Hello");
     if($opret->value && $opret->value != "Planet") {
         $opret = $client->cas(Hello => 'Planet', $opret->cas);
-        
+
         #check if atomic set was OK:
         if(!$opret->is_ok) {
             warn("Couldn't update: ".$opret->errstr);
         }
     }
-    
+
 =head2 DESCRIPTION
 
 <Couchbase::Client> is the client for couchbase (http://www.couchbase.org),
@@ -460,7 +460,7 @@ and L</get> will then pretend that the key hasn't been found.
 
     deconversion => 1
     (default: deconversion => 1)
-    
+
 Controls whether I<de>-compression and I<de>-serialization are performed on
 apparently serialized or compressed values.
 
@@ -470,7 +470,7 @@ Default is enabled.
 
     dereference_scalar_ref => 1
     (default: dereference_scalar_ref => 0)
-    
+
 Controls whether a SCALAR reference is 'serialized' as normal via storable,
 or whether it should be dereferenced, and its underlying string used as a plain
 scalar value.
@@ -526,7 +526,7 @@ The <cas> argument is retrieved as such:
 
     my $opret = $client->get("Key");
     $client->set("Key", "Value", $opret->cas);
-    
+
 The last argument is the expiration offset as documented in L</set>
 
 =head3 touch(key, expiry)
@@ -598,7 +598,7 @@ calling convention of the non-multi command variant.
 Thus, where you would do:
 
     $rv = $o->foo($arg1, $arg2, $arg3)
-    
+
 The C<_multi> version would be
 
     $rvs = $o->foo_multi(
@@ -610,15 +610,15 @@ The n-tuples themselves may either be grouped into a 'list', or an array referen
 itself:
 
     my @arglist = map { [$h->{key}, $k->{value} ] };
-    
+
     $o->set(@arglist);
-    
+
     #the same as:
-    
+
     $o->set( [ map [ { $h->{key}, $h->{value } ] }] );
-    
+
     #and the same as:
-    
+
     $o->set(map{ [$h->{key}, $h->{value}] });
 
 
@@ -733,7 +733,7 @@ The return value is an arrayref of arrayrefs in the following format:
         [$errnum, $errstr],
         ...
     ]
-    
+
 Modifications to the arrayref returned by C<get_errors> will be reflected in
 future calls to this function, until a new operation is performed and the error
 stack is cleared.
@@ -753,7 +753,7 @@ The return format is as so:
             'key_name' => 'key_value',
             ...
         },
-        
+
         ...
     }
 

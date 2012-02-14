@@ -1,7 +1,7 @@
 package Couchbase::Client::Async;
 use strict;
 use warnings;
-our $VERSION = '0.10_0';
+our $VERSION = '0.11_0';
 require XSLoader;
 XSLoader::load('Couchbase::Client', $VERSION);
 use Couchbase::Client;
@@ -20,9 +20,9 @@ sub new {
     );
     my %async_opts;
     @async_opts{@async_keys} = delete @{$options}{@async_keys};
-    
+
     my $arglist = Couchbase::Client::_MkCtorIDX($options);
-    
+
     $arglist->[CTORIDX_CBEVMOD] = delete $async_opts{cb_update_event}
     and
     $arglist->[CTORIDX_CBERR] = delete $async_opts{cb_error}
@@ -30,13 +30,13 @@ sub new {
     $arglist->[CTORIDX_CBWAITDONE] = delete $async_opts{cb_waitdone}
     and
     $arglist->[CTORIDX_CBTIMERMOD] = delete $async_opts{cb_update_timer}
-    
+
     or die "We require update_event, error, and wait_done callbacks";
-    
+
     if($async_opts{bless_events}) {
         $arglist->[CTORIDX_BLESS_EVENT] = 1;
     }
-    
+
     my $o = $cls->construct($arglist);
     return $o;
 }
@@ -56,7 +56,7 @@ foreach my $subname (qw(
     *{$subname} = sub {
         my ($self,@args) = @_;
         my $base = $self->_get_base_rv;
-        
+
         @_ = ($base, @args);
         goto &{"Couchbase::Client::$subname"};
     };
@@ -108,13 +108,13 @@ constructor.
 
     cb_update_event => sub {
         my ($evdata,$action,$flags) = @_;
-        
+
         if(ref($evdata) ne "Couchbase::Client::Event") {
             bless $evdata, "Couchbase::Client::Event";
         }
         ...
     };
-    
+
 This callback is invoked to update and/or modify events. It receives three
 arguments.
 
@@ -158,10 +158,10 @@ C<fd> is closed or changed.
 The first time an event is created, the C<dupfh> field will be undef, and
 the callback should check for this creation, and if true, create a new one,
 using the following idiom:
-    
+
     open my $dupfh, ">&", $evdata->fd;
     $evdata->dupfh($dupfh);
-    
+
 the C<dupfh> field will persist the next time the C<cb_update_event> callback
 is invoked.
 
@@ -198,7 +198,7 @@ contains the active events before this callback was invoked. Thus, instead of
 explicitly disabling all non-listed events, one can do the following:
 
     my $events_to_delete = $evdata->old_flags & (~$flags);
-    
+
 and only handle the events mentioned in C<$events_to_delete>
 
 The C<old_flags> will be set to the current value of C<$flags> once the callback
@@ -240,7 +240,7 @@ For the C<EVACTION_WATCH> event, the implementation must have the event loop
 dispatch to a function that will ultimately do something of the following:
 
     Couchbase::Client::Async->HaveEvent($which, $evdata->opaque);
-    
+
 Where the C<$which> argument contains the event which ocurred (either
 C<COUCHBASE_READ_EVENT> or C<COUCHBASE_WRITE_EVENT>), and the C<opaque> argument
 being the C<opaque> field passed in (this) callback.
@@ -252,13 +252,13 @@ See L</HaveEvent> for more details.
     cb_update_timer => sub {
         my ($evdata,$action,$usecs) = @_;
         my $timer_id = $evdata->pl_data;
-        
+
         if($action == EVACTION_WATCH) {
             if(defined $timer_id) {
                 reschedule_timer($timer_id, $usecs / (1000*1000),
                     callback => 'Couchbase::Client::Async::HaveData',
                     args => ['Couchbase::Client::Async', 0, $evdata->opaque]);
-                    
+
             } else {
                 $timer_id = schedule_timer(
                     $usecs / (1000*1000) ...
@@ -268,7 +268,7 @@ See L</HaveEvent> for more details.
             delete_timer($evdata->pl_data);
         }
     };
-    
+
 This callback is invoked to schedule an interval timer.
 It is passed three arguments:
 
@@ -327,7 +327,7 @@ ready. It is a package method and not an object method.
 It is called as so:
 
     Couchbase::Client::Async->HaveEvent($flags, $opaque);
-    
+
 The C<$flags> argument is only relevant for I/O events (and not timers). The
 C<$opaque> argument must be supplied and contains an internal pointer to a private
 C data structure. RTFSC if you really wish to know what's inside there.
@@ -359,7 +359,7 @@ Issue couchbase command(s).
         CBTYPE_*,
         [....],
     );
-    
+
 Pretty complicated, eh?
 
 It was the only sane way to have a single request function without limiting the
