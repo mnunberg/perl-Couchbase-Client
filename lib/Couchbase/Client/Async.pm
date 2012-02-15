@@ -1,7 +1,7 @@
 package Couchbase::Client::Async;
 use strict;
 use warnings;
-our $VERSION = '0.11_0';
+our $VERSION = '0.12_0';
 require XSLoader;
 XSLoader::load('Couchbase::Client', $VERSION);
 use Couchbase::Client;

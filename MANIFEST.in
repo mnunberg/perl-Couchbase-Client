@@ -6,6 +6,7 @@ README.pod
 
 PLCB_ConfUtil.pm
 PLCB_Config.pm
+build_libraries.pl
 
 lib/Couchbase/Client.pm
 lib/Couchbase/Client/Return.pm
@@ -29,26 +30,26 @@ lib/Couchbase/Test/Settings.pm
 lib/Couchbase/Test/Interop.pm
 lib/Couchbase/Test/Netfail.pm
 
-Client.xs
-Client_multi.xs
-Async.xs
+xs/Client.xs
+xs/Client_multi.xs
+xs/Async.xs
 
-perl-couchbase.h
-perl-couchbase-async.h
-plcb-util.h
-plcb-return.h
+xs/perl-couchbase.h
+xs/perl-couchbase-async.h
+xs/plcb-util.h
+xs/plcb-return.h
 
-callbacks.c
-convert.c
-ctor.c
-async.c
-async_callbacks.c
-async_events.c
+xs/callbacks.c
+xs/convert.c
+xs/ctor.c
+xs/async_base.c
+xs/async_callbacks.c
+xs/async_events.c
 
-build_libraries.pl
-idx_constants.pl
-error_constants.pl
-print_constants.pl
+
+constants/idx_constants.pl
+constants/error_constants.pl
+constants/print_constants.pl
 
 t/00-load.t
 t/01-main.t

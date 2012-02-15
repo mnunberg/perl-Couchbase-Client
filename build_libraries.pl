@@ -63,6 +63,15 @@ qw(
 runcmd("tar xf $MEMCACHED_H_TARBALL -C $INST_DIR");
 
 $ENV{CPPFLAGS} .= ' -fPIC ';
+$ENV{CPPFLAGS} .= " -I".File::Spec->catfile($INST_DIR, "include");
+$ENV{LDFLAGS} .= " -lm -L".File::Spec->catfile($INST_DIR, "lib");
+
+$ENV{CPPFLAGS} .= " " . join(" ", map("-I$_", split(/\s+/, $Config{locincpth})));
+$ENV{LDFLAGS} .= " " . join(" ", map("-L$_", split(/\s+/, $Config{libpth})));
+
+log_info("CPPFLAGS:", $ENV{CPPFLAGS});
+log_info("LDFLAS:", $ENV{LDFLAGS});
+
 #build libvbucket first:
 {
     chdir tarball_2_dir($LIBVBUCKET_TARBALL);
@@ -82,10 +91,6 @@ $ENV{CPPFLAGS} .= ' -fPIC ';
 {
     chdir $TOPLEVEL;
     chdir tarball_2_dir($LIBCOUCHBASE_TARBALL);
-    $ENV{CPPFLAGS} .= " -I".File::Spec->catfile($INST_DIR, "include");
-    $ENV{LDFLAGS} .= " -lm -L".File::Spec->catfile($INST_DIR, "lib");
-    log_info("CPPFLAGS:", $ENV{CPPFLAGS});
-    log_info("LDFLAS:", $ENV{LDFLAGS});
     
     my @libcouchbase_options = (
         @COMMON_OPTIONS,

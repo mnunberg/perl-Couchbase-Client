@@ -37,15 +37,17 @@ sub _accept_harakiri {
     my $begin_time = time();
     my $max_wait = 5;
     my $got_accept = 0;
+    
     while(time - $begin_time < $max_wait) {
         my $sock = $self->harakiri_socket->accept();
         if($sock) {
+            $sock->blocking(1);
             $self->harakiri_socket($sock);
             $got_accept = 1;
             log_info("Got harakiri connection");
             my $buf = "";
             $self->harakiri_socket->recv($buf, 100, 0);
-            if($buf) {
+            if(defined $buf) {
                 my ($port) = ($buf =~ /(\d+)/);
                 $self->port($port);
             } else {
@@ -59,7 +61,6 @@ sub _accept_harakiri {
     if(!$got_accept) {
         die("Could not establish harakiri control connection");
     }
-    $self->harakiri_socket->blocking(1);
 }
 
 sub _do_run {

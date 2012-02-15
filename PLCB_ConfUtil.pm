@@ -74,7 +74,7 @@ sub write_tmpflags {
 sub env_from_tmpflags {
     my $confhash = do "$TEMPFILE";
     $ENV{CFLAGS} .= ' ' . $confhash->{CFLAGS} . ' ' . $Config{ccflags};
-    $ENV{CFLAGS} .= ' -I' . __DIR__;
+    $ENV{CFLAGS} .= ' -I' . File::Spec->catfile(__DIR__, 'xs');
     $ENV{LDFLAGS}= "";
 #    $ENV{LDFLAGS}  .= ' ' .  $confhash->{LDFLAGS};
 
