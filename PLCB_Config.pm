@@ -18,7 +18,7 @@ my $params = {
     LIBVBUCKET_RELEASE => '1.8.0.2',
     LIBCOUCHBASE_RELEASE => '1.0.1',
 
-    LIBISASL_RELEASE    => '1.0.0_2_gc3f3496',
+    LIBISASL_RELEASE    => '1.0.0_3_g35e33e3',
     LIBEVENT_RELEASE    => '2.0.17-stable',
 };
 

@@ -49,6 +49,7 @@ sub runcmd {
         print STDERR "Command $cmd failed\n";
         printf STDERR ("CPPFLAGS=%s\nLDFLAGS=%s\n", $ENV{CPPFLAGS}, $ENV{LDFLAGS});
         printf STDERR ("LD_RUN_PATH=%s\n", $ENV{LD_RUN_PATH});
+        printf STDERR ("LIBS=%s\n", $ENV{LIBS});
         die "";
     }
 }
@@ -166,7 +167,7 @@ if(should_build('EVENT')) {
         --disable-debug-mode
         ), @COMMON_OPTIONS
     );
-    
+
     chdir tarball_2_dir($LIBEVENT_TARBALL);
     runcmd("./configure", @libevent_options) unless -e 'Makefile';
     log_info("Configured libevent");
@@ -185,13 +186,13 @@ if(should_build('EVENT')) {
         runcmd("./configure", @COMMON_OPTIONS);
         log_info("Configured libvbucket");
     }
-    
+
     runcmd("$MAKEPROG");
     log_info("build libvbucket");
     runcmd("$MAKEPROG install");
     log_info("installed libvbucket");
     runcmd("$MAKEPROG check") if $RUN_TESTS;
-    log_info("tested libvbucket");    
+    log_info("tested libvbucket");
 }
 
 
@@ -203,22 +204,22 @@ if(should_build('EVENT')) {
 {
     chdir $TOPLEVEL;
     chdir tarball_2_dir($LIBCOUCHBASE_TARBALL);
-    
+
     my @libcouchbase_options = (
         @COMMON_OPTIONS,
         "--disable-tools",
         "--enable-embed-libevent-plugin",
     );
-    
+
     if($^O =~ /solaris/) {
         print STDERR "Disabling tools (won't compile on solaris)\n";
         push @libcouchbase_options, '--disable-tools';
     }
-    
+
     my $have_java = eval { runcmd("java", "-version"); 1; };
     my $mockpath = File::Spec->catfile(
         __DIR__, 't', 'tmp', 'CouchbaseMock.jar');
-    
+
     if(!-e $mockpath) {
         die("Can't find mock in $mockpath");
     }
@@ -227,7 +228,7 @@ if(should_build('EVENT')) {
     } else {
         push @libcouchbase_options, '--disable-couchbasemock';
     }
-    
+
     #First, we need to mangle the 'configure' script:
     {
         my @conflines;
@@ -237,15 +238,18 @@ if(should_build('EVENT')) {
             if($line =~ s/LIBS=(-l\S+)/LIBS="\$LIBS $1"/msg) {
                 print STDERR ">> REPLACING: $line";
             }
+            if($line =~ s/sasl_server_init\(NULL,/sasl_client_init\(/) {
+                print STDERR ">> REPLACING: $line";
+            }
         }
         seek($confh, 0, 0);
         print $confh @conflines;
         truncate($confh, tell($confh));
-        
+
         close($confh);
     }
-    
-    runcmd("./configure", @libcouchbase_options) unless -e 'Makefile';    
+
+    runcmd("./configure", @libcouchbase_options) unless -e 'Makefile';
     runcmd("$MAKEPROG install");
     runcmd("$MAKEPROG check -s") if $RUN_TESTS;
 }

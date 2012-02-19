@@ -64,4 +64,4 @@ src/memcached-headers.tar.gz
 src/libcouchbase-1.0.1.tar.gz
 src/libvbucket-1.8.0.2.tar.gz
 src/libevent-2.0.17-stable.tar.gz
-src/libisasl-1.0.0_2_gc3f3496.tar.gz
+src/libisasl-1.0.0_3_g35e33e3.tar.gz
