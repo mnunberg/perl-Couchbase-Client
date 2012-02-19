@@ -5,3 +5,4 @@
 ^inst_dir/
 .+_const\.pm
 ^author_utils
+^INSTALL_DIR

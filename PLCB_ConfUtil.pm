@@ -41,10 +41,12 @@ sub get_include_dir {
 
 sub clean_cbc_sources {
     my $dir_base = $config->{SRC_DIR};
-
-    foreach my $lib (qw(couchbase vbucket)) {
-        my $dir = sprintf("lib%s-%s", $lib,
-                        $config->{ "LIB" . uc($lib) . "_RELEASE" });
+    while (my ($kname,$release) = each %$config) {
+        next unless $kname =~ /RELEASE/;
+        my ($libname,$version) = ($kname =~ /(LIB[^_]+)(.+)/);
+        $libname = lc($libname);
+        my $dir = "$libname-$release";
+        warn $dir;
         $dir = File::Spec->catfile($dir_base, $dir);
         rmtree($dir);
     }

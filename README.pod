@@ -50,143 +50,96 @@ Just a little utility module. May be useful for testing.
 
 =head1 Installing
 
-I will be focusing on installing and configuring C<libcouchbase> itself, the C
-client library. It is assumed you have a functional installation of the couchbase
-server somewhere. If not, go to http://www.couchbase.org
-
-To use this module, you should have installed C<libvbucket> (see the links on
-the side here http://www.couchbase.com/develop/c/current).
-
-As of 01/28/2011, you will need to download C<libcouchbase> itself from
-github (the current release versions contain bugs which may break this module).
-
-=head2 Building C<libcouchbase>
-
-
-C<libcouchbase> itself depends on C<libvbucket>, so make sure to install that
-(and its development libraries) first.
-
-Currently, I know of these dependencies:
+The following components are required for a proper C<Couchbase::Client>
 
 =over
+
+=item libcouchbase >= 1.0.1 (L<release|http://www.couchbase.com/develop/c/current>)
+
+=item libvbucket >= 1.8.0.2 (L<release|http://www.couchbase.com/develop/c/current>)
 
 =item libevent >= 1.4
 
-For embedded default event loop functionality
+=item libsasl/libsasl2 (any version).
 
-=item java
-
-For the Perl and C tests
-
-=item libsasl2
+=item Java (for the tests).
 
 =back
 
-Additionally, C<libcouchbase> depends on header files available from the
-C<engine-pu> branch of the C<memcached> project. Note that actually building
-memcached itself is not required.
-
-Your best bet would be to do
-something like this:
-    
-    ~$ mkdir couch
-    ~$ git clone https://github.com/memcached/memcached.git -b engine-pu couch/memcached
-    ~$ git clone https://github.com/couchbase/libcouchbase.git couch/libcouchbase
-    
-    #Get vbucket stuff:
-    
-    # I pick RPM, since that's what my target production platform is:
-    
-    ~$ wget http://packages.couchbase.com/clients/c/libvbucket1-1.8.0.1-1.x86_64.rpm
-    ~$ rpm -ivh libvbucket1-1.8.0.1-1.x86_64.rpm
-    ~$ wget http://packages.couchbase.com/clients/c/libvbucket-1.8.0.1.tar.gz
-    ~$ cd couch; tar xf ../libvbucket-1.8.0.1.tar.gz
-    ~$ ln -s libvbucket-1.8.0.1 libvbucket
-    
-    
-    # Note for CentOS/RHEL 5 users, you will need to perform the autorun
-    # to generate the 'configure' script on a newer platform, then copy it over
-    # to your target platform
-    
-    
-    ~$ cd couch/libcouchbase
-    ~$ ./config/autorun.sh
-    
-    #make sure we know about the new memcached (and vbucket) headers:
-    
-    ~$ CPPFLAGS='-I../memcached/include -I../libvbucket/include' ./configure
-    
-    # (EL5: If configure complains about not finding libvbucket, try:)
-        ~$ ln -s /usr/lib64/libvbucket.so.1 /usr/lib64/libvbucket.so
-    
-    
-    ~$ make
-    
-    #optional, run some tests:
-    ~$ make check
-    
+All of the above components (except Java) are bundled in source form with the
+tarball distribution (see further).
 
 =head2 Building Couchbase::Client
 
-There are two ways to build Couchbase::Client and associated modules.
+Couchbase::Client is bundled (in its tarball distribution) with source distributions
+of libevent, libisasl, libvbucket, and libcouchbase. These are not present on
+the git version because it is assumed that the user may want to provide copies
+of their own.
+
+The bundled configuration will only substitute I<missing> dependencies from
+the bundle; thus, if you have C<libsasl> but are missing a proper version of
+C<libevent>, then only the bundled libevent (but not libsasl) will be used.
+
+C<Couchbase::Client> can be configured to either link against the bundled
+libraries, or to link against a custom or system directory.
+
+=head3 Using Embedded Libraries:
+
+In order to use embedded libraries, you should ensure that you have a proper
+distribution for each needed and unfound library.
+
+The file C<PLCB_Config.pm> should contain a bunch of hash entries in the format
+of 
+
+    LIBFOO_RELEASE => 1.2.3-sdff
+    
+where C<LIBFOO> is the uper-case name of the library, and the value is the
+version of the library.
+
+The tarball B<must> be named C<libfoo-1.2.3-sdff.tar.gz>, and its top-level
+directory must be C<libfoo-1.2.3/>
+
+You will find that the config file has sane defaults, and that the main task
+is downloading them.
+
+The tarballs should then be relocated to the C<src/> directory.
+
+Once all is ready, you can invoke the C<Makefile.PL> script, optionally
+passing some arguments.
+
+=head4 Makefile.PL arguments
 
 =over
 
-=item Static libcouchbase and libvbucket
+=item --libpath
 
-This is the mode of distribution and is the default option.
+A string for passing to the linker which should contain something like
+C<-L/foo -L/bar> etc.
 
-You should edit the C<LIBVBUCKET_TARRBALL> and C<LIBCOUCHBASE_TARBALL>
-keys in C<PLCB_Config.pm> to correspond to the basename (the release string,
-without the .tar.gz suffix), thus:
+This is only necessary if your standard dependencies are found outside the linker's
+default search path (e.g. macports)
 
-    == PLCB_Config.pm ==
-    my $params = {
-    
-    #...
-    
-    LIBVBUCKET_RELEASE => '1.8.0.1_4_g677e403',
-    LIBCOUCHBASE_RELEASE => '1.0.0_45_g58818c5'
-    
-    };
+=item --incpath
 
-    
-    $ mkdir src
-    cp libvbucket-1.8.0.1_4_g677e403.tar.gz src/
-    cp libcouchbase-1.0.0_45_g58818c5.tar.gz src/
-    
-    cp -a memcached/include src
-    
-Note that the tarball MUST have as its top-level directory the name of the
-tarball itself, without the .tar.gz suffix.
+This is the same as C<--libpath>, but are passed to the preprocessor and would
+look like C<-I/usr/foo/include> etc.
 
-If you are not using a 'release-style' tarball but rather checking out from git,
-then you will likely need to run ./configure and then C<make dist>, which should
-give you a tarball.
-
-run
-
-    $ perl Makefile.PL
-    $ make test install #and whatever other targets you want
-    
-=item Dynamic Linking
-
-This is the non-default option, and should be used if you want to use your system's
-libcouchbase, which may or may not break the perl client.
-
-Granted libcouchbase is rather new, so most systems will not have available
-packaging for libcouchbase or its tributaries.
-
-Know where your include and linker paths are, and do the following:
-
-    perl Makefile.PL --dynamic \
-    --include=-I/sources/libcouchbase/include \
-    --ldpath=-L/sources/libcouchbase/.libs
-
-    make
-    
-    
 =back
+
+Thus you can invoke somehting like:
+
+    $ perl Makefile.PL --incpath=-I/opt/local/include --libpath=-L/opt/local/lib
+    $ make
+    $ make test # but see the testing section, later
+    $ make install
+    
+=head3 Providing your own libraries.
+
+This is a relatively straight-forward option, and is what I use for development.
+
+Simply make use of the aforementioned C<--libpath> and C<--incpath> arguments to
+point to the directory which contains the necessary dependencies, and follow
+the relevant parts from the above section.
 
 
 There are some top-level scripts. Some have meaning to only the author, some might
@@ -201,6 +154,9 @@ Also, check out the runnable modules in the C<t/> directory
 
 The tests in this module require java to run. Some tests furthermore will only
 work on a real cluster, due to some of the limitations in the Java client.
+
+A C<CouchbaseMock.jar> should be located within the C<t/tmp> directory. You can
+obtain one from L<here|http://files.couchbase.com/maven2/org/couchbase/mock/CouchbaseMock/0.5-SNAPSHOT/CouchbaseMock-0.5-20120202.071818-12.jar>
 
 To run the tests on a real cluster, you can make use of the
 C<PLCB_TEST_REAL_SERVER> environment variable.

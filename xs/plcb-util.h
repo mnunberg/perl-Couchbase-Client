@@ -1,6 +1,8 @@
 #ifndef PLCB_UTIL_H_
 #define PLCB_UTIL_H_
 
+/* This file contains various conversion functions and macros */
+
 /*this stuff converts from SVs to int64_t (signed and unsigned) depending
  on the perl*/
 
@@ -66,6 +68,32 @@ static inline uint64_t plcb_sv_to_u64(SV *in)
         ? ( (lenvar) ? charvar : (void*)die("Got zero-length %s", diespec) ) \
         : (void*)die("Got NULL %s", diespec)
 
+
+#define PLCB_TIME_ABS_OFFSET
+
+#ifdef PLCB_TIME_ABS_OFFSET
+#define PLCB_UEXP2EXP(cbexp, uexp, now) \
+    cbexp = ((uexp) \
+        ? ((now) \
+            ? (now + uexp) \
+            : (time(NULL)) + uexp) \
+        : 0)
+
+#else
+
+/*Memcached protocol states that a time offset greater than 30 days is taken
+ to be an epoch time. We hide this from perl by simply generating our own
+ epoch time based on the user's time*/
+
+#define PLCB_UEXP2EXP(cbexp, uexp, now) \
+    cbexp = ((uexp) \
+        ? ((uexp > (30*24*60*60)) \
+            ? ((now) \
+                ? (now + uexp) \
+                : (time(NULL) + uexp)) \
+            : uexp) \
+        : 0)
+#endif
 
 
 #endif /* PLCB_UTIL_H_ */

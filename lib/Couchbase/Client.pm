@@ -2,7 +2,7 @@ package Couchbase::Client;
 
 BEGIN {
     require XSLoader;
-    our $VERSION = '0.12_0';
+    our $VERSION = '0.13_0';
     XSLoader::load(__PACKAGE__, $VERSION);
 }
 
@@ -194,8 +194,6 @@ Couchbase::Client - Perl Couchbase Client
 
 This page documents the API of C<Couchbase::Client>. To install this module,
 see L<Couchbase::Client::README> for a broader overview.
-
-Just downloading and doing the traditional dance via CPAN I<might> work.
 
 =head1 WARNING
 

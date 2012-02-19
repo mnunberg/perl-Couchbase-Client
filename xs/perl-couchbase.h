@@ -23,8 +23,6 @@
 
 #include "plcb-util.h"
 
-
-
 typedef struct PLCB_st PLCB_t;
 
 typedef struct {

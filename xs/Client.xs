@@ -170,8 +170,8 @@ static SV *PLCB_set_common(SV *self,
     av_clear(object->errors);
 
     _sync_initialize_single(object, syncp);
-
-    exp = exp_offset ? time(NULL) + exp_offset : 0;
+    
+    PLCB_UEXP2EXP(exp, exp_offset, 0);
 
     plcb_convert_storage(object, &value, &vlen, &store_flags);
     err = libcouchbase_store(instance, syncp, storop,
@@ -197,7 +197,7 @@ static SV *PLCB_arithmetic_common(SV *self,
     libcouchbase_error_t err;
 
     mk_instance_vars(self, instance, object);
-    exp = exp_offset ? time(NULL) + exp_offset : 0;
+    PLCB_UEXP2EXP(exp, exp_offset, 0);
 
     plcb_get_str_or_die(key, skey, nkey, "Key");
 
@@ -228,7 +228,8 @@ static SV *PLCB_get_common(SV *self, SV *key, int exp_offset)
     _sync_initialize_single(object, syncp);
 
     av_clear(object->errors);
-    exp_arg = (exp_offset && (exp = time(NULL) + exp_offset)) ? &exp : NULL;
+    PLCB_UEXP2EXP(exp, exp_offset, 0);
+    exp_arg = (exp) ? &exp : NULL;
 
     err = libcouchbase_mget(instance, syncp, 1,
                             (const void * const*)&skey, &klen,

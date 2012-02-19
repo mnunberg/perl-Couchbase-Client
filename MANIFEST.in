@@ -8,6 +8,8 @@ PLCB_ConfUtil.pm
 PLCB_Config.pm
 build_libraries.pl
 
+inc/Devel/CheckLib.pm
+
 lib/Couchbase/Client.pm
 lib/Couchbase/Client/Return.pm
 lib/Couchbase/Client/Errors.pm
@@ -55,6 +57,11 @@ t/00-load.t
 t/01-main.t
 t/tmp/CouchbaseMock.jar
 
+src/Makefile.PL
+src/libcouchbase.pm
+
 src/memcached-headers.tar.gz
 src/libcouchbase-__LIBCOUCHBASE_RELEASE__.tar.gz
 src/libvbucket-__LIBVBUCKET_RELEASE__.tar.gz
+src/libevent-__LIBEVENT_RELEASE__.tar.gz
+src/libisasl-__LIBISASL_RELEASE__.tar.gz

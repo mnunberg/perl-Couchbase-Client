@@ -38,7 +38,7 @@
 
 #define _exp_from_av(av, idx, nowvar, expvar, tmpsv) \
     if( (tmpsv = av_fetch(av, idx, 0)) && (expvar = SvUV(*tmpsv))) { \
-        expvar += nowvar; \
+        PLCB_UEXP2EXP(expvar, expvar, nowvar); \
     }
 
 #define _cas_from_av(av, idx, casvar, tmpsv) \
@@ -346,7 +346,7 @@ PLCB_multi_arithmetic_common(SV *self, AV *args, int cmd)
         }
         
         if ( (tmpsv = av_fetch(argav, 3, 0)) && (exp = SvUV(*tmpsv)) ) {
-            exp += now;
+            PLCB_UEXP2EXP(exp, exp, now);
         }
         
         GT_CBC_CMD:

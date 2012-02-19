@@ -1,7 +1,7 @@
 #!/usr/bin/perl
+package PLCBTopLevel;
 use strict;
 use warnings;
-
 use ExtUtils::MakeMaker;
 use Dir::Self;
 use Getopt::Long;
@@ -10,14 +10,50 @@ use File::Spec;
 use Config;
 use lib __DIR__;
 use PLCB_ConfUtil;
+use lib 'inc';
+use Devel::CheckLib;
+use Data::Dumper;
+
+log_err(__DIR__ . "/Makefile.PL");
+$ENV{LD_RUN_PATH} ||= "";
+
+#$Verbose = 99;
 
 GetOptions(
     'dynamic' => \my $UseDynamic,
-    'include=s' => \my $ExtraInclude,
-    'ldpath=s' => \my $ExtraLDPath,
+    'bundled' => \my $UseBundled,
+    'incpath=s' => \our $U_IncPath,
+    'libpath=s' => \our $U_LibPath
+) or die <<EOD;
+OPTIONS:
+--incpath=CPPFLAGS
+--libpath=LDFLAGS
+EOD
+
+#my $mm = ExtUtils::MakeMaker->new();
+
+our (@LIBS,$INC);
+our $MM_TopLevel;
+our $Constants_INC;
+
+push @LIBS, $U_LibPath if $U_LibPath;
+$INC = $U_IncPath || "";
+$Constants_INC = $INC;
+
+
+push @LIBS, '-lcouchbase';
+
+my %MM_Options = (
+    INC => $INC,
+    LIBS => [ join(' ', @LIBS) || '' ],
 );
 
-my %MM_Options;
+$MM_Options{CONFIGURE} = sub {
+    my ($cls,$h) = @_;
+    $MM_TopLevel = $h;
+    return $h;
+};
+
 ################################################################################
 ### Our C Source Files                                                       ###
 ################################################################################
@@ -52,71 +88,16 @@ foreach ([qw(error Errors)], [qw(idx IDXConst)]) {
 }
 
 ################################################################################
-### Check dependencies                                                       ###
-################################################################################
-my $inc;
-my $libs;
-
-################################################################################
 ### Check build type and options                                             ###
 ################################################################################
-my $myextlib;
 
-my $inst_dir = PLCB_ConfUtil::get_inst_dir();
-my $inst_lib_dir = File::Spec->catfile($inst_dir, 'lib');
-my $inst_inc_dir = File::Spec->catfile($inst_dir, 'include');
-
-my $buildscript_options = "";
-
-#my @extra_deps;
-#foreach my $dep (['sasl2', 'sasl'], ['event', 'event']) {
-#    my ($installed,$new) = @$dep;
-#    print STDERR "Checking if $installed is present...";
-#    if(check_lib(lib => $installed,
-#                 LIBS => $ExtraLDPath, INC => $ExtraInclude)) {
-#        print STDERR "OK\n";
-#        push @extra_deps, "-l$installed";
-#    } else {
-#        print STDERR "NOT FOUND (will build embedded)\n";
-#        push @extra_deps, File::Spec->catfile($inst_lib_dir,
-#                                              "lib".$new.$Config{lib_ext});
-#        $buildscript_options .= ' --build-'.$new;
-#    }
-#}
-
-if(!$UseDynamic) {
-    $inc = '-I' . $inst_inc_dir;
-    $libs = "-L$inst_lib_dir -lsasl2 -levent -ldl -lresolv";
-    
-    #Set path for linker and friends
-    $myextlib = join(' ',
-        map(File::Spec->catfile($inst_lib_dir, $_.'$(LIB_EXT)'),
-            qw(libcouchbase libvbucket)));
-} else {
-    $myextlib = "";
-    $libs = " -lcouchbase -lvbucket -lcouchbase_libevent";
+if($ENV{PLCB_BUILD_AUTHOR}) {
+    $MM_Options{OPTIMIZE} = '-Wdeclaration-after-statement -Werror -std=gnu89';
 }
 
-{
-    $inc .= " " . join(" ", map("-I$_", split(/\s+/, $Config{locincpth})));
-    $libs .= " " . join(" ", map("-L$_", split(/\s+/, $Config{libpth})));
-}
+use Log::Fu;
 
-foreach ([\$inc, \$ExtraInclude], [\$libs, \$ExtraLDPath]) {
-    my ($defl,$extra) = @$_;
-    if($$extra) {
-        $$defl ||= "";
-        $$defl = "$$extra $$defl";
-    }
-}
-
-$MM_Options{INC} = $inc;
-$MM_Options{LIBS} = $libs;
-$MM_Options{MYEXTLIB} = $myextlib;
-
-#Write our temporary parameters
-PLCB_ConfUtil::write_tmpflags($inc, $libs);
-
+$MM_Options{NEEDS_LINKING} = 1;
 
 
 WriteMakefile(
@@ -152,21 +133,21 @@ WriteMakefile(
         'POE::Sugar::Attributes' => 0.02,
         'POE'               => 1.312,
     },
-
-    NEEDS_LINKING => 1,    
-    OPTIMIZE    => 
-                ' -Wdeclaration-after-statement -Werror -std=gnu89',
-                
+    
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
     clean               => { FILES => 'Couchbase-Client-* COMPILER_FLAGS' },
     %MM_Options,
 );
 
 
+#Write a list of compiler flags for our constants scripts.
+PLCB_ConfUtil::write_tmpflags($Constants_INC);
+
 package MY;
 use Config;
 use strict;
 use warnings;
+use Data::Dumper;
 
 #thanks rafl!
 sub const_cccmd {
@@ -188,17 +169,4 @@ sub libscan {
     } else {
         return $path;
     }
-}
-
-sub postamble {
-    return unless $myextlib;
-    
-    my $make_text = <<'EOM';
-$(MYEXTLIB):
-    $(PERLRUN) build_libraries.pl __BUILD_LIBRARIES_OPTIONS__
-EOM
-
-    $make_text =~ s/__BUILD_LIBRARIES_OPTIONS__/$buildscript_options/g;
-    $make_text =~ s/^\s+/\t/msg;
-    $make_text;
 }

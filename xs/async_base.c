@@ -21,7 +21,10 @@ static inline void av2request(
         request->exp = 0; \
         if((_fetch_nonull(PLCBA_REQIDX_EXP)) && SvIOK(*tmpsv) \
             && SvUV(*tmpsv) > 0) \
-                { request->exp = time(NULL) + SvUV(*tmpsv); }
+                { \
+                    UV utmp = SvUV(*tmpsv); \
+                    PLCB_UEXP2EXP((request->exp), utmp, 0); \
+                }
     
     SV **tmpsv;
     STRLEN dummy;
