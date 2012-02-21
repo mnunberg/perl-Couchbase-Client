@@ -112,27 +112,30 @@ WriteMakefile(
 
     CONFIGURE_REQUIRES => {
         'Dir::Self' => 0,
+        'Log::Fu'           => 0.25,
+    },
+
+    BUILD_REQUIRES => {
+        'ExtUtils::H2PM'    => 0.08,
     },
 
     PREREQ_PM => {
         'Array::Assign'     => 0,
-        'ExtUtils::H2PM'    => 0.08,
         'Class::XSAccessor' => 1.11,
         'Test::More'        => 0,
 
         #These modules are needed for tests, but not strictly required for
         #functionality
 
-        'Log::Fu'           => 0.25,
         'Test::Class'       => 0.36,
-
+        
         #these are needed for asynchronous tests and modules
         'POE::Sugar::Attributes' => 0.02,
         'POE'               => 1.312,
     },
 
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
-    clean               => { FILES => 'Couchbase-Client-* COMPILER_FLAGS' },
+    clean               => { FILES => 'Couchbase-Client-* COMPILER_FLAGS log.test-*' },
     %MM_Options,
 );
 
@@ -161,7 +164,7 @@ sub const_cccmd {
 
 sub libscan {
     my ($self,$path) = @_;
-    if($path =~ /\.pl$/i) {
+    if($path =~ /\.pl$/i || $path =~ /PLCB_Conf/) {
         return "";
     } else {
         return $path;

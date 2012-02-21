@@ -25,6 +25,11 @@ if($] < 5.010) {
                     "segfaults on perls < 5.10");
 }
 
+eval {
+    require Couchbase::Config::UA; 1;
+} or __PACKAGE__->SKIP_CLASS(
+            "Need Couchbase::Config for interop tests\n$@");
+
 
 sub _setup_client :Test(startup) {
     my $self = shift;
@@ -79,7 +84,7 @@ sub T30_interop_init :Test(no_plan)
 {
     my $self = shift;
     my $memd = $self->memd();
-    foreach my $key qw(foo bar baz) {
+    foreach my $key (qw(foo bar baz)) {
         my $value = scalar reverse($key);
         ok($memd->set($key, $value), "Set value OK");
         is($memd->get($key), $value, "Got back our value");

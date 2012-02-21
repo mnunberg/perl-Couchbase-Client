@@ -1,13 +1,9 @@
 package Couchbase::MockServer;
 use strict;
 use warnings;
-use File::Basename;
-use URI;
-use File::Path qw(mkpath);
 use IO::Socket::INET;
 use Socket;
 use POSIX qw(:errno_h :signal_h :sys_wait_h);
-use Time::HiRes;
 use Log::Fu { level => "warn" };
 use Data::Dumper;
 use Time::HiRes qw(sleep);
