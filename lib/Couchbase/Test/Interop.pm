@@ -73,7 +73,9 @@ sub _setup_client :Test(startup) {
     
     
     note "Have $memd_host";
-    my $memd = $MEMD_CLASS->new({servers => [ $memd_host] });
+    my $memd = $MEMD_CLASS->new({servers => [ $memd_host] ,
+                                 compress_threshold => 100,
+                                 });
     $self->memd($memd);
     if($memd->can('set_binary_protocol')) {
         $memd->set_binary_protocol(1);
@@ -116,6 +118,44 @@ sub T32_interop_compression :Test(no_plan) {
     my $self = shift;
     my $key = "Compressed";
     my $value = "foobarbaz" x 1000;
+    #return;
+    
+    $self->memd->set_compress_threshold(100);
+    $self->memd->set_compress_enable(1);
+    
+    diag "Hacking into unexposed Cache::Memcached::libmemcached methods";
+    $self->memd->{compress_savingsS} = 500;
+    
+    ok($self->memd->get_compress_enable, "Compression is enabled via memd");
+    ok($self->memd->get_compress_threshold < length($value),
+       "compression threshold is set to <length(value)");
+    
+    
+    ok($self->memd->set($key, $value), "Set compressed value via memd");
+    
+    ok($self->cbo->deconversion_settings, "Deconversion enabled");
+    $self->cbo->deconversion_settings(0);
+    ok(!$self->cbo->deconversion_settings, "Deconversion now disabled");
+    $self->cbo->enable_compress(0);
+    
+    
+    my $ret = $self->cbo->get($key);
+    ok($ret->is_ok, "Got value via cbo");
+    #diag $ret->value;
+    
+    ok(length($ret->value) != length($value),
+       "got compressed value (comp_len < real_len)");
+    
+    $self->cbo->deconversion_settings(1);
+    $self->cbo->enable_compress(1);
+    
+    $ret = $self->cbo->get($key);
+    ok($ret->is_ok, "Re-got value via cbo");
+    if(!$ret->is_ok) {
+        diag("ERR ", $ret->errstr);
+        return;
+    }
+    is($ret->value, $value, "Decompressed to same value");
 }
 
 1;

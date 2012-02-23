@@ -35,7 +35,15 @@ static inline void
 plcb_ret_set_numval(PLCB_t *obj, AV *ret, uint64_t value, uint64_t cas)
 {
     SV *isv = newSV(0);
-    plcb_sv_from_u64(isv, value);
+#ifdef PLCB_PERL64
+    sv_setuv(isv, value);
+#else
+    if (value < UINT32_MAX) {
+        sv_setuv(isv, value);
+    } else {
+        sv_setpvf(isv, "%llu", value);
+    }
+#endif
     av_store(ret, PLCB_RETIDX_VALUE, isv);
     plcb_ret_set_cas(obj, ret, &cas);
 }

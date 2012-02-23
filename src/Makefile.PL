@@ -11,15 +11,18 @@ use Dir::Self;
 use Data::Dumper;
 use File::Spec;
 use Dir::Self;
+use Config;
 
 use Cwd qw(abs_path);
 
 use lib (__DIR__ . '/..');
 
 my $Sharepath = File::Spec->catfile(
-    'auto', 'share', 'dist', 'Couchbase-Client','Libary');
+    'auto', 'share', 'dist', 'Couchbase-Client', 'Library');
 
 require ExtUtils::Liblist;
+
+my $LIBCOUCHBASE = "libcouchbase";
 
 my $PARENT_MM;
 
@@ -158,11 +161,6 @@ sub create_buildscript_invocation {
                 $mm->quote_literal($mm->{LD_RUN_PATH})) . "\\",
         "\t\t".join(" ", @$deps)
 
-
-
-        #end long commandline invocation
-        #"\t".'$(MKPATH) ' . $build,
-        #"\t".'$(TOUCH) $@',
     );
 
     return @lines;
@@ -170,6 +168,21 @@ sub create_buildscript_invocation {
 }
 
 
+sub ldrunpath2rpath {
+    my ($parent, $ld_run_path) = @_;
+    # check if Perl has -rpath in its own flags:
+    # inspired by Tony Cook:
+    # http://git.imager.perl.org/imager.git/blob/HEAD:/lib/Imager/Probe.pm#l281
+
+    return unless ($Config{lddlflags} =~ /([^ ]*-(?:rpath|R)[,=]?)([^ ]+)/
+                   && -d $2);
+
+    my $prefix = $1;
+    my $existing_flags = $parent->{LDDLFLAGS};
+    my @components = map { "$prefix$_" } split($Config{path_sep}, $ld_run_path);
+    $parent->{LDDLFLAGS} =  join(" ", @components) . " " . $Config{lddlflags};
+    log_warn("Mangled compiler line now is: ", $parent->{LDDLFLAGS});
+}
 
 sub mangle_parent_makefile {
     my ($parent,$deps) = @_;
@@ -185,7 +198,7 @@ sub mangle_parent_makefile {
     my $blib_dep_path = "\$(INST_LIB)\$(DFSEP)$Sharepath";
     my $dest_dep_path = "\$(DESTINSTALLSITELIB)\$(DFSEP)$Sharepath";
 
-    my $dep = "$blib_dep_path\$(DFSEP)lib\$(DFSEP)libcouchbase.\$(SO)";
+    my $dep = "$blib_dep_path\$(DFSEP)lib\$(DFSEP)$LIBCOUCHBASE.\$(SO)";
 
     $parent->{MYEXTLIB} = $dep;
 
@@ -203,11 +216,11 @@ sub mangle_parent_makefile {
     my $ldload = $parent->{LDLOADLIBS} || "";
     my $runpath = $parent->{LD_RUN_PATH} || "";
 
-
     $runpath = "$blib_dep_path\$(DFSEP)lib:" .
                 "$dest_dep_path\$(DFSEP)lib".
                 ":$runpath";
     $ldload = "-L$blib_dep_path\$(DFSEP)lib";
+
 
     {
         my $parent_dir = abs_path("..");
@@ -218,6 +231,8 @@ sub mangle_parent_makefile {
     $parent->{LDLOADLIBS} = $ldload;
     $parent->{LD_RUN_PATH} = $runpath;
 
+    ldrunpath2rpath($parent, $runpath);
+
     $parent->{INC} .= " -I$blib_dep_path\$(DFSEP)include";
 
 
@@ -225,18 +240,9 @@ sub mangle_parent_makefile {
 
     my $inc_oneliner = sprintf("PLCB_ConfUtil::write_tmpflags(qq{%s})",
                                $parent_inc);
-
     no warnings qw(redefine once);
     *MY::postamble = sub {
         my @lines = (
-            #get an absolute reference to $(INST_LIB)
-
-            #"INST_LIB := ".
-            #'$(shell '.
-            #    $parent->oneliner('print abs_path("$(INST_LIB)")',
-            #                      [ '-MCwd=abs_path' ])
-            #.' )',
-
             "$dep:",
             (insert_announcement("will build for ultimate target $dep")),
             (create_buildscript_invocation($parent,

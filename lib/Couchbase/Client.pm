@@ -2,7 +2,7 @@ package Couchbase::Client;
 
 BEGIN {
     require XSLoader;
-    our $VERSION = '0.15_0';
+    our $VERSION = '0.16_0';
     XSLoader::load(__PACKAGE__, $VERSION);
 }
 
@@ -194,6 +194,8 @@ Couchbase::Client - Perl Couchbase Client
 
 This page documents the API of C<Couchbase::Client>. To install this module,
 see L<Couchbase::Client::README> for a broader overview.
+
+See that same page for a list of current known issues as well.
 
 =head1 WARNING
 
@@ -558,12 +560,13 @@ These two functions are equivalent to doing:
 
 =head4 NOTE ABOUT 32 BIT PERLS
 
-If your Perl does not support 64 bit integer arithmetic, then L<Math::BigInt> will
-be used for conversion. Since Couchbase internally represents both deltas and values
-as C<int64_t> or C<uint64_t> values.
+If Perl does not support 64 bit integers then the following will happen:
 
-TODO: would be nice to optionally provide 32-bit integer overflow options for
-performance.
+If the result of an arithmetic operation can be stored within a 32 bit integer,
+then all proceeds as normal and you get a normal Perl integer back. If, however
+the result exceeds 32 bits (i.e. greated than stdint.h's C<UINT32_MAX>) then
+your return value will be B<stringified>, since the underlying C layer can always
+deal with 64 bit integers.
 
 =head3 delete(key [,cas])
 

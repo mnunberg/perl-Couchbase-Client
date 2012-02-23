@@ -19,6 +19,35 @@ if( (tmp = av_fetch(options, opt_idx, 0)) && SvTRUE(*tmp) ) { \
 #undef _assign_options
 }
 
+static void ctor_extract_methpairs(AV *options,
+                                   int idx, SV **outmeth, SV **inmeth)
+{
+    SV **tmpsv;
+    AV *methav;
+    int ii;
+    
+    SV **assgn_array[] = { outmeth, inmeth };
+    
+    *outmeth = *inmeth = NULL;
+    if ( (tmpsv = av_fetch(options, idx, 0)) == NULL ) {
+        return;
+    }
+    
+    if (SvROK(*tmpsv) == 0 ||
+        ((methav = (AV*)SvRV(*tmpsv)) && SvTYPE(methav) != SVt_PVAV) ||
+        av_len(methav) != 1) {
+        die("Expected an array reference with two elements");
+    }
+    
+    for (ii = 0; ii < 2; ii++) {
+        tmpsv = av_fetch(methav, ii, 0);
+        if(SvROK(*tmpsv) == 0 || SvTYPE(SvRV(*tmpsv)) != SVt_PVCV) {
+            die("Expected code reference.");
+        }
+        *(assgn_array[ii]) = newRV_inc(SvRV(*tmpsv));
+    }
+}
+
 void plcb_ctor_conversion_opts(PLCB_t *object, AV *options)
 {
     SV **tmpsv;
@@ -48,20 +77,26 @@ void plcb_ctor_conversion_opts(PLCB_t *object, AV *options)
         object->my_flags = SvUV(*tmpsv);
     }
     
-    if(meth_assert_getpairs(PLCBf_USE_COMPRESSION,
-                                  PLCB_CTORIDX_COMP_METHODS)) {
-        meth_assert_assign(cv_compress, 0, "Compression");
-        meth_assert_assign(cv_decompress, 1, "Decompression");
+    ctor_extract_methpairs(options, PLCB_CTORIDX_COMP_METHODS,
+                           &object->cv_compress, &object->cv_decompress);
+    
+    if ((object->my_flags & PLCBf_USE_COMPRESSION) &&
+        object->cv_compress == NULL) {
+        
+        die("Compression requested but no methods provided");
     }
     
-    if(meth_assert_getpairs(PLCBf_USE_STORABLE,
-                                  PLCB_CTORIDX_SERIALIZE_METHODS)) {
-        meth_assert_assign(cv_serialize, 0, "Serialize");
-        meth_assert_assign(cv_deserialize, 1, "Deserialize");
-
-    }
     
-    if( (tmpsv = av_fetch(options, PLCB_CTORIDX_COMP_THRESHOLD, 0))
+    ctor_extract_methpairs(options, PLCB_CTORIDX_SERIALIZE_METHODS,
+                           &object->cv_serialize, &object->cv_deserialize);
+    
+    if ((object->my_flags & PLCBf_USE_STORABLE) &&
+        object->cv_serialize == NULL) {
+        
+        die("Serialization requested but no methods provided");
+    }
+        
+    if ((tmpsv = av_fetch(options, PLCB_CTORIDX_COMP_THRESHOLD, 0))
        && SvIOK(*tmpsv)) {
         object->compress_threshold = SvIV(*tmpsv);
     } else {

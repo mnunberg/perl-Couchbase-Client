@@ -13,8 +13,8 @@
 
 #if IVSIZE >= 8
 #define PLCB_PERL64
-#else
-#error "Perl needs 64 bit integer support"
+//#else
+//#error "Perl needs 64 bit integer support"
 #endif
 
 #ifndef mXPUSHs

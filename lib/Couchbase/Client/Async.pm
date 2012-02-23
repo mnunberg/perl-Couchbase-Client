@@ -1,9 +1,7 @@
 package Couchbase::Client::Async;
 use strict;
 use warnings;
-our $VERSION = '0.15_0';
-require XSLoader;
-XSLoader::load('Couchbase::Client', $VERSION);
+our $VERSION = '0.16_0';
 use Couchbase::Client;
 use Couchbase::Client::IDXConst;
 use Log::Fu;

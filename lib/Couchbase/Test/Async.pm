@@ -24,6 +24,11 @@ my $can_async = eval {
 if(!$can_async) {
     __PACKAGE__->SKIP_CLASS("Can't run async tests: $@");
 }
+
+if($^O eq 'netbsd') {
+    __PACKAGE__->SKIP_CLASS("Skipping Async tests on netbsd ".
+                            "due to weird kernel bug");
+}
 $poe_kernel->run();
 
 

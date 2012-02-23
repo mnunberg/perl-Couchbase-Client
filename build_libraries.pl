@@ -62,7 +62,7 @@ sub lib_2_tarball {
 
 sub tarball_2_dir {
     my $tarball = shift;
-    runcmd("tar xf $tarball");
+    runcmd("tar xzf $tarball");
     my $filename = fileparse($tarball, qr/\.tar\..*/);
     return $filename;
 }
@@ -94,7 +94,7 @@ mkpath($INST_DIR);
 mkpath($INCLUDE_PATH);
 mkpath($LIB_PATH);
 
-runcmd("tar xf $MEMCACHED_H_TARBALL");
+runcmd("tar xzf $MEMCACHED_H_TARBALL");
 rmtree(File::Spec->catfile($INCLUDE_PATH, 'memcached'));
 runcmd("mv include/memcached $INCLUDE_PATH && rm -rf include/memcached");
 unless(-e File::Spec->catfile($INCLUDE_PATH, 'memcached', 'protocol_binary.h')) {

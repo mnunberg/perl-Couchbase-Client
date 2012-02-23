@@ -186,3 +186,44 @@ Which server to connect to (default is C<localhost:8091>)
 Required for some tests. This is the authless port for memcached client access.
 
 =back
+
+=head3 KNOWN ISSUES
+
+=over
+
+=item *
+
+32 Bit perls will have arithmetic results stringified if their value is greater
+than 32 bits.
+
+
+=item *
+
+Some tests within the test suite will fail in some unices (but not linux, from
+what i've seen) with the following message:
+
+        t/01-main.t .. 1/? 
+    #   Failed test 'have single error'
+    #   at /home/mordy/Couchbase-Client-0.16_0/blib/lib/Couchbase/Test/Settings.pm line 262.
+    #   (in Couchbase::Test::Settings->T25_multi_server_list)
+    #          got: '2'
+    #     expected: '1'
+    t/01-main.t .. 162/? # Looks like you failed 1 test of 166.
+    t/01-main.t .. Failed 1/166 subtests 
+        (less 1 skipped subtest: 164 okay)
+
+
+This is not a fatal error, and is being worked on
+
+=item *
+
+Asynchronous tests (and the reference POE implementation) will not work properly
+on NetBSD due to a weird L<kernel bug|http://gnats.netbsd.org/cgi-bin/query-pr-single.pl?number=46077>
+
+
+=item *
+
+I have not even bothered to figure out how to compile this on Windows. Mingw32
+will be supported eventually, but probably not MSVC.
+
+=back

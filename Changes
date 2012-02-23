@@ -1,4 +1,6 @@
 Revision history for Couchbase-Client
+0.16    Feb 23 2012
+        Added 32 bit support, some more fixes for mock testing
 
 0.01    Date/time
         First version, released on an unsuspecting world.

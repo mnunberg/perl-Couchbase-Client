@@ -34,7 +34,7 @@ EOD
 
 our (@LIBS,$INC);
 our $MM_TopLevel;
-our $Constants_INC;
+our $Constants_INC = "";
 
 push @LIBS, $U_LibPath if $U_LibPath;
 $INC = $U_IncPath || "";

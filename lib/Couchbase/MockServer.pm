@@ -98,14 +98,17 @@ sub _do_run {
     
     if($pid) {
         #Parent: setup harakiri monitoring socket
-        $self->pid($pid);
         sleep(0.05);
         if(waitpid($pid, WNOHANG) > 0) {
             die("Child process died prematurely");
         }
         log_info("Launched CouchbaseMock PID=$pid");
+        #$self->pid(getpgrp($pid));
+        $self->pid($pid);
         $self->_accept_harakiri();
     } else {
+        
+        setpgrp(0, 0);
         log_warnf("Executing %s", join(" ", @command));
         exec(@command);
         warn"exec @command failed: $!";
@@ -143,13 +146,13 @@ sub suspend_process {
     my $self = shift;
     my $pid = $self->pid;
     return unless defined $pid;
-    kill SIGSTOP, $pid;
+    kill SIGSTOP, -(getpgrp($pid));
 }
 sub resume_process {
     my $self = shift;
     my $pid = $self->pid;
     return unless defined $pid;
-    kill SIGCONT, $pid;
+    kill SIGCONT, -(getpgrp($pid));
 }
 
 sub failover_node {

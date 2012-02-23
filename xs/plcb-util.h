@@ -33,6 +33,12 @@ static inline uint64_t plcb_sv_to_u64(SV *in)
     char *sv_blob;
     STRLEN blob_len;
     uint64_t ret;
+    
+    if(SvIOK(in)) {
+        /*Numeric*/
+        return SvUV(in);
+    }
+    
     sv_blob = SvPV(in, blob_len);
     if(blob_len != 8) {
         die("expected 8-byte data string. Got %d", blob_len);
@@ -40,7 +46,7 @@ static inline uint64_t plcb_sv_to_u64(SV *in)
     ret = *(uint64_t*)sv_blob;
     return ret;
 }
-#define plcb_sv_to_64(sv) (plcb_sv_to_u64(sv))
+#define plcb_sv_to_64(sv) ((int64_t)(plcb_sv_to_u64(sv)))
 
 #define plcb_sv_from_u64(sv, num) \
     (sv_setpvn(sv, (const char const*)&(num), 8))

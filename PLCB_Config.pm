@@ -16,7 +16,7 @@ my $params = {
 
     #version numbers for libcouchbase and libvbucket
     LIBVBUCKET_RELEASE => '1.8.0.2',
-    LIBCOUCHBASE_RELEASE => '1.0.1',
+    LIBCOUCHBASE_RELEASE => '1.0.0_70_ge8ad2ee',
 
     LIBISASL_RELEASE    => '1.0.0_3_g35e33e3',
     LIBEVENT_RELEASE    => '2.0.17-stable',
