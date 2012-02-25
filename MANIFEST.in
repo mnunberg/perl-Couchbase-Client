@@ -64,4 +64,3 @@ src/memcached-headers.tar.gz
 src/libcouchbase-__LIBCOUCHBASE_RELEASE__.tar.gz
 src/libvbucket-__LIBVBUCKET_RELEASE__.tar.gz
 src/libevent-__LIBEVENT_RELEASE__.tar.gz
-src/libisasl-__LIBISASL_RELEASE__.tar.gz

@@ -17,6 +17,7 @@ GetOptions(
     'env-ldflags=s' => \my $ENV_LDFLAGS,
     'env-libs=s'  => \my $ENV_LIBS,
     'rpath=s'     => \my $RPATH,
+    'have-java'   => \my $HAVE_JAVA,
 );
 
 use lib __DIR__;
@@ -44,7 +45,7 @@ my %DEPS = map {  ( $_, $_ ) } @ARGV;
 
 sub runcmd {
     my $cmd = join(" ", @_);
-    print STDERR "Running $cmd\n";
+    print STDERR "[EXECUTING]:\n\t$cmd\n";
     unless(system($cmd . " $BUILD_SILENT") == 0) {
         print STDERR "Command $cmd failed\n";
         printf STDERR ("CPPFLAGS=%s\nLDFLAGS=%s\n", $ENV{CPPFLAGS}, $ENV{LDFLAGS});
@@ -74,7 +75,6 @@ sub tarball_2_dir {
 ################################################################################
 my $LIBVBUCKET_TARBALL = lib_2_tarball('libvbucket');
 my $LIBCOUCHBASE_TARBALL = lib_2_tarball('libcouchbase');
-my $LIBISASL_TARBALL = lib_2_tarball('libisasl');
 my $LIBEVENT_TARBALL = lib_2_tarball('libevent');
 my $MEMCACHED_H_TARBALL = "memcached-headers.tar.gz";
 
@@ -148,14 +148,16 @@ sub lib_is_built {
 ################################################################################
 ### ISASL                                                                    ###
 ################################################################################
-if(should_build('ISASL')) {
-    chdir $TOPLEVEL;
-    chdir tarball_2_dir($LIBISASL_TARBALL);
-    runcmd("./configure", @COMMON_OPTIONS) unless -e 'Makefile';
-    log_info("Configuring libisasl");
-    runcmd("$MAKEPROG install");
-    log_info("Installed libisasl");
-}
+#my $LIBISASL_TARBALL = lib_2_tarball('libisasl');
+#disabled because we now bundle it with libcouchbase itself.
+#if(should_build('ISASL')) {
+#    chdir $TOPLEVEL;
+#    chdir tarball_2_dir($LIBISASL_TARBALL);
+#    runcmd("./configure", @COMMON_OPTIONS) unless -e 'Makefile';
+#    log_info("Configuring libisasl");
+#    runcmd("$MAKEPROG install");
+#    log_info("Installed libisasl");
+#}
 
 ################################################################################
 ### libevent                                                                 ###
@@ -216,14 +218,13 @@ if(should_build('EVENT')) {
         push @libcouchbase_options, '--disable-tools';
     }
 
-    my $have_java = eval { runcmd("java", "-version"); 1; };
     my $mockpath = File::Spec->catfile(
         __DIR__, 't', 'tmp', 'CouchbaseMock.jar');
 
     if(!-e $mockpath) {
         die("Can't find mock in $mockpath");
     }
-    if($have_java && -e $mockpath) {
+    if($HAVE_JAVA && -e $mockpath) {
         push @libcouchbase_options, '--with-couchbasemock='.$mockpath;
     } else {
         push @libcouchbase_options, '--disable-couchbasemock';

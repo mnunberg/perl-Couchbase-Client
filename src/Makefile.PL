@@ -6,7 +6,6 @@ use warnings;
 use ExtUtils::MakeMaker;
 use Dir::Self;
 use Devel::CheckLib;
-use Log::Fu { level => 'debug' };
 use Dir::Self;
 use Data::Dumper;
 use File::Spec;
@@ -84,16 +83,17 @@ EOC
 sub check_dependency {
     my ($names,$fn,%extra) = @_;
     $names = ref $names ? $names : [ $names ];
-    log_info("Checking for", @$names);
-    local $ENV;
-
+    
+    print STDERR "\nChecking for @{$names}...\n";
+    local %ENV = %ENV;
+    
     foreach my $libname (@$names) {
         my (undef,undef,$ldargs,$runpath,$sofile) =
             ExtUtils::Liblist->ext("$SEARCHPATH_S -l$libname", 0, 1);
 
         next unless ($sofile && ($sofile = $sofile->[0]) );
-
-        log_info("Have:", $sofile);
+        
+        print STDERR "\tfound shared object: $sofile \n";
         my %cl_opts = (
             %CHECKLIB_OPTIONS,
             lib => $libname,
@@ -108,12 +108,14 @@ sub check_dependency {
         if($fn) {
             $cl_opts{function} = $fn;
         }
+        print STDERR "\tCompiling test program\n";
         if(check_lib(%cl_opts, %extra)) {
-            log_info("have $libname");
+            print STDERR "\tOK ($libname)\n";
             return 1;
         }
     }
-    log_warn("Couldn't find anything for", @$names);
+    print STDERR "\tNOT FOUND\n";
+    return 0;
 }
 
 
@@ -135,7 +137,30 @@ sub create_buildscript_invocation {
     my ($mm,$build,$install,$deps) = @_;
 
     #mm is the parent Makefile, here
-
+    
+    # we need to make sure our flags match whatever Devel::CheckLib might have
+    # used to determine an available dependency:
+    
+    my $script_cppflags = $mm->{INC};
+    my $config_ccflags = $Config{ccflags};
+    
+    # Strip any -D's, -f's, -g, and -O from the flags. and remove -pthread
+    
+    $config_ccflags =~ s/-(?:D|f|O|M|g)\S+//g;
+    
+    #string excessive whitespace:
+    $config_ccflags =~ s/\s+/ /g;
+    
+    $script_cppflags .= ' ' . $config_ccflags;
+    
+    
+    $PLCBTopLevel::U_LibPath ||= "";
+    
+    my $script_ldflags = $mm->{LDLOADLIBS} . ' ' . $PLCBTopLevel::U_LibPath .
+        ' ' . $Config{ldflags};
+    
+    my $java_arg = $PLCBTopLevel::HaveJava ? "--have-java" : "";
+    
     my @lines = (
 
         #begin long commandline invocation:
@@ -144,22 +169,20 @@ sub create_buildscript_invocation {
         #'$(NOECHO) $(ECHO) '.
         '$(PERLRUN) ' .
         File::Spec->catfile('..', 'build_libraries.pl') . "\\",
-        "\t\t".sprintf(" --build-prefix=%s \\\n\t\t--install-prefix=%s",
+        "\t".sprintf(" --build-prefix=%s \\\n\t\t--install-prefix=%s $java_arg",
                 $mm->quote_literal($build),
                 $mm->quote_literal($install)) . "\\",
 
-        "\t\t".sprintf(" --env-cppflags=%s",
-                $mm->quote_literal($mm->{INC})) . "\\",
+        "\t".sprintf(" --env-cppflags=%s",
+                $mm->quote_literal($script_cppflags)) . "\\",
 
 
-        "\t\t".sprintf(" --env-libs=%s",
-                $mm->quote_literal($mm->{LDLOADLIBS}. ' ' .
-                    $PLCBTopLevel::U_LibPath)) . "\\",
+        "\t".sprintf(" --env-libs=%s",
+                $mm->quote_literal($script_ldflags)) . "\\",
 
-
-        "\t\t".sprintf(" --rpath=%s",
+        "\t".sprintf(" --rpath=%s",
                 $mm->quote_literal($mm->{LD_RUN_PATH})) . "\\",
-        "\t\t".join(" ", @$deps)
+        "\t".join(" ", @$deps),
 
     );
 
@@ -181,14 +204,15 @@ sub ldrunpath2rpath {
     my $existing_flags = $parent->{LDDLFLAGS};
     my @components = map { "$prefix$_" } split($Config{path_sep}, $ld_run_path);
     $parent->{LDDLFLAGS} =  join(" ", @components) . " " . $Config{lddlflags};
-    log_warn("Mangled compiler line now is: ", $parent->{LDDLFLAGS});
+    printf STDERR ("\nFound RPATH directive in perl's linker flags.\n".
+                   "Mangled compiler line now is: %s", $parent->{LDDLFLAGS});
 }
 
 sub mangle_parent_makefile {
     my ($parent,$deps) = @_;
     no strict 'refs';
 
-    log_warn("Mangling parent MM methods for extra dependencies");
+    print STDERR ("Mangling parent MM methods for extra dependencies\n");
 
     my $libpath = File::Spec->catfile($Sharepath, 'lib');
 
@@ -207,7 +231,7 @@ sub mangle_parent_makefile {
         my $ret = $old_meth->($mm,@args, INST_DYNAMIC_DEP => $dep);
         $ret = join("\n",
             "\$(MYEXTLIB) ::",
-            "\t\$(NOOP)",
+            "\t\ " . $mm->cd("src", '$(MAKE)'),
         ) . $ret;
 
         return $ret;
@@ -276,7 +300,10 @@ sub MM_Configure {
         @to_build = qw(VBUCKET COUCHBASE EVENT ISASL);
         goto GT_MANGLE;
     }
-
+    
+    printf STDERR ("\nWill run a few test programs to see ".
+                   "if depencies are required\n");
+    
     my $have_libcouchbase =
         check_dependency('couchbase',$LIBCOUCHBASE_CFUNC,
             header => ['sys/types.h', 'libcouchbase/couchbase.h'] );
@@ -288,17 +315,37 @@ sub MM_Configure {
     }
 
     if(!check_dependency(
-        'event', $LIBEVENT_CFUNC, header => ['event.h'] )) {
+        'event', $LIBEVENT_CFUNC, header => ['event.h', 'stdio.h'] )) {
         push @to_build, 'EVENT';
     }
-    if(!check_dependency(
+    
+    
+    if(0 && !check_dependency(
         ['sasl2', 'sasl'], $LIBSASL_CFUNC,
             header => [ 'stdlib.h', 'sasl/sasl.h'] )) {
         push @to_build, 'ISASL';
     }
 
     GT_MANGLE:
-    log_err("We need to build the following dependencies:", @to_build);
+    my $errmsg = "\n".
+                "Couchbase::Client needs to build the following dependencies:\n".
+                "\t@to_build\n\n".
+                "You may want to install dependencies from your package manager\n".
+                "or install the bundled version.\n".
+                "\n".
+                "Installing the bundled version will (for better or worse) NOT\n".
+                "affect applications which depend on those libraries\n".
+                "\n".
+                "Install bundled libraries?";
+    my $promptval = prompt($errmsg, "y");
+    
+    if($promptval !~ /^y/i) {
+        print STDERR "You have selected not to build and install the bundled\n".
+                    "dependencies. Couchbase::Client will not be built\n";
+        exit(0);
+    }
+    
+    print STDERR "Will build: @to_build\n\n...";
     mangle_parent_makefile($parent, \@to_build);
 
 

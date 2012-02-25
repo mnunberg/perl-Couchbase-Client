@@ -61,7 +61,6 @@ src/Makefile.PL
 src/libcouchbase.pm
 
 src/memcached-headers.tar.gz
-src/libcouchbase-1.0.0_70_ge8ad2ee.tar.gz
+src/libcouchbase-1.0.0_75_g5622928.tar.gz
 src/libvbucket-1.8.0.2.tar.gz
 src/libevent-2.0.17-stable.tar.gz
-src/libisasl-1.0.0_3_g35e33e3.tar.gz

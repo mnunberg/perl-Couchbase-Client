@@ -14,7 +14,6 @@ use lib 'inc';
 use Devel::CheckLib;
 use Data::Dumper;
 
-log_err(__DIR__ . "/Makefile.PL");
 $ENV{LD_RUN_PATH} ||= "";
 
 #$Verbose = 99;
@@ -35,6 +34,7 @@ EOD
 our (@LIBS,$INC);
 our $MM_TopLevel;
 our $Constants_INC = "";
+our $HaveJava = 0;
 
 push @LIBS, $U_LibPath if $U_LibPath;
 $INC = $U_IncPath || "";
@@ -95,6 +95,26 @@ if($ENV{PLCB_BUILD_AUTHOR}) {
     $MM_Options{OPTIMIZE} = '-Wdeclaration-after-statement -Werror -std=gnu89';
 }
 
+################################################################################
+### Check for Java                                                           ###
+################################################################################
+print STDERR "Checking for working Java (for tests)\n. Running java -version\n";
+$HaveJava = (system("java -version") == 0);
+if(!$HaveJava) {
+    my $promptval = prompt(
+        "java was not found in your path. You must have java to properly\n".
+        "test Couchbase::Client. Java is not a runtime dependency and this\n".
+        "module will likely function properly without it, but will be untested\n".
+        "on your specific installation.\n\n".
+        "Abort installation?", "n");
+    
+    if($promptval =~ /^y/i) {
+        print STDERR "You have request to abort the installation.\n".
+                        "Makefile.PL will now exit\n";
+        exit(0);
+    }
+}
+
 use Log::Fu;
 
 $MM_Options{NEEDS_LINKING} = 1;
@@ -117,6 +137,10 @@ WriteMakefile(
 
     BUILD_REQUIRES => {
         'ExtUtils::H2PM'    => 0.08,
+        
+        #This is really a dependency of ExtUtils::H2PM, but we need a
+        #version which honors the CFLAGS environment variable.
+        'ExtUtils::CBuilder' => 0.280203
     },
 
     PREREQ_PM => {

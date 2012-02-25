@@ -89,7 +89,7 @@ sub T20_settings_connect :Test(no_plan)
     ok(!$client->connect, "Failure to connect to nonexistent host");
     my $errors = $client->get_errors;
     ok(scalar @$errors, "Have error");
-    is($errors->[0]->[0], COUCHBASE_NETWORK_ERROR, "Got NETWORK_ERROR");
+    is($errors->[0]->[0], COUCHBASE_CONNECT_ERROR, "Got CONNECT_ERROR");
     
     $client = Couchbase::Client->new({
         %{$self->common_options},
@@ -245,7 +245,10 @@ sub T24_timeout_settings :Test(no_plan)
 sub T25_multi_server_list :Test(no_plan)
 {
     my $self = shift;
-    my $server_list = ['localhost:0'];
+    # We can't use null for a port here because it might fail on GAI for
+    # SOCK_STREAM
+    
+    my $server_list = ['localhost:1'];
     my %options = %{$self->common_options};
     my $bucket = $options{bucket};
     my ($username,$password) = @options{qw(username password)};
@@ -259,9 +262,15 @@ sub T25_multi_server_list :Test(no_plan)
     $cbo = Couchbase::Client->new({%options});
     note "Connecting with bucket $bucket";
     isa_ok($cbo, 'Couchbase::Client');
-    is(scalar @{$cbo->get_errors}, 1, "have single error");
-    is($cbo->get_errors->[0]->[0], COUCHBASE_NETWORK_ERROR,
+    ok(scalar @{$cbo->get_errors}, "have error(s)");
+    is($cbo->get_errors->[0]->[0], COUCHBASE_CONNECT_ERROR,
        "Got network error for nonexistent host");
+    
+    # If we have more than a single error, print them out (via dumper);
+    if(@{$cbo->get_errors()} > 1) {
+        diag "We really expected a single error. Extra info:";
+        diag Dumper($cbo->get_errors());
+    }
     
     $ret = $cbo->set("foo", "fooval");
     ok($ret->is_ok, "connected and can set value (retry ok)");
