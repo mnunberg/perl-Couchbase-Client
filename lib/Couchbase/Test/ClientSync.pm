@@ -259,4 +259,19 @@ sub T06_multi :Test(no_plan) {
        "all keys have been decremented");
 }
 
+sub T07_stats :Test(no_plan) {
+    my $self = shift;
+    my $o = $self->cbo;
+    my $stats = $o->stats();
+    
+    ok($stats && ref $stats eq 'HASH', "Got a hashref");
+    ok(scalar keys %$stats, "stats not empty");
+    
+    if($self->mock && $self->mock->nodes) {
+        ok(scalar keys %$stats == $self->mock->nodes, "Got expected stat count");
+    } else {
+        diag "Cannot determine expected stat count for real cluster";
+    }
+}
+
 1;

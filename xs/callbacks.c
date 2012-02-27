@@ -142,20 +142,19 @@ static void stat_callback(
     SV *server_sv, *data_sv, *key_sv;
     dSP;
     
+    object = (PLCB_t*)libcouchbase_get_cookie(instance);
     
-    
-    if(! (stat_key || bytes) ) {
-        warn("Got all statistics");
-        //signal_done(syncp);
+    if(stat_key == NULL && server == NULL) {
+        PLCB_sync_t sync;
+        sync.parent = object;
+        object->npending = 1;
+        signal_done(&sync);
         return;
     }
     
     server_sv = newSVpvn(server, strlen(server));
     if(nkey) {
         key_sv = newSVpvn(stat_key, nkey);
-        fprintf(stderr, "stat_callback(): ");
-        fwrite(stat_key, nkey, 1, stderr);
-        fprintf(stderr, "\n");
     } else {
         key_sv = newSVpvn("", 0);
     }
@@ -166,7 +165,6 @@ static void stat_callback(
         data_sv = newSVpvn("", 0);
     }
     
-    object = (PLCB_t*)libcouchbase_get_cookie(instance);
     if(!object->stats_hv) {
         die("We have nothing to write our stats to!");
     }
@@ -183,7 +181,7 @@ static void stat_callback(
     
     call_pv(PLCB_STATS_SUBNAME, G_DISCARD);
     FREETMPS;
-    LEAVE;
+    LEAVE;    
 }
 
 void plcb_callbacks_set_multi(PLCB_t *object)

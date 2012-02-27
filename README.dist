@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# This file says how to make a proper distribution. It also contains shell
+# scripts to accomplish that end.
+# we need author_utils here.
+
+# first, we update the manifest
+
+perl ./author_utils/gen_manifest.pl
+
+# then, we need to make our changes visible
+
+git log > Changes
+
+# perhaps more steps will be added here in the future

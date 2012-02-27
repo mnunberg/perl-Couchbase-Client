@@ -55,6 +55,7 @@ constants/print_constants.pl
 
 t/00-load.t
 t/01-main.t
+t/02-compat.t
 t/tmp/CouchbaseMock.jar
 
 src/Makefile.PL

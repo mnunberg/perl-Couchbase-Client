@@ -2,7 +2,7 @@ package Couchbase::Client;
 
 BEGIN {
     require XSLoader;
-    our $VERSION = '0.17_0';
+    our $VERSION = '0.18';
     XSLoader::load(__PACKAGE__, $VERSION);
 }
 

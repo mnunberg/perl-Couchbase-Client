@@ -119,6 +119,11 @@ use Log::Fu;
 
 $MM_Options{NEEDS_LINKING} = 1;
 
+$MM_Options{META_MERGE} = {
+    resources => {
+        repository => 'https://github.com/mnunberg/perl-Couchbase-Client'
+    }
+};
 
 WriteMakefile(
     NAME                => 'Couchbase::Client',

@@ -6,3 +6,6 @@
 .+_const\.pm
 ^author_utils
 ^INSTALL_DIR
+.+\.in
+.+\.kpf
+README\.dist

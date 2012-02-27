@@ -3,63 +3,96 @@ use strict;
 use warnings;
 use base qw(Couchbase::Client);
 use Couchbase::Client::Errors;
+use base qw(Exporter);
+
+our @EXPORT_OK = qw(return_for_multi_wrap return_for_op);
+
+#These errors are 'negative replies', all others are 'error' replies.
+our %ErrorMap = (
+    COUCHBASE_NOT_STORED, 0,
+    COUCHBASE_KEY_EEXISTS, 0,
+    COUCHBASE_KEY_ENOENT, 0,
+    COUCHBASE_DELTA_BADVAL, 0,
+    COUCHBASE_E2BIG, 0,
+);
+
+sub return_for_multi_wrap {
+    my ($requests,$response,$op) = @_;
+    
+    if(wantarray) {
+        #ugh, really?
+        my @retvals;
+        foreach my $req (@$requests) {
+            my $key = ref $req eq 'ARRAY' ? $req->[0] : $req;
+            my $retval = return_for_op($response->{$key}, $op);
+            push @retvals, $retval;
+        }
+        return @retvals;
+    } else {
+        #scalar:
+        while (my ($k,$v) = each %$response) {
+            $response->{$k} = return_for_op($v, $op);
+        }
+        return $response;
+    }
+}
+
+sub return_for_op {
+    my ($retval, $op) = @_;    
+    
+    my $errval = $retval->errnum;
+    
+    if ($errval) {
+        $errval = $ErrorMap{$errval};
+    }
+    
+    if ($retval->errnum && (!defined $errval)) {
+        # Fatal error:
+        return undef;
+    }
+    
+    if ($op =~ /^(?:get|incr|decr)$/) {
+        return $retval->value;
+    }
+    
+    if ($op eq 'gets') {
+        return [$retval->cas, $retval->value];
+    }
+    
+    if ($op =~ /^(?:set|cas|add|append|prepend|replace|remove|delete)/) {
+        return int($retval->errnum == 0);
+    }
+    
+}
 
 sub new {
     my ($cls,$options) = @_;
     my $o = $cls->SUPER::new($options);
 }
 
-sub get {
-    my $self = shift;
-    $self->SUPER::get(@_)->value(@_);
-}
 
-sub gets {
-    my $self = shift;
-    my $ret = $self->SUPER::get(@_);
-    if($ret->is_ok) {
-        return [ $ret->cas, $ret->value ];
-    } else {
-        return undef;
-    }
-}
-
-
-foreach my $sub qw(set add replace append prepend cas) {
+foreach my $sub (qw(
+                 get gets
+                 set append prepend replace add
+                 remove delete
+                 incr decr cas)) {
     no strict 'refs';
     *{$sub} = sub {
         my $self = shift;
-        my $ret = $self->${\"SUPER::$sub"}(@_);
-        if($ret->is_ok) {
-            return 1;
-        } elsif ($ret->errnum == COUCHBASE_NOT_STORED ||
-                 $ret->errnum == COUCHBASE_KEY_EEXISTS ||
-                 $ret->errnum == COUCHBASE_KEY_ENOENT) {
-            return 0;
-        } else {
-            return undef;
-        }
-    };   
-}
-
-foreach my $sub (qw(incr decr delete remove)) {
-    no strict 'refs';
-    *{$sub} = sub {
+        my $ret = $self->{\"SUPER::$sub"}(@_);
+        $ret = return_for_op($ret, $sub);
+        return $ret;
+    };
+    
+    my $multi = "$sub\_multi";
+    *{$multi} = sub {
         my $self = shift;
-        my $ret = $self->${\"SUPER::$sub"}(@_);
-        if($ret->is_ok) {
-            return $ret->value;
-        } elsif ($ret->errnum == COUCHBASE_NOT_STORED ||
-                 $ret->errnum == COUCHBASE_KEY_ENOENT ||
-                 $ret->errnum == COUCHBASE_KEY_EEXISTS ||
-                 $ret->errnum == COUCHBASE_DELTA_BADVAL ||
-                 $ret->errnum == COUCHBASE_E2BIG) {
-            return 0;
-        } else {
-            return undef;
-        }
+        my $ret = $self->{\"SUPER::$multi"}(@_);
+        return return_for_multi_wrap(\@_, $ret, $sub)
     };
 }
+
+1;
 
 __END__
 
@@ -77,31 +110,30 @@ of those pages for documentation of the methods supported.
 
 =over
 
-=item get
+=item get, get_multi
 
-=item gets
+=item gets, gets_multi
 
-=item set
+=item set, set_multi
 
-=item cas
+=item cas, cas_multi
 
-=item add
+=item add, add_multi
 
-=item replace
+=item replace, replace_multi
 
-=item append
+=item append, append_multi
 
-=item prepend
+=item prepend, prepend_multi
 
-=item incr
+=item incr, incr_multi
 
-=item decr
+=item decr, decr_multi
 
-=item delete
-
-=item remove
+=item delete, remove, delete_multi, remove_multi
 
 =back
+
 
 =head2 SEE ALSO
 
