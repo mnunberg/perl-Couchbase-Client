@@ -9,6 +9,7 @@ use Dir::Self qw(:static);
 use Config;
 use File::Path qw(mkpath rmtree);
 use Getopt::Long;
+use Archive::Extract;
 
 GetOptions(
     "build-prefix=s" => \my $BuildPrefix,
@@ -63,7 +64,8 @@ sub lib_2_tarball {
 
 sub tarball_2_dir {
     my $tarball = shift;
-    runcmd("tar xzf $tarball");
+    my $ae = Archive::Extract->new(archive => $tarball);
+    $ae->extract();    
     my $filename = fileparse($tarball, qr/\.tar\..*/);
     return $filename;
 }
@@ -94,9 +96,11 @@ mkpath($INST_DIR);
 mkpath($INCLUDE_PATH);
 mkpath($LIB_PATH);
 
-runcmd("tar xzf $MEMCACHED_H_TARBALL");
-rmtree(File::Spec->catfile($INCLUDE_PATH, 'memcached'));
-runcmd("mv include/memcached $INCLUDE_PATH && rm -rf include/memcached");
+{
+    my $ae = Archive::Extract->new(archive => $MEMCACHED_H_TARBALL);
+    $ae->extract(to => $INST_DIR);
+    
+}
 unless(-e File::Spec->catfile($INCLUDE_PATH, 'memcached', 'protocol_binary.h')) {
     die("Can't extract memcached headers");
 }
@@ -145,19 +149,6 @@ sub lib_is_built {
     return 0;
 }
 
-################################################################################
-### ISASL                                                                    ###
-################################################################################
-#my $LIBISASL_TARBALL = lib_2_tarball('libisasl');
-#disabled because we now bundle it with libcouchbase itself.
-#if(should_build('ISASL')) {
-#    chdir $TOPLEVEL;
-#    chdir tarball_2_dir($LIBISASL_TARBALL);
-#    runcmd("./configure", @COMMON_OPTIONS) unless -e 'Makefile';
-#    log_info("Configuring libisasl");
-#    runcmd("$MAKEPROG install");
-#    log_info("Installed libisasl");
-#}
 
 ################################################################################
 ### libevent                                                                 ###

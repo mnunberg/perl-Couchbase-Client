@@ -232,6 +232,10 @@ sub mangle_parent_makefile {
         $ret = join("\n",
             "\$(MYEXTLIB) ::",
             "\t\ " . $mm->cd("src", '$(MAKE)'),
+            "",
+            '$(OBJECT) : $(MYEXTLIB)',
+            "",
+            'pm_to_blib : $(MYEXTLIB)',
         ) . $ret;
 
         return $ret;
@@ -258,7 +262,11 @@ sub mangle_parent_makefile {
     ldrunpath2rpath($parent, $runpath);
 
     $parent->{INC} .= " -I$blib_dep_path\$(DFSEP)include";
-
+    
+    my $couchbase_h = File::Spec->catfile($blib_dep_path,
+                                          "include",
+                                          "libcouchbase",
+                                          "couchbase.h");
 
     my $parent_inc = $parent->{INC};
 
@@ -266,7 +274,10 @@ sub mangle_parent_makefile {
                                $parent_inc);
     no warnings qw(redefine once);
     *MY::postamble = sub {
-        my @lines = (
+        my @lines;
+        
+        # Insert header file dependency for $(OBJECT)        
+        push @lines, (
             "$dep:",
             (insert_announcement("will build for ultimate target $dep")),
             (create_buildscript_invocation($parent,

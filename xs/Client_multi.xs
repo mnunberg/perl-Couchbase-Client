@@ -1,6 +1,16 @@
 #include "perl-couchbase.h"
+#include "plcb-commands.h"
 
-#define MULTI_STACK_ELEM 128
+#define MULTI_STACK_ELEM 64
+
+PLCB_STRUCT_MAYBE_ALLOC_SIZED(pointer_maybe_alloc, void*, MULTI_STACK_ELEM);
+PLCB_MAYBE_ALLOC_GENFUNCS(pointer_maybe_alloc, void*, MULTI_STACK_ELEM, static);
+
+PLCB_STRUCT_MAYBE_ALLOC_SIZED(sizet_maybe_alloc, size_t, MULTI_STACK_ELEM);
+PLCB_MAYBE_ALLOC_GENFUNCS(sizet_maybe_alloc, size_t, MULTI_STACK_ELEM, static);
+
+PLCB_STRUCT_MAYBE_ALLOC_SIZED(syncs_maybe_alloc, PLCB_sync_t, 32);
+PLCB_MAYBE_ALLOC_GENFUNCS(syncs_maybe_alloc, PLCB_sync_t, 32, static);
 
 #ifndef mk_instance_vars
 #define mk_instance_vars(sv, inst_name, obj_name) \
@@ -27,10 +37,9 @@
     object->npending = nreq; \
     av_clear(object->errors);
 
-#define _MAYBE_STACK_ALLOC(syncp, stackp)
-
 #define _SYNC_RESULT_INIT(object, hv, sync) \
     sync.ret = newAV(); \
+    sync.type = PLCB_SYNCTYPE_SINGLE; \
     hv_store(hv, sync.key, sync.nkey, \
         plcb_ret_blessed_rv(object, sync.ret), 0); \
     sync.parent = object;
@@ -65,43 +74,11 @@
     time_t now; \
     HV *ret;
 
-enum {
-    MULTI_CMD_GET = 1,
-    MULTI_CMD_TOUCH,
-    MULTI_CMD_GAT,
-    
-    MULTI_CMD_SET,
-    MULTI_CMD_ADD,
-    MULTI_CMD_REPLACE,
-    MULTI_CMD_APPEND,
-    MULTI_CMD_PREPEND,
-    MULTI_CMD_REMOVE,
-    MULTI_CMD_CAS,
-    
-    MULTI_CMD_ARITHMETIC,
-    MULTI_CMD_INCR,
-    MULTI_CMD_DECR
-};    
-
-static inline libcouchbase_storage_t
-_cmd2storop(int cmd)
+static void
+restore_single_callbacks(void *arg)
 {
-    switch(cmd) {
-    case MULTI_CMD_SET:
-    case MULTI_CMD_CAS:
-        return LIBCOUCHBASE_SET;
-    case MULTI_CMD_ADD:
-        return LIBCOUCHBASE_ADD;
-    case MULTI_CMD_REPLACE:
-        return LIBCOUCHBASE_REPLACE;
-    case MULTI_CMD_APPEND:
-        return LIBCOUCHBASE_APPEND;
-    case MULTI_CMD_PREPEND:
-        return LIBCOUCHBASE_PREPEND;
-    default:
-        die("Unhandled command %d", cmd);
-        return LIBCOUCHBASE_ADD;
-    }
+    PLCB_t *obj = (PLCB_t*)arg;
+    plcb_callbacks_set_single(obj);
 }
 
 static SV*
@@ -114,11 +91,12 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
     time_t *exps;
     SV **tmpsv;
     PLCB_sync_t *syncp;
+    int cmd_base;
     
-    void *keys_stacked[MULTI_STACK_ELEM];
-    size_t sizes_stacked[MULTI_STACK_ELEM];
-    time_t exps_stacked[MULTI_STACK_ELEM];
-    
+    struct pointer_maybe_alloc keys_buffer;
+    struct sizet_maybe_alloc sizes_buffer;
+    struct sizet_maybe_alloc exps_buffer;
+
     mk_instance_vars(self, instance, object);
     _MULTI_INIT_COMMON(object, ret, nreq, args, now);
     
@@ -126,20 +104,26 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
     syncp->parent = object;
     syncp->ret = (AV*)ret;
     
-    if(nreq <= MULTI_STACK_ELEM) {
-        keys = keys_stacked;
-        sizes = sizes_stacked;
-        exps = (cmd == MULTI_CMD_GET) ? NULL : exps_stacked;
+    pointer_maybe_alloc_init(&keys_buffer, nreq);
+    sizet_maybe_alloc_init(&sizes_buffer, nreq);
+    cmd_base = (PLCB_COMMAND_MASK & cmd);
+
+    if (cmd_base == PLCB_CMD_GET) {
+        exps_buffer.allocated = 0;
+        exps_buffer.bufp = NULL;
     } else {
-        Newx(keys, nreq, void*); SAVEFREEPV(keys);
-        Newx(sizes, nreq, size_t); SAVEFREEPV(sizes);
-        if(cmd == MULTI_CMD_GET) {
-            exps = NULL;
-        } else {
-            Newx(exps, nreq, time_t); SAVEFREEPV(exps);
-        } 
+        sizet_maybe_alloc_init(&exps_buffer, nreq);
     }
     
+#define do_free_buffers() \
+        pointer_maybe_alloc_cleanup(&keys_buffer); \
+        sizet_maybe_alloc_cleanup(&sizes_buffer); \
+        sizet_maybe_alloc_cleanup(&exps_buffer);
+
+    keys = keys_buffer.bufp;
+    sizes = sizes_buffer.bufp;
+    exps = exps_buffer.bufp;
+
     for(i = 0; i < nreq; i++) {
         _fetch_assert(tmpsv, args, i, "arguments");
         
@@ -168,9 +152,21 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
         }
     }
     
+    /* Figure out if we're using an iterator or not */
+    if (cmd & PLCB_COMMANDf_ITER) {
+        SV *iter_ret;
+        assert(cmd_base == PLCB_CMD_GET || cmd_base == PLCB_CMD_GAT);
+
+        iter_ret = plcb_multi_iterator_new(object, self,
+                (const void * const*)keys, sizes, exps, nreq);
+        do_free_buffers();
+        return iter_ret;
+    }
+
     plcb_callbacks_set_multi(object);
+    SAVEDESTRUCTOR(restore_single_callbacks, object);
     
-    if(cmd == MULTI_CMD_TOUCH) {
+    if(cmd == PLCB_CMD_TOUCH) {
         err = libcouchbase_mtouch(instance, syncp, nreq,
                                   (const void* const*)keys, sizes, exps);
     } else {
@@ -188,9 +184,9 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
                      plcb_ret_blessed_rv(object, errav), 0);
         }
     }
-    
-    plcb_callbacks_set_single(object);
-    
+
+    do_free_buffers();
+
     return newRV_inc( (SV*)ret);
 }
 
@@ -199,23 +195,26 @@ PLCB_multi_set_common(SV *self, AV *args, int cmd)
 {
     _dMULTI_VARS
     PLCB_sync_t *syncs = NULL;
-    PLCB_sync_t syncs_stacked[MULTI_STACK_ELEM];
+    struct syncs_maybe_alloc syncs_buf;
     libcouchbase_storage_t storop;
+    plcb_conversion_spec_t conversion_spec = PLCB_CONVERT_SPEC_NONE;
+    
     int nwait;
+    int cmd_base;
     
     mk_instance_vars(self, instance, object);
     
     _MULTI_INIT_COMMON(object, ret, nreq, args, now);
+    syncs_maybe_alloc_init(&syncs_buf, nreq);
+    syncs = syncs_buf.bufp;
     
-    if(nreq <= MULTI_STACK_ELEM) {
-        syncs = syncs_stacked;
-    } else {
-        Newx(syncs, nreq, PLCB_sync_t);
-        SAVEFREEPV(syncs);
-    }
-    
+    cmd_base = cmd & PLCB_COMMAND_MASK;
     nwait = 0;
-    storop = _cmd2storop(cmd);
+    storop = plcb_command_to_storop(cmd);
+    
+    if (cmd & PLCB_COMMANDf_COUCH) {
+        conversion_spec = PLCB_CONVERT_SPEC_JSON;
+    }
     
     for(i = 0; i < nreq; i++) {
         AV *argav;
@@ -240,16 +239,16 @@ PLCB_multi_set_common(SV *self, AV *args, int cmd)
         plcb_get_str_or_die(*tmpsv, value, nvalue, "value");
         value_sv = *tmpsv;
         
-        switch(cmd) {
-        case MULTI_CMD_SET:
-        case MULTI_CMD_ADD:
-        case MULTI_CMD_REPLACE:
-        case MULTI_CMD_APPEND:
-        case MULTI_CMD_PREPEND:
+        switch(cmd_base) {
+        case PLCB_CMD_SET:
+        case PLCB_CMD_ADD:
+        case PLCB_CMD_REPLACE:
+        case PLCB_CMD_APPEND:
+        case PLCB_CMD_PREPEND:
             _exp_from_av(argav, 2, now, exp, tmpsv);
             _cas_from_av(argav, 3, cas, tmpsv);
             break;
-        case MULTI_CMD_CAS:
+        case PLCB_CMD_CAS:
             _fetch_assert(tmpsv, argav, 2, "Expected cas");
             _cas_from_av(argav, 2, cas, tmpsv);
             _exp_from_av(argav, 3, now, exp, tmpsv);
@@ -260,8 +259,9 @@ PLCB_multi_set_common(SV *self, AV *args, int cmd)
         
         _SYNC_RESULT_INIT(object, ret, syncs[i]);
 
-        plcb_convert_storage(object, &value_sv, &nvalue, &store_flags);
-                
+        plcb_convert_storage(object, &value_sv, &nvalue, &store_flags,
+                             conversion_spec);
+        
         err = libcouchbase_store(
             instance, &syncs[i], storop, syncs[i].key, syncs[i].nkey,
             SvPVX(value_sv), nvalue, store_flags, exp, cas);
@@ -272,6 +272,8 @@ PLCB_multi_set_common(SV *self, AV *args, int cmd)
         
     }
     _MAYBE_WAIT(nwait);
+
+    syncs_maybe_alloc_cleanup(&syncs_buf);
     return newRV_inc( (SV*)ret);
 }
 
@@ -281,19 +283,15 @@ PLCB_multi_arithmetic_common(SV *self, AV *args, int cmd)
     _dMULTI_VARS
     
     PLCB_sync_t *syncs;
-    PLCB_sync_t syncs_stacked[MULTI_STACK_ELEM];
+    struct syncs_maybe_alloc syncs_buf;
     int nwait = 0;
     
     mk_instance_vars(self, instance, object);
     _MULTI_INIT_COMMON(object, ret, nreq, args, now);
-        
-    if(nreq <= MULTI_STACK_ELEM) {
-        syncs = syncs_stacked;
-    } else {
-        Newx(syncs, nreq, PLCB_sync_t);
-        SAVEFREEPV(syncs);
-    }
     
+    syncs_maybe_alloc_init(&syncs_buf, nreq);
+    syncs = syncs_buf.bufp;
+
     for(i = 0; i < nreq; i++) {
         AV *argav;
         SV **tmpsv;
@@ -304,7 +302,7 @@ PLCB_multi_arithmetic_common(SV *self, AV *args, int cmd)
         
         #define _do_arith_simple(only_sv) \
             plcb_get_str_or_die(only_sv, syncs[i].key, syncs[i].nkey, "key"); \
-            delta = (cmd == MULTI_CMD_DECR) ? (-delta) : delta; \
+            delta = (cmd == PLCB_CMD_DECR) ? (-delta) : delta; \
             goto GT_CBC_CMD;
         
         _fetch_assert(tmpsv, args, i, "empty argument in spec");
@@ -312,7 +310,7 @@ PLCB_multi_arithmetic_common(SV *self, AV *args, int cmd)
         
         if(SvTYPE(*tmpsv) == SVt_PV) {
             /*simple key*/
-            if(cmd == MULTI_CMD_ARITHMETIC) {
+            if(cmd == PLCB_CMD_ARITHMETIC) {
                 die("Expected array reference!");
             }
             _do_arith_simple(*tmpsv);
@@ -333,9 +331,9 @@ PLCB_multi_arithmetic_common(SV *self, AV *args, int cmd)
         
         _fetch_assert(tmpsv, argav, 1, "expected delta");
         delta = SvIV(*tmpsv);
-        delta = (cmd == MULTI_CMD_DECR) ? (-delta) : delta;
+        delta = (cmd == PLCB_CMD_DECR) ? (-delta) : delta;
         
-        if(cmd != MULTI_CMD_ARITHMETIC) {
+        if(cmd != PLCB_CMD_ARITHMETIC) {
             goto GT_CBC_CMD;
         }
         
@@ -359,7 +357,8 @@ PLCB_multi_arithmetic_common(SV *self, AV *args, int cmd)
         
     }
     
-    _MAYBE_WAIT(nwait);            
+    _MAYBE_WAIT(nwait);
+    syncs_maybe_alloc_cleanup(&syncs_buf);
     return newRV_inc( (SV*)ret);
 }
 
@@ -368,19 +367,15 @@ PLCB_multi_remove(SV *self, AV *args)
 {
     _dMULTI_VARS
     PLCB_sync_t *syncs = NULL;
-    PLCB_sync_t syncs_stacked[MULTI_STACK_ELEM];
+    struct syncs_maybe_alloc syncs_buf;
     
     int nwait = 0;
     
     mk_instance_vars(self, instance, object);
     _MULTI_INIT_COMMON(object, ret, nreq, args, now);
     
-    if(nreq < MULTI_STACK_ELEM) {
-        syncs = syncs_stacked;
-    } else {
-        Newx(syncs, nreq, PLCB_sync_t);
-        SAVEFREEPV(syncs);
-    }
+    syncs_maybe_alloc_init(&syncs_buf, nreq);
+    syncs = syncs_buf.bufp;
     
     for(i = 0; i < nreq; i++) {
         AV *argav;
@@ -407,36 +402,14 @@ PLCB_multi_remove(SV *self, AV *args)
         _MAYBE_SET_IMMEDIATE_ERROR(err, syncs[i].ret, nwait);
     }
     _MAYBE_WAIT(nwait);
+    syncs_maybe_alloc_cleanup(&syncs_buf);
     return newRV_inc( (SV*)ret );
     
 }
 
-static int get_cmd_map[] = {
-    MULTI_CMD_GET,
-    MULTI_CMD_TOUCH,
-    MULTI_CMD_GAT,
-};
-
-static int set_cmd_map[] = {
-    MULTI_CMD_SET,
-    MULTI_CMD_ADD,
-    MULTI_CMD_REPLACE,
-    MULTI_CMD_APPEND,
-    MULTI_CMD_PREPEND,
-    MULTI_CMD_CAS
-};
-
-static int arith_cmd_map[] = {
-    MULTI_CMD_ARITHMETIC,
-    MULTI_CMD_INCR,
-    MULTI_CMD_DECR
-};
-
-
-
 #define _MAYBE_MULTI_ARG(array) \
     if(items == 2) { \
-        array = (AV*)ST(1); warn("Using second stack item for AV"); \
+        array = (AV*)ST(1); \
         if( (SvROK((SV*)array)) && (array = (AV*)SvRV((SV*)array))) { \
             if(SvTYPE(array) < SVt_PVAV) { \
                 die("Expected ARRAY reference for arguments"); \
@@ -452,65 +425,68 @@ MODULE = Couchbase::Client_multi PACKAGE = Couchbase::Client    PREFIX = PLCB_
 
 PROTOTYPES: DISABLE
 
-SV* PLCB_get_multi(self, ...)
+SV* PLCB__get_multi(self, ...)
     SV *self
     
     ALIAS:
-    touch_multi = 1
-    gat_multi = 2
+    touch_multi = PLCB_CMD_TOUCH
+    gat_multi = PLCB_CMD_GAT
+    get_multi = PLCB_CMD_GET
+    get_iterator = PLCB_CMD_ITER_GET
     
     PREINIT:
-    int cmd;
     AV *args;
     
     CODE:
-    cmd = get_cmd_map[ix];
     _MAYBE_MULTI_ARG(args);
     
-    RETVAL = PLCB_multi_get_common(self, args, cmd);
+    RETVAL = PLCB_multi_get_common(self, args, ix);
     
     OUTPUT:
     RETVAL
     
 SV*
-PLCB_set_multi(self, ...)
+PLCB__set_multi(self, ...)
     SV *self
     
     ALIAS:
-    add_multi = 1
-    replace_multi = 2
-    append_multi = 3
-    prepend_multi = 4
-    cas_multi = 5
+    set_multi           = PLCB_CMD_SET
+    add_multi           = PLCB_CMD_ADD
+    replace_multi       = PLCB_CMD_REPLACE
+    append_multi        = PLCB_CMD_APPEND
+    prepend_multi       = PLCB_CMD_PREPEND
+    cas_multi           = PLCB_CMD_CAS
+    
+    couch_add_multi     = PLCB_CMD_COUCH_ADD
+    couch_set_multi     = PLCB_CMD_COUCH_SET
+    couch_cas_multi     = PLCB_CMD_COUCH_CAS
+    
     
     PREINIT:
-    int cmd;
     AV *args;
     
     CODE:
-    cmd = set_cmd_map[ix];
     _MAYBE_MULTI_ARG(args);
-    RETVAL = PLCB_multi_set_common(self, args, cmd);
+    RETVAL = PLCB_multi_set_common(self, args, ix);
     
     OUTPUT:
     RETVAL
     
 SV*
-PLCB_arithmetic_multi(self, ...)
+PLCB__arithmetic_multi(self, ...)
     SV *self
     
     ALIAS:
-    incr_multi = 1
-    decr_multi = 2
+    arithmetic_multi= PLCB_CMD_ARITHMETIC
+    incr_multi      = PLCB_CMD_INCR
+    decr_multi      = PLCB_CMD_DECR
     
     PREINIT:
     AV *args;
-    int cmd;
     
     CODE:
-    cmd = arith_cmd_map[ix];
     _MAYBE_MULTI_ARG(args);
-    RETVAL = PLCB_multi_arithmetic_common(self, args, cmd);
+    RETVAL = PLCB_multi_arithmetic_common(self, args, ix);
     
     OUTPUT:
     RETVAL

@@ -8,10 +8,8 @@ typedef enum {
     PLCB_RETIDX_ERRNUM  = 1,
     PLCB_RETIDX_ERRSTR  = 2,
     PLCB_RETIDX_CAS     = 3,
-    
-    /*Extended Fields*/
-    PLCB_RETIDX_ORIGSIZE,
-    PLCB_RETIDX_KEYFLAGS,
+        
+    PLCB_RETIDX_MAX    
 } PLCB_ret_idx_t;
 
 #define plcb_ret_set_cas(obj, ret, cas) \
@@ -22,14 +20,6 @@ typedef enum {
     av_store(ret, PLCB_RETIDX_VALUE, \
         plcb_convert_retrieval(obj, value, nvalue, flags)); \
     plcb_ret_set_cas(obj, ret, &cas);
-
-/*not currently used*/
-
-#define plcb_ret_set_extfields(obj, ret, orig_len, orig_flags) \
-    if(obj->my_flags & PLCBf_RET_EXTENDED_FLAGS) { \
-        av_store(ret, PLCB_RETIDX_ORIGSIZE, newSVuv(orig_len)); \
-        av_store(ret, PLCB_RETIDX_KEYFLAGS, newSVuv(orig_flags)); \
-    }
 
 static inline void
 plcb_ret_set_numval(PLCB_t *obj, AV *ret, uint64_t value, uint64_t cas)

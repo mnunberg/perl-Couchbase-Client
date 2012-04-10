@@ -114,10 +114,15 @@ compression_convert(SV *meth, SV *input, int direction)
 
 void plcb_convert_storage(
     PLCB_t *object, SV **data_sv, STRLEN *data_len,
-    uint32_t *flags)
+    uint32_t *flags, plcb_conversion_spec_t spec)
 {
     SV *sv;
     *flags = 0;
+    
+    if (spec == PLCB_CONVERT_SPEC_JSON) {
+        /* Special for CouchDB */
+        
+    }
     
     /* dereference SCALAR reference. bypass all conversion checks because
      * this is an internal setting
@@ -138,17 +143,30 @@ void plcb_convert_storage(
     
     /*only serialize references*/
     if(SvROK(sv)) {
-        if(!plcb_can_convert(object, PLCBf_USE_STORABLE)) {
-            croak("serialization requested but output conversion disabled");
+        
+        if (spec == PLCB_CONVERT_SPEC_JSON) {
+            sv = serialize_convert(object->couch.cv_json_encode, sv,
+                                   CONVERT_DIRECTION_OUT);
+        } else {
+        
+            if(!plcb_can_convert(object, PLCBf_USE_STORABLE)) {
+                croak("serialization requested but output conversion disabled");
+            }
+            
+            sv = serialize_convert(object->cv_serialize, sv,
+                                   CONVERT_DIRECTION_OUT);
+            
+            plcb_storeflags_apply_serialization(object, *flags);
         }
         
-        sv = serialize_convert(object->cv_serialize, sv,
-                               CONVERT_DIRECTION_OUT);        
-        plcb_storeflags_apply_serialization(object, *flags);
         *data_len = SvCUR(sv); /*set this so compression method sees new length*/
     }
     
-    if( plcb_can_convert(object, PLCBf_USE_COMPRESSION)
+    /* Don't compress if we explicitly want uncompressed JSON */
+    
+    if(spec == PLCB_CONVERT_SPEC_NONE &&
+       
+       plcb_can_convert(object, PLCBf_USE_COMPRESSION)
        && object->compress_threshold
        && *data_len >= object->compress_threshold ) {
         

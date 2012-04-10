@@ -70,7 +70,7 @@ static inline uint64_t plcb_sv_to_u64(SV *in)
 /*assertively extract a non-null key from an SV, together with its length*/
 
 #define plcb_get_str_or_die(ksv, charvar, lenvar, diespec) \
-    (charvar = SvPV(ksv, lenvar)) \
+    ((charvar = SvPV(ksv, lenvar))) \
         ? ( (lenvar) ? charvar : (void*)die("Got zero-length %s", diespec) ) \
         : (void*)die("Got NULL %s", diespec)
 
@@ -100,6 +100,72 @@ static inline uint64_t plcb_sv_to_u64(SV *in)
             : uexp) \
         : 0)
 #endif
+
+
+/**
+ * These utilities utilize perl's SAVE* functions to automatically do cleanup
+ * for buffers that may either live on the stack, or be allocated from the heap.
+ * This is useful for exception handling, in which case the buffer is freed when
+ * the enclosing (Perl) scope ends.
+ */
+
+#define PLCB_STRUCT_MAYBE_ALLOC_SIZED(name, elem_type, nelem) \
+    struct name { \
+        int allocated; \
+        elem_type* bufp; \
+        elem_type** backref; \
+        elem_type prealloc[nelem]; \
+    };
+
+#define PLCB_MAYBE_ALLOC_GENFUNCS(name, elem_type, nelem, modifiers) \
+static void \
+name ## __plalloc_destroy_func(void *p) { \
+    char **chrp = (char**)p; \
+    if (*chrp) { \
+        Safefree(*chrp); \
+        *chrp = NULL; \
+    } \
+    Safefree(chrp); \
+} \
+modifiers void \
+name ## _init(struct name* buf, size_t nelem_wanted) { \
+    if (nelem_wanted <= nelem) { \
+        buf->bufp = buf->prealloc; \
+        buf->allocated = 0; \
+        buf->backref = NULL; \
+        return; \
+    } \
+    Newx(buf->bufp, nelem_wanted, elem_type); \
+    Newx(buf->backref, 1, elem_type*); \
+    *buf->backref = buf->bufp; \
+    buf->allocated = 1; \
+    SAVEDESTRUCTOR(name ## __plalloc_destroy_func, buf->backref); \
+} \
+\
+modifiers void \
+name ## _cleanup(struct name* buf) { \
+    if(!buf->allocated) { \
+        return; \
+    } \
+    Safefree(buf->bufp); \
+    buf->bufp = NULL; \
+    *buf->backref = NULL; \
+}
+
+/* Handy types for XS */
+/* for easy passing */
+typedef struct {
+    struct PLCB_st *ptr;
+    SV *sv;
+} PLCB_XS_OBJPAIR_t;
+
+typedef struct {
+    SV *origsv;
+    char *base;
+    STRLEN len;
+} PLCB_XS_STRING_t;
+
+typedef PLCB_XS_STRING_t PLCB_XS_STRING_NONULL_t;
 
 
 #endif /* PLCB_UTIL_H_ */

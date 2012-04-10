@@ -59,8 +59,13 @@ $MM_Options{CONFIGURE} = sub {
 ################################################################################
 {
     my @C_Modules = qw(
-        callbacks convert ctor async_base async_callbacks async_events);
-    my @XS_Modules = qw(Client Client_multi);
+        callbacks convert ctor async_base async_callbacks async_events
+        iterator
+        couch_handle);
+    my @XS_Modules = qw(
+        Client Client_multi
+        Iterator_get
+        Couch_request_handle);
 
     foreach (@XS_Modules, @C_Modules) {
         my $obj = $_ . $Config{obj_ext};
@@ -107,7 +112,7 @@ if(!$HaveJava) {
         "module will likely function properly without it, but will be untested\n".
         "on your specific installation.\n\n".
         "Abort installation?", "n");
-    
+
     if($promptval =~ /^y/i) {
         print STDERR "You have request to abort the installation.\n".
                         "Makefile.PL will now exit\n";
@@ -142,10 +147,13 @@ WriteMakefile(
 
     BUILD_REQUIRES => {
         'ExtUtils::H2PM'    => 0.08,
-        
+
         #This is really a dependency of ExtUtils::H2PM, but we need a
         #version which honors the CFLAGS environment variable.
-        'ExtUtils::CBuilder' => 0.280203
+        'ExtUtils::CBuilder' => 0.280203,
+
+        #Need this to extract tarballs
+        'Archive::Extract' => 0,
     },
 
     PREREQ_PM => {
@@ -157,7 +165,7 @@ WriteMakefile(
         #functionality
 
         'Test::Class'       => 0.36,
-        
+
         #these are needed for asynchronous tests and modules
         'POE::Sugar::Attributes' => 0.02,
         'POE'               => 1.312,

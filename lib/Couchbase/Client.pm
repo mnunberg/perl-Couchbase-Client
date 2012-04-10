@@ -2,7 +2,7 @@ package Couchbase::Client;
 
 BEGIN {
     require XSLoader;
-    our $VERSION = '0.18';
+    our $VERSION = '0.19';
     XSLoader::load(__PACKAGE__, $VERSION);
 }
 
@@ -12,6 +12,7 @@ use warnings;
 use Couchbase::Client::Errors;
 use Couchbase::Client::IDXConst;
 use Couchbase::Client::Return;
+use Couchbase::Client::Iterator;
 
 my $have_storable = eval "use Storable; 1;";
 my $have_zlib = eval "use Compress::Zlib; 1;";
@@ -23,6 +24,10 @@ use Array::Assign;
     *gets = \&get;
     *gets_multi = \&get_multi;
 }
+
+# Get the CouchDB (2.0) API
+use Couchbase::Couch::Base;
+use base qw(Couchbase::Couch::Base);
 
 #this function converts hash options for compression and serialization
 #to something suitable for construct()
@@ -113,6 +118,7 @@ sub _MkCtorIDX {
         warn sprintf("Unused keys (%s) in constructor",
                      join(", ", keys %$opts));
     }
+    __PACKAGE__->_CouchCtorInit(\@arglist);
     return \@arglist;
 }
 
@@ -631,6 +637,13 @@ itself:
 =head3 gets_multi
 
 alias to L</get_multi>
+
+=head3 get_iterator(@keys)
+
+Takes the same form of arguments as C<get_multi>, but returns a
+L<Couchbase::Client::Iterator> object instead of a result set. This allows you
+to do L<DBI>-style iterative fetching of results while potentially reaping
+the performance benefits of the multi protocol
 
 =head3 touch_multi([key, exp]..)
 

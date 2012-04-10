@@ -274,4 +274,31 @@ sub T07_stats :Test(no_plan) {
     }
 }
 
+sub T08_iterator :Test(no_plan) {
+    my $self = shift;
+    my $o = $self->cbo;
+    my @keys = map { "T08_NonExistent_$_" } (1..200);
+    my $iterator = $o->get_iterator(\@keys);
+    ok(!$iterator->error, "Got no errors for creating iterator");
+    
+    my $rescount = 0;
+    my $key_count = 0;
+    my $not_found_count = 0;
+    
+    while (my ($k,$v) = $iterator->next) {
+        if ($k) {
+            $key_count++;
+        }
+
+        if ($v->KEY_ENOENT) {
+            $not_found_count++;
+        }
+        $rescount++;
+    }
+    
+    is($rescount, 200, "Got expected number of results");
+    is($key_count, 200, "all keys received in good health");
+    is($not_found_count, 200, "Got expected number of ENOENT");
+}
+
 1;

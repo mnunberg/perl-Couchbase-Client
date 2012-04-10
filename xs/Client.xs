@@ -1,5 +1,6 @@
 #include "perl-couchbase.h"
 #include "plcb-util.h"
+#include "plcb-commands.h"
 
 static inline void
 wait_for_single_response(PLCB_t *object)
@@ -149,12 +150,15 @@ PLCB_connect(SV *self)
 
 static SV *PLCB_set_common(SV *self,
     SV *key, SV *value,
-    int storop,
+    int cmd,
     int exp_offset, uint64_t cas)
 {
     libcouchbase_t instance;
     PLCB_t *object;
     libcouchbase_error_t err;
+    libcouchbase_storage_t storop;
+    plcb_conversion_spec_t conversion_spec = PLCB_CONVERT_SPEC_NONE;
+
     STRLEN klen = 0, vlen = 0;
     char *skey, *sval;
     PLCB_sync_t *syncp;
@@ -166,14 +170,21 @@ static SV *PLCB_set_common(SV *self,
     plcb_get_str_or_die(key, skey, klen, "Key");
     plcb_get_str_or_die(value, sval, vlen, "Value");
 
+    storop = plcb_command_to_storop(cmd);
+
     /*Clear existing error status first*/
     av_clear(object->errors);
 
     _sync_initialize_single(object, syncp);
-    
+
     PLCB_UEXP2EXP(exp, exp_offset, 0);
 
-    plcb_convert_storage(object, &value, &vlen, &store_flags);
+    if ((cmd & PLCB_COMMAND_EXTRA_MASK) & PLCB_COMMANDf_COUCH) {
+        conversion_spec = PLCB_CONVERT_SPEC_JSON;
+    }
+
+    plcb_convert_storage(object, &value, &vlen, &store_flags,
+                         conversion_spec);
     err = libcouchbase_store(instance, syncp, storop,
         skey, klen, SvPVX(value), vlen, store_flags, exp, cas);
     plcb_convert_storage_free(object, value, store_flags);
@@ -355,15 +366,6 @@ return_empty(SV *self, int error, const char *errmsg)
     plcb_ret_blessed_rv(object, ret_av);
 }
 
-/*Used for set/get/replace/add common interface*/
-static libcouchbase_storage_t PLCB_XS_setmap[] = {
-    LIBCOUCHBASE_SET,
-    LIBCOUCHBASE_ADD,
-    LIBCOUCHBASE_REPLACE,
-    LIBCOUCHBASE_APPEND,
-    LIBCOUCHBASE_PREPEND,
-};
-
 /*used for settings accessors*/
 enum {
     SETTINGS_ALIAS_BASE,
@@ -412,30 +414,39 @@ PLCB_touch(self, key, exp_offset)
     UV exp_offset;
 
 SV *
-PLCB_set(self, key, value, ...)
+PLCB__set(self, key, value, ...)
     SV *self
     SV *key
     SV *value
 
     ALIAS:
-    add         = 1
-    replace     = 2
-    append      = 3
-    prepend     = 4
+    set         = PLCB_CMD_SET
+    add         = PLCB_CMD_ADD
+    replace     = PLCB_CMD_REPLACE
+    append      = PLCB_CMD_APPEND
+    prepend     = PLCB_CMD_PREPEND
+
+    couch_add   = PLCB_CMD_COUCH_ADD
+    couch_set   = PLCB_CMD_COUCH_SET
+    couch_replace= PLCB_CMD_COUCH_REPLACE
 
     PREINIT:
     UV exp_offset;
+    int cmd_base;
 
     CODE:
     set_plst_get_offset(4, exp_offset, "USAGE: set(key, value [,expiry]");
+    cmd_base = (ix & PLCB_COMMAND_MASK);
 
-    if(ix >= 3 && SvROK(value)) {
+
+    if( (cmd_base == PLCB_CMD_APPEND || cmd_base == PLCB_CMD_PREPEND)
+       && SvROK(value) ) {
         die("Cannot append/prepend a reference");
     }
 
     RETVAL = PLCB_set_common(
         self, key, value,
-        PLCB_XS_setmap[ix],
+        ix,
         exp_offset, 0);
 
     OUTPUT:
@@ -503,16 +514,21 @@ PLCB_arithmetic(self, key, ...)
 
 
 SV *
-PLCB_cas(self, key, value, cas_sv, ...)
+PLCB__cas(self, key, value, cas_sv, ...)
     SV *self
     SV *key
     SV *value
     SV *cas_sv
 
+    ALIAS:
+    cas = PLCB_CMD_CAS
+    couch_cas = PLCB_CMD_COUCH_CAS
+
     PREINIT:
     UV exp_offset;
     uint64_t *cas_val;
     STRLEN cas_len;
+    int cmd;
 
     CODE:
     if(SvTYPE(cas_sv) == SVt_NULL) {
@@ -526,9 +542,12 @@ PLCB_cas(self, key, value, cas_sv, ...)
     plcb_cas_from_sv(cas_sv, cas_val, cas_len);
 
     set_plst_get_offset(5, exp_offset, "USAGE: cas(key,value,cas[,expiry])");
+
+    cmd =  PLCB_CMD_SET | (ix & PLCB_COMMAND_EXTRA_MASK);
+
     RETVAL = PLCB_set_common(
         self, key, value,
-        LIBCOUCHBASE_SET,
+        cmd,
         exp_offset, *cas_val);
     assert(RETVAL != &PL_sv_undef);
     OUTPUT:
@@ -708,6 +727,14 @@ PLCB_connect(self)
 
 
 BOOT:
+/*XXX: DO NOT MODIFY WHITESPACE HERE. xsubpp is touchy*/
+#define PLCB_BOOTSTRAP_DEPENDENCY(bootfunc) \
+PUSHMARK(SP); \
+mXPUSHs(newSVpv("Couchbase::Client", sizeof("Couchbase::Client")-1)); \
+mXPUSHs(newSVpv(XS_VERSION, sizeof(XS_VERSION)-1)); \
+PUTBACK; \
+bootfunc(aTHX_ cv); \
+SPAGAIN;
 {
     {
         libcouchbase_uint32_t cbc_version = 0;
@@ -719,12 +746,12 @@ BOOT:
         */
     }
     /*Client_multi.xs*/
-    PUSHMARK(SP);
-    mXPUSHs(newSVpv("Couchbase::Client",0));
-    mXPUSHs(newSVpv(XS_VERSION, 0));
-    PUTBACK;
-    boot_Couchbase__Client_multi(aTHX_ cv);
-    SPAGAIN;
+    PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__Client_multi);
+    /* Couch_request_handle.xs */
+    PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__Client_couch);
+    /* Iterator_get.xs */
+    PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__Client_iterator);
 }
+#undef PLCB_BOOTSTRAP_DEPENDENCY
 
 INCLUDE: Async.xs

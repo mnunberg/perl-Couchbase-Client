@@ -9,12 +9,11 @@
 
 
 #define PLCB_RET_CLASSNAME "Couchbase::Client::Return"
+#define PLCB_ITER_CLASSNAME "Couchbase::Client::Iterator"
 #define PLCB_STATS_SUBNAME "Couchbase::Client::_stats_helper"
 
 #if IVSIZE >= 8
 #define PLCB_PERL64
-//#else
-//#error "Perl needs 64 bit integer support"
 #endif
 
 #ifndef mXPUSHs
@@ -25,12 +24,52 @@
 
 typedef struct PLCB_st PLCB_t;
 
+typedef enum {
+    PLCB_SYNCTYPE_SINGLE = 0,
+    PLCB_SYNCTYPE_ITER
+} plcb_synctype_t;
+
+#define PLCB_SYNC_BASE \
+    PLCB_t *parent; \
+    plcb_synctype_t type;
+
 typedef struct {
-    PLCB_t *parent;
+    PLCB_SYNC_BASE;
     const char *key;
     size_t nkey;
     AV *ret;
 } PLCB_sync_t;
+
+#define PLCB_ITER_ERROR -2
+
+typedef struct {
+    PLCB_SYNC_BASE;
+    /* Because callbacks can be invoked more than once per iteration,
+     * the output needs to be buffered. Array of (key, retav (RV)) pairs.
+     */
+    AV *buffer_av;
+
+    /*
+     * In the case of an error in creating the iterator, the error
+     * will be placed here
+     */
+    AV *error_av;
+
+    /* We hold a reference to our parent */
+    SV *parent_rv;
+
+    /* In the event where we release a handle, but a memcached
+     * stream is still continuing, we need to have a clever way
+     * to handle this.
+     * the 'remaining' counter is an inherent reference count into the
+     */
+    int remaining;
+
+    /* If the remaining count is 0 and pl_destroyed is true, then the
+     * callback should Safefree() this object without any questions.
+     */
+    int pl_destroyed;
+} PLCB_iter_t;
 
 #define plcb_sync_cast(p) (PLCB_sync_t*)(p)
 
@@ -48,7 +87,13 @@ typedef enum {
     PLCBf_COMPRESS_THRESHOLD    = 0x80,
     PLCBf_RET_EXTENDED_FIELDS   = 0x100,
     
+    /* Whether to treat references to string scalars
+      as strings */
     PLCBf_DEREF_RVPV            = 0x200,
+    
+    /* Whether to verify all input for couch* related
+      storage operations for valid JSON content */
+    PLCBf_JSON_VERIFY           = 0x400,
 } PLCB_flags_t;
 
 #define PLCBf_DO_CONVERSION \
@@ -60,9 +105,10 @@ struct PLCB_st {
     HV *stats_hv; /*object to collect statistics from*/
     AV *errors; /*per-operation error stack*/
     HV *ret_stash; /*stash with which we bless our return objects*/
+    HV *iter_stash; /* Stash with which we bless our iterator objects */
 
     PLCB_flags_t my_flags;
-    /*maybe make this a bit more advanced?*/
+
     int connected;
     
     SV *cv_serialize;
@@ -76,56 +122,26 @@ struct PLCB_st {
     
     /*how many operations are pending on this object*/
     int npending;
+    
+    /* Structure containing specific data for Couch */
+    struct {
+        /* This will encode references into JSON */
+        SV *cv_json_encode;
+        /* This will verify that a stored string is indeed JSON, optional */
+        SV *cv_json_verify;
+
+        HV *view_stash;
+        HV *design_stash;
+        HV *handle_av_stash;
+    } couch;
 };
+
+
 
 /*need to include this after defining PLCB_t*/
 #include "plcb-return.h"
-
-
-typedef enum {
-    PLCB_QUANTITY_SINGLE = 0,
-    PLCB_QUANTITY_MULTI  = 1,
-} PLCB_quantity_t;
-
-#define PLCB_STOREf_COMPAT_STORABLE 0x01LU
-#define PLCB_STOREf_COMPAT_COMPRESS 0x02LU
-#define PLCB_STOREf_COMPAT_UTF8     0x04LU
-
-#define plcb_storeflags_has_compression(obj, flags) \
-    (flags & PLCB_STOREf_COMPAT_COMPRESS)
-#define plcb_storeflags_has_serialization(obj, flags) \
-    (flags & PLCB_STOREf_COMPAT_STORABLE)
-#define plcb_storeflags_has_utf8(obj, flags) \
-    (flags & PLCB_STOREf_COMPAT_UTF8)
-
-#define plcb_storeflags_has_conversion(obj, flags) \
-    (plcb_storeflags_has_serialization(obj,flags) || \
-     plcb_storeflags_has_compression(obj,flags)) \
-     
-
-#define plcb_should_do_compression(obj, flags) \
-    ((obj->my_flags & PLCBf_USE_COMPRESSION) \
-    && plcb_storeflags_has_compression(obj, flags))
-
-#define plcb_should_do_serialization(obj, flags) \
-    ((obj->my_flags & PLCBf_USE_STORABLE) \
-    && plcb_storeflags_has_serialization(obj, flags))
-
-#define plcb_should_do_utf8(obj, flags) \
-    ((obj->my_flags & PLCBf_USE_CONVERT_UTF8) \
-    && plcb_storeflags_has_utf8(obj, flags))
-
-#define plcb_should_do_conversion(obj, flags) \
-    (plcb_should_do_compression(obj,flags) \
-    || plcb_should_do_serialization(obj, flags) \
-    || plcb_should_do_utf8(obj, flags))
-
-#define plcb_storeflags_apply_compression(obj, flags) \
-    flags |= PLCB_STOREf_COMPAT_COMPRESS
-#define plcb_storeflags_apply_serialization(obj, flags) \
-    flags |= PLCB_STOREf_COMPAT_STORABLE
-#define plcb_storeflags_apply_utf8(obj, flags) \
-    flags |= PLCB_STOREf_COMPAT_UTF8
+#include "perl-couchbase-couch.h"
+#include "plcb-convert.h"
 
 
 /*Change this #define to the last index used by the 'default' constructor*/
@@ -147,8 +163,17 @@ typedef enum {
     PLCB_CTORIDX_EVLOOP_OBJ,
     PLCB_CTORIDX_TIMEOUT,
     PLCB_CTORIDX_NO_CONNECT,
+    PLCB_CTORIDX_JSON_ENCODE_METHOD,
+    PLCB_CTORIDX_JSON_VERIFY_METHOD,
+    
+    PLCB_CTORIDX_STDIDX_MAX = PLCB_CTORIDX_JSON_VERIFY_METHOD
     
 } PLCB_ctor_idx_t;
+
+typedef enum {
+    PLCB_CONVERT_SPEC_NONE = 0,
+    PLCB_CONVERT_SPEC_JSON
+} plcb_conversion_spec_t;
 
 
 void plcb_callbacks_setup(PLCB_t *object);
@@ -169,7 +194,9 @@ void plcb_cleanup(PLCB_t *object);
 
 /*conversion functions*/
 void plcb_convert_storage(
-    PLCB_t* object, SV **input_sv, STRLEN *data_len, uint32_t *flags);
+    PLCB_t* object, SV **input_sv, STRLEN *data_len, uint32_t *flags,
+    plcb_conversion_spec_t spec);
+
 void plcb_convert_storage_free(
     PLCB_t *object, SV *output_sv, uint32_t flags);
 SV* plcb_convert_retrieval(
@@ -178,5 +205,26 @@ SV* plcb_convert_retrieval(
 
 int
 plcb_convert_settings(PLCB_t *object, int flag, int new_value);
+
+/**
+ * Iterator functions
+ */
+SV*
+plcb_multi_iterator_new(PLCB_t *obj, SV *cbo_sv,
+                        const void * const *keys, size_t *sizes, time_t *exps,
+                        size_t nitems);
+
+void
+plcb_multi_iterator_next(PLCB_iter_t *iter, SV **keyp, SV **retp);
+
+void
+plcb_multi_iterator_collect(PLCB_iter_t *iter,
+                            libcouchbase_error_t err,
+                            const void *key, size_t nkey,
+                            const void *value, size_t nvalue,
+                            uint32_t flags, uint64_t cas);
+
+void
+plcb_multi_iterator_cleanup(PLCB_iter_t *iter);
 
 #endif /* PERL_COUCHBASE_H_ */

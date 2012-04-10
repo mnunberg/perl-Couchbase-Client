@@ -29,10 +29,26 @@ my @const_bases = qw(
     CTORIDX_TIMEOUT
     CTORIDX_NO_CONNECT
 
+    CTORIDX_JSON_ENCODE_METHOD
+    CTORIDX_JSON_VERIFY_METHOD
+
     RETIDX_VALUE
     RETIDX_ERRSTR
     RETIDX_CAS
     RETIDX_ERRNUM
+
+    COUCHIDX_HTTP
+    COUCHIDX_CALLBACK_DATA
+    COUCHIDX_CALLBACK_COMPLETE
+    COUCHIDX_PATH
+    COUCHIDX_UDATA
+    COUCHIDX_CBO
+    COUCHIDX_ERREXTRA
+    COUCHIDX_ROWCOUNT
+
+    ROWIDX_CBO
+    ROWIDX_DOCID
+    ROWIDX_REV
 );
 
 constant("PLCB_$_", name => $_) for (@const_bases);
@@ -90,7 +106,7 @@ my @async_commands = qw(
     STATS
     FLUSH
 );
-constant("PLCBA_CMD_$_") for (@async_commands);
+constant("PLCB_CMD_$_", name => "PLCBA_CMD_$_") for (@async_commands);
 
 my @async_reqtypes = qw(
     SINGLE
@@ -132,5 +148,9 @@ my @evstates = qw(
 );
 constant("PLCBA_EVSTATE_$_", name => "EVSTATE_$_") for (@evstates);
 
+my @http_methods = qw(GET POST PUT DELETE);
+
+constant("LIBCOUCHBASE_HTTP_METHOD_$_",
+         name => "COUCH_METHOD_$_") for (@http_methods);
 
 write_output($ARGV[0]);

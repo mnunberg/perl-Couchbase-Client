@@ -9,7 +9,7 @@
     v_instance = v_base->instance;
 
 static inline void av2request(
-    PLCBA_t *async, PLCBA_cmd_t cmd,
+    PLCBA_t *async, int cmd,
     AV *reqav, struct PLCBA_request_st *request)
 {
     #define _fetch_nonull(idx) \
@@ -30,6 +30,7 @@ static inline void av2request(
     STRLEN dummy;
     char *dummystr;
     uint64_t *dummy_cas;
+    plcb_conversion_spec_t conversion_spec = PLCB_CONVERT_SPEC_NONE;
     
     if(plcba_cmd_needs_key(cmd)) {
         _fetch_assert(PLCBA_REQIDX_KEY, "Expected key but none passed");
@@ -49,12 +50,17 @@ static inline void av2request(
         
         
         if(plcba_cmd_needs_conversion(cmd)) {
+            if (cmd & PLCB_COMMANDf_COUCH) {
+                conversion_spec = PLCB_CONVERT_SPEC_JSON;
+            }
+            
             request->has_conversion = 1;
             plcb_convert_storage(&(async->base),
                                  &(request->value), &(request->nvalue),
-                                 &(request->store_flags));
+                                 &(request->store_flags),
+                                 conversion_spec);
         }
-    } else if(cmd == PLCBA_CMD_ARITHMETIC) {
+    } else if(cmd == PLCB_CMD_ARITHMETIC) {
         if( (tmpsv = av_fetch(reqav, PLCBA_REQIDX_ARITH_DELTA, 0)) == NULL) {
             die("Arithmetic operation requested but no value specified");
         }
@@ -78,26 +84,6 @@ static inline void av2request(
 #undef _fetch_nonull
 #undef _fetch_assert
 #undef _extract_exp
-}
-
-static inline libcouchbase_storage_t
-async_cmd_to_storop(PLCBA_cmd_t cmd)
-{
-    switch(cmd) {
-    case PLCBA_CMD_SET:
-        return LIBCOUCHBASE_SET;
-    case PLCBA_CMD_ADD:
-        return LIBCOUCHBASE_ADD;
-    case PLCBA_CMD_APPEND:
-        return LIBCOUCHBASE_APPEND;
-    case PLCBA_CMD_PREPEND:
-        return LIBCOUCHBASE_PREPEND;
-    case PLCBA_CMD_REPLACE:
-        return LIBCOUCHBASE_REPLACE;
-    default:
-        die("Unknown command");
-        return LIBCOUCHBASE_REPLACE; /*make compiler happy*/
-    }
 }
 
 /*single error for single operation on a cookie*/
@@ -150,7 +136,7 @@ PLCBA_request(
     SV *callcb, SV *cbdata, int cbtype,
     AV *params)
 {
-    PLCBA_cmd_t cmdtype;
+    int cmdtype;
     struct PLCBA_request_st r;
     
     PLCBA_t *async;
@@ -269,10 +255,10 @@ PLCBA_request(
     
     switch(cmd) {
         
-    case PLCBA_CMD_GET:
-    case PLCBA_CMD_TOUCH:
+    case PLCB_CMD_GET:
+    case PLCB_CMD_TOUCH:
         #define _do_cbop(klist, szlist, explist) \
-        if(cmd == PLCBA_CMD_GET) { \
+        if(cmd == PLCB_CMD_GET) { \
             err = libcouchbase_mget(instance, cookie, nreq, \
                                     (const void* const*)klist, \
                                     (szlist), explist); \
@@ -315,12 +301,12 @@ PLCBA_request(
         break;
         #undef _do_cbop
 
-    case PLCBA_CMD_SET:
-    case PLCBA_CMD_ADD:
-    case PLCBA_CMD_REPLACE:
-    case PLCBA_CMD_APPEND:
-    case PLCBA_CMD_PREPEND:
-        storop = async_cmd_to_storop(cmd);
+    case PLCB_CMD_SET:
+    case PLCB_CMD_ADD:
+    case PLCB_CMD_REPLACE:
+    case PLCB_CMD_APPEND:
+    case PLCB_CMD_PREPEND:
+        storop = plcb_command_to_storop(cmd);
         //warn("Storop is %x (cmd=%x)", storop, cmd);
         has_conversion = plcba_cmd_needs_conversion(cmd);
         #define _do_cbop() \
@@ -335,7 +321,7 @@ PLCBA_request(
         break;
         #undef _do_cbop
     
-    case PLCBA_CMD_ARITHMETIC:
+    case PLCB_CMD_ARITHMETIC:
         #define _do_cbop() \
             err = libcouchbase_arithmetic(instance, cookie, r.key, r.nkey, \
                                 r.arithmetic.delta, r.exp, \
@@ -343,7 +329,7 @@ PLCBA_request(
         pseudo_perform;
         break;
         #undef _do_cbop
-    case PLCBA_CMD_REMOVE:
+    case PLCB_CMD_REMOVE:
         #define _do_cbop() \
             err = libcouchbase_remove(instance, cookie, r.key, r.nkey, r.cas);
         pseudo_perform;

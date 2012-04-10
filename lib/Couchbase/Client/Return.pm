@@ -22,8 +22,9 @@ sub is_ok {
     no strict 'refs';
     foreach my $errsym (@Couchbase::Client::Errors::EXPORT) {
         my $subname = $errsym;
+        my $wanted = &{$errsym}();
         $subname =~ s/COUCHBASE_//g;
-        *{$subname} = sub { $_[0]->errnum == $_[1] };
+        *{$subname} = sub { $_[0]->errnum == $wanted };
     }
 }
 

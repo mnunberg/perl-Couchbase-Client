@@ -3,6 +3,7 @@
 
 #include "perl-couchbase.h"
 #include <perlio.h>
+#include "plcb-commands.h"
 
 typedef void(*plcba_c_evhandler)(libcouchbase_socket_t, short, void*);
 typedef struct libcouchbase_io_opt_st plcba_cbcio;
@@ -185,38 +186,13 @@ typedef enum {
 /*Types of commands we currently handle*/
 
 #define plcba_cmd_needs_key(cmd) \
-    (cmd < PLCBA_CMD_MISC)
+    (cmd & PLCB_COMMANDf_NEEDSKEY)
 
 #define plcba_cmd_needs_conversion(cmd) \
-    (cmd & (PLCBA_CMD_SET|PLCBA_CMD_ADD))
+    ( (cmd & (PLCB_COMMANDf_MUTATE_CLEAN)) == PLCB_COMMANDf_MUTATE_CLEAN)
 
 #define plcba_cmd_needs_strval(cmd) \
-    (cmd & (PLCBA_CMD_SET \
-        |PLCBA_CMD_REPLACE|PLCBA_CMD_APPEND|PLCBA_CMD_PREPEND))
-
-typedef enum {
-    PLCBA_CMD_GET = 0x1,
-    
-    /*'clean' mutators*/
-    PLCBA_CMD_SET = 0x2,
-    PLCBA_CMD_ADD = 0x4,
-    
-    /*'dirty' mutators*/
-    PLCBA_CMD_REPLACE = 0x8,
-    PLCBA_CMD_APPEND = 0x10,
-    PLCBA_CMD_PREPEND = 0x12,
-    
-    /*simple key operations*/
-    PLCBA_CMD_REMOVE = 0x20,
-    PLCBA_CMD_TOUCH = 0x30,
-    
-    /*arithmetic*/
-    PLCBA_CMD_ARITHMETIC = 0x100,
-    
-    PLCBA_CMD_MISC,
-    PLCBA_CMD_STATS,
-    PLCBA_CMD_FLUSH,
-} PLCBA_cmd_t;
+    ( (cmd & (PLCB_COMMANDf_NEEDSTRVAL)) )
 
 /*Fields for the 'request' object*/
 typedef enum {

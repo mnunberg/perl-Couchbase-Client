@@ -25,6 +25,12 @@ void plcb_callback_get(
     uint32_t flags, uint64_t cas)
 {
     PLCB_sync_t *syncp = plcb_sync_cast(cookie);
+
+    if (syncp->type != PLCB_SYNCTYPE_SINGLE) {
+        plcb_multi_iterator_collect((PLCB_iter_t*)cookie, err,
+                key, nkey, value, nvalue, flags, cas);
+        return;
+    }
     plcb_ret_set_err(syncp->parent, syncp->ret, err);
     if(err == LIBCOUCHBASE_SUCCESS && nvalue) {
         plcb_ret_set_strval(
@@ -44,7 +50,13 @@ void plcb_callback_multi_get(
     PLCB_sync_t *syncp = plcb_sync_cast(cookie);
     AV *ret;
     HV *results;
-        
+
+    if (syncp->type != PLCB_SYNCTYPE_SINGLE) {
+        plcb_multi_iterator_collect((PLCB_iter_t*)cookie, err,
+                key, nkey, value, nvalue, flags, cas);
+        return;
+    }
+
     ret = newAV();
     results = (HV*)(syncp->ret);
     
