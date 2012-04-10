@@ -34,7 +34,7 @@ PLCB_MAYBE_ALLOC_GENFUNCS(syncs_maybe_alloc, PLCB_sync_t, 32, static);
     ret = newHV(); \
     SAVEFREESV(ret); \
     now = time(NULL); \
-    object->npending = nreq; \
+    object->npending += nreq; \
     av_clear(object->errors);
 
 #define _SYNC_RESULT_INIT(object, hv, sync) \

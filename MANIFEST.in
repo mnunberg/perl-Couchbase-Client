@@ -49,6 +49,7 @@ lib/Couchbase/Couch/Base.pm
 lib/Couchbase/Couch/Design.pm
 lib/Couchbase/Couch/Handle.pm
 lib/Couchbase/Couch/HandleInfo.pm
+lib/Couchbase/Couch/ViewRow.pm
 
 
 ################################################################################

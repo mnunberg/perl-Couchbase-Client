@@ -4,16 +4,12 @@
 
 #include "perl-couchbase.h"
 
-static inline void
-signal_done(PLCB_sync_t *sync)
+void plcb_evloop_wait_unref(PLCB_t *object)
 {
-    sync->parent->npending--;
-    if(sync->parent->npending) {
-        return;
+    object->npending--;
+    if (!object->npending) {
+        object->io_ops->stop_event_loop(object->io_ops);
     }
-    
-    sync->parent->io_ops->stop_event_loop(
-        sync->parent->io_ops);
 }
 
 void plcb_callback_get(
@@ -36,7 +32,7 @@ void plcb_callback_get(
         plcb_ret_set_strval(
             syncp->parent, syncp->ret, value, nvalue, flags, cas);
     }
-    signal_done(syncp);
+    plcb_evloop_wait_unref(syncp->parent);
 }
 
 void plcb_callback_multi_get(
@@ -68,7 +64,7 @@ void plcb_callback_multi_get(
         plcb_ret_set_strval(
             syncp->parent, ret, value, nvalue, flags, cas);
     }
-    signal_done(syncp);
+    plcb_evloop_wait_unref(syncp->parent);
 }
 
 void plcb_callback_storage(
@@ -84,7 +80,7 @@ void plcb_callback_storage(
     if(err == LIBCOUCHBASE_SUCCESS) {
         plcb_ret_set_cas(syncp->parent, syncp->ret, &cas);
     }
-    signal_done(syncp);
+    plcb_evloop_wait_unref(syncp->parent);
 }
 
 static void arithmetic_callback(
@@ -97,7 +93,7 @@ static void arithmetic_callback(
     if(err == LIBCOUCHBASE_SUCCESS) {
         plcb_ret_set_numval(syncp->parent, syncp->ret, value, cas);
     }
-    signal_done(syncp);
+    plcb_evloop_wait_unref(syncp->parent);
 }
 
 
@@ -157,10 +153,7 @@ static void stat_callback(
     object = (PLCB_t*)libcouchbase_get_cookie(instance);
     
     if(stat_key == NULL && server == NULL) {
-        PLCB_sync_t sync;
-        sync.parent = object;
-        object->npending = 1;
-        signal_done(&sync);
+        plcb_evloop_wait_unref(object);
         return;
     }
     

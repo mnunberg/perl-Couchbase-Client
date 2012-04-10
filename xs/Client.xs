@@ -5,7 +5,7 @@
 static inline void
 wait_for_single_response(PLCB_t *object)
 {
-    object->npending = 1;
+    object->npending++;
     object->io_ops->run_event_loop(object->io_ops);
 }
 

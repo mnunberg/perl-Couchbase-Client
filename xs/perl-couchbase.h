@@ -227,4 +227,11 @@ plcb_multi_iterator_collect(PLCB_iter_t *iter,
 void
 plcb_multi_iterator_cleanup(PLCB_iter_t *iter);
 
+/**
+ * This function decrements the wait count by one, and possibly calls stop_event_loop
+ * if the reference count has hit 0.
+ */
+void
+plcb_evloop_wait_unref(PLCB_t *obj);
+
 #endif /* PERL_COUCHBASE_H_ */

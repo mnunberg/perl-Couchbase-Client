@@ -15,6 +15,8 @@ use Class::XSAccessor::Array {
 };
 
 sub is_ok {
+    die "GRRR" unless defined $_[0]->[RETIDX_ERRNUM];
+    #warn "Checking defined errno";
     $_[0]->[RETIDX_ERRNUM] == COUCHBASE_SUCCESS;
 }
 

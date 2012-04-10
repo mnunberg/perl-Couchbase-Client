@@ -38,7 +38,7 @@ static void call_to_perl(PLCB_couch_handle_t *handle, int cbidx, SV *datasv, AV 
     if ((handle->flags & PLCB_COUCHREQf_STOPITER) \
             && (handle->flags & PLCB_COUCHREQf_STOPITER_NOOP) == 0) { \
         \
-        handle->parent->io_ops->stop_event_loop(handle->parent->io_ops); \
+        plcb_evloop_wait_unref(handle->parent); \
         handle->flags &= ~(PLCB_COUCHREQf_STOPITER); \
         handle->flags |= PLCB_COUCHREQf_STOPITER_NOOP; \
     }
@@ -77,14 +77,13 @@ void data_callback(libcouchbase_couch_request_t couchreq,
                 (PLCB_COUCHREQf_TERMINATED |
                 PLCB_COUCHREQf_ERROR |
                 PLCB_COUCHREQf_STOPITER);
-
+        plcb_evloop_wait_unref(handle->parent);
         call_to_perl(handle, PLCB_COUCHIDX_CALLBACK_COMPLETE, datasv, handle->plpriv);
     } else {
         call_to_perl(handle, PLCB_COUCHIDX_CALLBACK_DATA, datasv, handle->plpriv);
+        MAYBE_STOP_LOOP(handle);
     }
     
-    /* The callback might have enough data to stop the iteration */
-    MAYBE_STOP_LOOP(handle);
 }
 
 /**
@@ -118,9 +117,8 @@ void complete_callback(libcouchbase_couch_request_t couchreq,
             datasv = *(av_fetch(handle->plpriv, PLCB_RETIDX_VALUE, 1));
             sv_setpvn(datasv, (const char*)bytes, nbytes);
         }
-
-        /*set HTTP code */
-        handle->parent->io_ops->stop_event_loop(handle->parent->io_ops);
+        /* Not chunked, decrement reference count */
+        plcb_evloop_wait_unref(handle->parent);
 
     } else {
         /* chunked */
@@ -132,9 +130,7 @@ void complete_callback(libcouchbase_couch_request_t couchreq,
 
         call_to_perl(handle, PLCB_COUCHIDX_CALLBACK_COMPLETE,
                      &PL_sv_undef, handle->plpriv);
-        handle->parent->io_ops->stop_event_loop(handle->parent->io_ops);
     }
-    MAYBE_STOP_LOOP(handle);
 }
 
 SV* plcb_couch_handle_new(HV *stash, SV *cbo_sv, PLCB_t *cbo)
@@ -224,6 +220,7 @@ void plcb_couch_handle_execute_all(PLCB_couch_handle_t *handle,
     }
     
     handle->flags |= PLCB_COUCHREQf_ACTIVE;
+    handle->parent->npending++;
     handle->parent->io_ops->run_event_loop(handle->parent->io_ops);
 }
 
@@ -270,8 +267,8 @@ int plcb_couch_handle_execute_chunked_step(PLCB_couch_handle_t *handle)
         return 0;
     }
 
+    handle->parent->npending++;
     handle->flags &= ~(PLCB_COUCHREQf_STOPITER|PLCB_COUCHREQf_STOPITER_NOOP);
-
     handle->parent->io_ops->run_event_loop(handle->parent->io_ops);
     /* Returned? */
     return ((handle->flags & PLCB_COUCHREQf_TERMINATED) == 0);

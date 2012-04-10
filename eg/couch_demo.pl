@@ -40,9 +40,14 @@ my @posts = (
         }]
 );
 
-foreach (0..3000) {
+foreach (0..100) {
     my $k = "Post_$_";
-    push @posts, [$k, { title => "Title_$k", body => "Body_$k", date => "2012/03/23 13:53:00" }];
+    push @posts, [$k, {
+                       title => "Title_$k",
+                       body => "Body_$k",
+                       date => "2012/03/23 13:53:00",
+                       counter => rand(30000)
+                }];
 }
 
 # store all the posts, while checking for errors
@@ -68,12 +73,12 @@ foreach (0..3000) {
             }
         }
     };
-    my $retval = $cbo->couch_design_put($design_json);
-    log_infof("Path=%s, Return HTTP=%d, (Ok=%d)",
-              $retval->path, $retval->http_code, $retval->is_ok);
-    if (!$retval->is_ok) {
-        log_errf("Couldn't save design doc: %s", Dumper($retval->value));
-    }
+    #my $retval = $cbo->couch_design_put($design_json);
+    #log_infof("Path=%s, Return HTTP=%d, (Ok=%d)",
+    #          $retval->path, $retval->http_code, $retval->is_ok);
+    #if (!$retval->is_ok) {
+    #    log_errf("Couldn't save design doc: %s", Dumper($retval->value));
+    #}
 }
 
 # Get the design document again..
@@ -110,13 +115,31 @@ log_info("View path is $view");
 
 # We can be more efficient by using an iterator to incrementally fetch the results
 {
-    my $iter = $Design->get_view_iterator("recent_posts");
+    $|= 1;
+    my $iter = $Design->get_view_iterator("recent_posts",
+                                          ForUpdate => 1,
+                                          limit => 10);
+    
     log_infof("Have iterator. Path: %s", $iter->path);
     my $rescount = 0;
     while (my $row = $iter->next) {
         $rescount++;
+        # Display our progress
         print "+";
-        die "Ooops" unless exists $row->{id};
+            
+        # Get the old value. We compare this later
+        my $old_val = $row->doc->{counter} || 0;
+        
+        # Increment the value:
+        $row->doc->{counter} += 20;
+        $row->save();
+
+        my $new_row = $cbo->couch_doc_get($row->id);
+        
+        if ($new_row->value->{counter} != $old_val+20) {
+            die("Didn't get expected updates...");
+        }
+        print " " . $new_row->value->{counter} . " ";
     }
     print "\n";
     

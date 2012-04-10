@@ -36,6 +36,8 @@ use Constant::Generate [qw(ITERBUF JSNDEC)], -prefix => 'FLD_';
 use Couchbase::Client::IDXConst;
 use JSON::SL;
 use Couchbase::Couch::Handle;
+use Couchbase::Couch::ViewRow;
+
 use base qw(Couchbase::Couch::Handle);
 
 sub _cb_data {
@@ -48,7 +50,10 @@ sub _cb_data {
     my $rescount = scalar @results;
     
     foreach (@results) {
-        push @$buf, $_->{Value};
+        my $o = $_->{Value};
+        bless $o, "Couchbase::Couch::ViewRow";
+        $o->_cbo($self->info->[COUCHIDX_CBO]);
+        push @$buf, $o;
     }
     
     if ($rescount) {
@@ -91,7 +96,8 @@ sub remaining_json {
 
 sub _perl_initialize {
     my $self = shift;
-    $self->SUPER::_perl_initialize();
+    my %options = @_;
+    $self->SUPER::_perl_initialize(%options);
     my $priv = $self->info->_priv;
     $priv->[FLD_JSNDEC] = JSON::SL->new();
     $priv->[FLD_ITERBUF] = [];
@@ -163,3 +169,59 @@ sub next {
     return;
 }
 1;
+
+__END__
+
+=head1 NAME
+
+
+Couchbase::Couch::Handle - Class for couch request handles
+
+=head1 DESCRIPTION
+
+This class represents a common inteface for various request handles.
+Emphasis will be placed on the iterating view handle, since this is the most common
+use case (technical and more 'correct' documentation will follow).
+
+The iterator is simple to use. Simply initialize it (which is done for you
+automatically by one of the L<Couchbase::Couch::Base> methods which return this
+object) and step through it. When there are no more results through which to
+step, the iterator is empty.
+
+Note that iterator objects are fully re-entrant and fully compatible with the
+normal L<Couchbase::Client> blocking API. This means that multiple iterators are
+allowed, and that you may perform modifications on the items being iterated
+upon.
+
+=head2 Couchbase::Couch::Handle::ViewIterator
+
+=head2 next()
+
+Return the next result in the iterator. The returned object is either a false
+value (indicating no more results), or a L<Couchbase::Couch::ViewRow> object.
+
+=head2 stop()
+
+Abort iteration. This means to stop fetching extra data from the network. There
+will likely still be extra data available from L</next>
+
+=head2 path()
+
+Returns the path for which this iterator was issued
+
+=head2 count()
+
+Returns the total amount of rows in the result set. This does not mean the amount
+of rows which will be returned via the iterator, but rather the server-side count
+of the the rows which matched the query parameters
+
+=head2 info()
+
+This returns a L<Couchbase::Couch::HandleInfo> object to obtain metadata about
+the view execution. This will usually only return something meaningful after all
+rows have been fetched (but you can try!)
+
+=head2 remaining_json()
+
+Return the remaining JSON structure as a read-only hashref. Useful if you think
+the iterator is missing something.
