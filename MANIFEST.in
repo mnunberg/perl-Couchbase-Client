@@ -4,25 +4,34 @@ MANIFEST.SKIP
 Makefile.PL
 README.pod
 
-PLCB_ConfUtil.pm
-PLCB_Config.pm
-build_libraries.pl
+lib/Couchbase/Client/README.pod
 
-inc/Devel/CheckLib.pm
 
+
+
+################################################################################
+### Base Perl API                                                            ###
+################################################################################
 lib/Couchbase/Client.pm
 lib/Couchbase/Client/Return.pm
 lib/Couchbase/Client/Errors.pm
 lib/Couchbase/Client/IDXConst.pm
 
-lib/Couchbase/Client/README.pod
-
+################################################################################
+### Perl Memcached Compat                                                    ###
+################################################################################
 lib/Couchbase/Client/Compat.pm
 
+################################################################################
+### Async Perl API                                                           ###
+################################################################################
 lib/Couchbase/Client/Async.pm
 lib/Couchbase/Client/Async/Event.pm
 lib/Couchbase/Client/Async/Request.pm
 
+################################################################################
+### Testing API                                                              ###
+################################################################################
 lib/Couchbase/MockServer.pm
 lib/Couchbase/Test/ClientSync.pm
 lib/Couchbase/Test/Common.pm
@@ -32,31 +41,86 @@ lib/Couchbase/Test/Settings.pm
 lib/Couchbase/Test/Interop.pm
 lib/Couchbase/Test/Netfail.pm
 
-xs/Client.xs
-xs/Client_multi.xs
-xs/Async.xs
+################################################################################
+### Views Perl API                                                           ###
+################################################################################
+lib/Couchbase/Client/Iterator.pm
+lib/Couchbase/Couch/Base.pm
+lib/Couchbase/Couch/Design.pm
+lib/Couchbase/Couch/Handle.pm
+lib/Couchbase/Couch/HandleInfo.pm
 
+
+################################################################################
+################################################################################
+### Common C Support                                                         ###
+################################################################################
+################################################################################
 xs/perl-couchbase.h
-xs/perl-couchbase-async.h
 xs/plcb-util.h
 xs/plcb-return.h
+xs/plcb-convert.h
+xs/plcb-commands.h
+xs/typemap
 
 xs/callbacks.c
 xs/convert.c
 xs/ctor.c
+
+################################################################################
+### Basic C Client Support                                                   ###
+################################################################################
+xs/Client.xs
+xs/Client_multi.xs
+xs/Iterator_get.xs
+
+################################################################################
+### Async C Support                                                          ###
+################################################################################
+xs/perl-couchbase-async.h
+xs/Async.xs
 xs/async_base.c
 xs/async_callbacks.c
 xs/async_events.c
+xs/iterator.c
 
 
-constants/idx_constants.pl
-constants/error_constants.pl
-constants/print_constants.pl
+################################################################################
+### Views C Support                                                          ###
+################################################################################
+xs/perl-couchbase-couch.h
+xs/couch_handle.c
+xs/Couch_request_handle.xs
 
+################################################################################
+### Examples                                                                 ###
+################################################################################
+eg/couch_demo.pl
+eg/memd_iter.pl
+eg/memd_multi.pl
+eg/memd_basic.pl
+eg/memd_async.pl
+
+
+################################################################################
+### Test Skeleton                                                            ###
+################################################################################
 t/00-load.t
 t/01-main.t
 t/02-compat.t
 t/tmp/CouchbaseMock.jar
+
+# libcouchbase
+
+inc/Devel/CheckLib.pm
+
+PLCB_ConfUtil.pm
+PLCB_Config.pm
+build_libraries.pl
+
+constants/idx_constants.pl
+constants/error_constants.pl
+constants/print_constants.pl
 
 src/Makefile.PL
 src/libcouchbase.pm
