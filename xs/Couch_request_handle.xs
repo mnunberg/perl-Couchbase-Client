@@ -83,6 +83,19 @@ PLCBCH_error(PLCB_couch_handle_t *handle)
 void
 PLCBCH__iter_pause(PLCB_couch_handle_t *handle)
     CODE:
+    /**
+     * This sets the flag to stop iterating. This should only
+     * be called from within the private handle perl callbacks (hence
+     * the leading underscore).
+     *
+     * Each time the user requests a blocking operation (i.e. _iter_step),
+     * The STOPITER* flags are unset.
+     *
+     * When the C code (i.e. the libcouchbase callback) is done calling
+     * the Perl callback, it will check to see if the STOPITER flag is set again,
+     * and if it is, it will tell the event loop to stop (or more specifically,
+     * decrement the event loop's wait count)
+     */
     if ( (handle->flags & PLCB_COUCHREQf_STOPITER_NOOP) == 0) {
         handle->flags |= PLCB_COUCHREQf_STOPITER;
     }

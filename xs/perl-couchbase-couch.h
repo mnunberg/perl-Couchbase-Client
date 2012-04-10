@@ -131,7 +131,7 @@ typedef enum {
     PLCB_COUCHREQf_STOPITER = 1 << 5,
 
     /* This flag is set once stop_event_loop is called, and is
-     * used to avoid multiple calls to stop_event_loop
+     * used to avoid multiple calls to evloop_wait_unref()
      */
     PLCB_COUCHREQf_STOPITER_NOOP = 1 << 6
 } plcb_couch_reqflags_t;

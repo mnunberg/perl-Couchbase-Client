@@ -2,7 +2,11 @@
 #include <assert.h>
 
 /** Complete callback checks for data and populates it,
- * data callback will invoke a callback */
+ * data callback will invoke a callback.
+ *
+ * The actual callbacks are usually private callbacks, which live in
+ * Couchbase::Couch::Handle and its subclasses
+ */
 
 static void call_to_perl(PLCB_couch_handle_t *handle, int cbidx, SV *datasv, AV *statusav)
 {
@@ -33,15 +37,6 @@ static void call_to_perl(PLCB_couch_handle_t *handle, int cbidx, SV *datasv, AV 
     FREETMPS;
     LEAVE;
 }
-
-#define MAYBE_STOP_LOOP(handle) \
-    if ((handle->flags & PLCB_COUCHREQf_STOPITER) \
-            && (handle->flags & PLCB_COUCHREQf_STOPITER_NOOP) == 0) { \
-        \
-        plcb_evloop_wait_unref(handle->parent); \
-        handle->flags &= ~(PLCB_COUCHREQf_STOPITER); \
-        handle->flags |= PLCB_COUCHREQf_STOPITER_NOOP; \
-    }
 
 static
 void data_callback(libcouchbase_couch_request_t couchreq,
@@ -81,9 +76,20 @@ void data_callback(libcouchbase_couch_request_t couchreq,
         call_to_perl(handle, PLCB_COUCHIDX_CALLBACK_COMPLETE, datasv, handle->plpriv);
     } else {
         call_to_perl(handle, PLCB_COUCHIDX_CALLBACK_DATA, datasv, handle->plpriv);
-        MAYBE_STOP_LOOP(handle);
+
+        /* The callback might have requested we stop the event loop. Check this
+         * by looking at the STOPITER flag
+         */
+
+        if ( (handle->flags & PLCB_COUCHREQf_STOPITER)
+                && (handle->flags & PLCB_COUCHREQf_STOPITER_NOOP) == 0) {
+
+            handle->flags &= ~(PLCB_COUCHREQf_STOPITER);
+            handle->flags |= PLCB_COUCHREQf_STOPITER_NOOP;
+
+            plcb_evloop_wait_unref(handle->parent);
+        }
     }
-    
 }
 
 /**
@@ -119,7 +125,6 @@ void complete_callback(libcouchbase_couch_request_t couchreq,
         }
         /* Not chunked, decrement reference count */
         plcb_evloop_wait_unref(handle->parent);
-
     } else {
         /* chunked */
 
@@ -130,6 +135,19 @@ void complete_callback(libcouchbase_couch_request_t couchreq,
 
         call_to_perl(handle, PLCB_COUCHIDX_CALLBACK_COMPLETE,
                      &PL_sv_undef, handle->plpriv);
+
+        /**
+         * Because we might receive this callback in succession to a data
+         * callback within the same event loop context, we risk decrementing
+         * our wait count by two, which is something we don't want.
+         *
+         * How to overcome this? Check the STOPITER_NOOP flag. It will
+         * be set if the data callback had called iter_pause
+         * (see xs/Couch_request_handle.xs)
+         */
+        if ((handle->flags & PLCB_COUCHREQf_STOPITER_NOOP) == 0) {
+            plcb_evloop_wait_unref(handle->parent);
+        }
     }
 }
 

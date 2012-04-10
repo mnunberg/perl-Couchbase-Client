@@ -40,6 +40,8 @@ use Couchbase::Couch::ViewRow;
 
 use base qw(Couchbase::Couch::Handle);
 
+# This is called when new data arrives,
+# in C-speak, this is called from call_to_perl
 sub _cb_data {
     my ($self,$info,$bytes) = @_;
     return unless defined $bytes;
@@ -57,6 +59,9 @@ sub _cb_data {
     }
     
     if ($rescount) {
+        # if we have enough data, it is time to signal to the C code that
+        # the internal event loop should be unreferenced (i.e. we no longer
+        # need to wait for this operation to complete)
         $self->_iter_pause;
     }
 }
