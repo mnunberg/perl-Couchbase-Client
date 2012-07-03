@@ -1,7 +1,7 @@
 package Couchbase::Client::Async;
 use strict;
 use warnings;
-our $VERSION = '0.17';
+our $VERSION = '0.19_1';
 use Couchbase::Client;
 use Couchbase::Client::IDXConst;
 use Log::Fu;
