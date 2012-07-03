@@ -76,7 +76,6 @@ sub tarball_2_dir {
 my $LIBVBUCKET_TARBALL = lib_2_tarball('libvbucket');
 my $LIBCOUCHBASE_TARBALL = lib_2_tarball('libcouchbase');
 my $LIBEVENT_TARBALL = lib_2_tarball('libevent');
-my $MEMCACHED_H_TARBALL = "memcached-headers.tar.gz";
 
 ################################################################################
 ################################################################################
@@ -93,13 +92,6 @@ chdir $TOPLEVEL;
 mkpath($INST_DIR);
 mkpath($INCLUDE_PATH);
 mkpath($LIB_PATH);
-
-runcmd("tar xzf $MEMCACHED_H_TARBALL");
-rmtree(File::Spec->catfile($INCLUDE_PATH, 'memcached'));
-runcmd("mv include/memcached $INCLUDE_PATH && rm -rf include/memcached");
-unless(-e File::Spec->catfile($INCLUDE_PATH, 'memcached', 'protocol_binary.h')) {
-    die("Can't extract memcached headers");
-}
 
 $ENV{PKG_CONFIG_PATH} .= ":"
 . File::Spec->catfile($INST_DIR, 'lib', 'pkgconfig');

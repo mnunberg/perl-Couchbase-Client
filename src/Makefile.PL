@@ -72,14 +72,6 @@ return 1;
 
 EOC
 
-my $LIBSASL_CFUNC = <<EOC;
-
-#include <stdlib.h>
-sasl_server_init(NULL, NULL);
-return 0;
-
-EOC
-
 sub check_dependency {
     my ($names,$fn,%extra) = @_;
     $names = ref $names ? $names : [ $names ];
@@ -87,6 +79,10 @@ sub check_dependency {
     print STDERR "\nChecking for @{$names}...\n";
     local %ENV = %ENV;
     
+    if ($PLCBTopLevel::Bundled) {
+        return 0;
+    }
+
     foreach my $libname (@$names) {
         my (undef,undef,$ldargs,$runpath,$sofile) =
             ExtUtils::Liblist->ext("$SEARCHPATH_S -l$libname", 0, 1);
@@ -297,7 +293,7 @@ sub MM_Configure {
 
     if($ENV{PLCB_BUILD_ALL}) {
         log_err('build_all reuqested');
-        @to_build = qw(VBUCKET COUCHBASE EVENT ISASL);
+        @to_build = qw(VBUCKET COUCHBASE EVENT);
         goto GT_MANGLE;
     }
     
@@ -317,13 +313,6 @@ sub MM_Configure {
     if(!check_dependency(
         'event', $LIBEVENT_CFUNC, header => ['event.h', 'stdio.h'] )) {
         push @to_build, 'EVENT';
-    }
-    
-    
-    if(0 && !check_dependency(
-        ['sasl2', 'sasl'], $LIBSASL_CFUNC,
-            header => [ 'stdlib.h', 'sasl/sasl.h'] )) {
-        push @to_build, 'ISASL';
     }
 
     GT_MANGLE:

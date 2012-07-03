@@ -18,9 +18,10 @@ $ENV{LD_RUN_PATH} ||= "";
 
 #$Verbose = 99;
 
+our $Bundled = 0;
 GetOptions(
     'dynamic' => \my $UseDynamic,
-    'bundled' => \my $UseBundled,
+    'bundled' => \$Bundled,
     'incpath=s' => \our $U_IncPath,
     'libpath=s' => \our $U_LibPath
 ) or die <<EOD;
