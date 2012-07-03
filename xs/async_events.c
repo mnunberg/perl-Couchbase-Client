@@ -7,7 +7,7 @@
 #ifndef _WIN32
 #include <libcouchbase/libevent_io_opts.h>
 #define plcba_default_io_opts() \
-    libcouchbase_create_libevent_io_opts(NULL)
+    libcouchbase_create_io_ops(LIBCOUCHBASE_IO_OPS_LIBEVENT,NULL,NULL)
 
 #else
 
