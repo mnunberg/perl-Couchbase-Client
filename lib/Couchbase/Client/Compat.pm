@@ -68,6 +68,8 @@ sub return_for_op {
 sub new {
     my ($cls,$options) = @_;
     my $o = $cls->SUPER::new($options);
+    bless $o, $cls;
+    return $o;
 }
 
 
@@ -79,7 +81,7 @@ foreach my $sub (qw(
     no strict 'refs';
     *{$sub} = sub {
         my $self = shift;
-        my $ret = $self->{\"SUPER::$sub"}(@_);
+        my $ret = $self->${\"SUPER::$sub"}(@_);
         $ret = return_for_op($ret, $sub);
         return $ret;
     };
@@ -87,7 +89,7 @@ foreach my $sub (qw(
     my $multi = "$sub\_multi";
     *{$multi} = sub {
         my $self = shift;
-        my $ret = $self->{\"SUPER::$multi"}(@_);
+        my $ret = $self->${\"SUPER::$multi"}(@_);
         return return_for_multi_wrap(\@_, $ret, $sub)
     };
 }
