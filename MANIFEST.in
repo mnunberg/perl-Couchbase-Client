@@ -34,6 +34,7 @@ lib/Couchbase/Client/Async/Event.pm
 lib/Couchbase/MockServer.pm
 lib/Couchbase/Test/ClientSync.pm
 lib/Couchbase/Test/Common.pm
+lib/Couchbase/Test/Compat.pm
 lib/Couchbase/Test/Async.pm
 lib/Couchbase/Test/Async/Loop.pm
 lib/Couchbase/Test/Settings.pm

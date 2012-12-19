@@ -18,7 +18,7 @@ our %ErrorMap = (
 
 sub return_for_multi_wrap {
     my ($requests,$response,$op) = @_;
-    
+
     if(wantarray) {
         #ugh, really?
         my @retvals;
@@ -38,36 +38,38 @@ sub return_for_multi_wrap {
 }
 
 sub return_for_op {
-    my ($retval, $op) = @_;    
-    
+    my ($retval, $op) = @_;
+
     my $errval = $retval->errnum;
-    
+
     if ($errval) {
         $errval = $ErrorMap{$errval};
     }
-    
+
     if ($retval->errnum && (!defined $errval)) {
         # Fatal error:
         return undef;
     }
-    
+
     if ($op =~ /^(?:get|incr|decr)$/) {
         return $retval->value;
     }
-    
+
     if ($op eq 'gets') {
         return [$retval->cas, $retval->value];
     }
-    
+
     if ($op =~ /^(?:set|cas|add|append|prepend|replace|remove|delete)/) {
         return int($retval->errnum == 0);
     }
-    
+
 }
 
 sub new {
     my ($cls,$options) = @_;
     my $o = $cls->SUPER::new($options);
+    bless $o, $cls;
+    return $o;
 }
 
 
@@ -75,21 +77,40 @@ foreach my $sub (qw(
                  get gets
                  set append prepend replace add
                  remove delete
-                 incr decr cas)) {
+                 incr decr)) {
     no strict 'refs';
     *{$sub} = sub {
         my $self = shift;
-        my $ret = $self->{\"SUPER::$sub"}(@_);
+        my $ret = $self->${\"SUPER::$sub"}(@_);
         $ret = return_for_op($ret, $sub);
         return $ret;
     };
-    
+
     my $multi = "$sub\_multi";
     *{$multi} = sub {
         my $self = shift;
-        my $ret = $self->{\"SUPER::$multi"}(@_);
+        my $ret = $self->${\"SUPER::$multi"}(@_);
         return return_for_multi_wrap(\@_, $ret, $sub)
     };
+}
+
+
+
+# CAS Handling is different in
+sub cas {
+    my ($self,$key, $cas,$value) = @_;
+    return return_for_op($self->SUPER::cas($key, $value, $cas), 'cas');
+}
+
+sub cas_multi {
+    my ($self,@params) = @_;
+    my @newvals;
+    foreach my $compat_args (@params) {
+        my ($key,$cas,$value) = @$compat_args;
+        push @newvals, [$key, $value, $cas];
+    }
+    my $ret = $self->SUPER::cas_multi_A(\@newvals);
+    return return_for_multi_wrap(\@params, $ret, 'cas');
 }
 
 1;
