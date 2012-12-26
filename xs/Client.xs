@@ -242,11 +242,18 @@ static SV *PLCB_get_common(SV *self, SV *key, int exp_offset)
     if(items == (exp_idx - 1)) { \
         exp_var = 0; \
      } else if(items == exp_idx) { \
-        if(!SvIOK(ST(exp_idx-1))) { \
-            sv_dump(ST(exp_idx-1)); \
-            die("Expected numeric argument"); \
+        SV *_expsv = ST(exp_idx-1); \
+        UV _exp_real; \
+        if (SvIOK(_expsv)) { \
+            exp_var = SvUV(_expsv); \
+        } else if (SvPOK(_expsv)) { \
+            if (!grok_number(SvPVX(_expsv), SvCUR(_expsv), &_exp_real)) { \
+                die("Can't convert expiry string to int"); \
+            } \
+            exp_var = _exp_real; \
+        } else { \
+            die("Expiry is neither numeric nor a string"); \
         } \
-        exp_var = SvIV(ST((exp_idx-1))); \
     } else { \
         die(diemsg); \
     }

@@ -274,4 +274,26 @@ sub T07_stats :Test(no_plan) {
     }
 }
 
+sub T08_expiry :Test(no_plan) {
+    my $self = shift;
+    my $o = $self->cbo;
+    $self->set_ok(
+        "Setting with numeric expiry",
+        "key", "value", 1);
+
+    $self->set_ok(
+        "Setting with stringified expiry",
+        "key", "value", "1");
+
+
+    eval {
+        $o->set("key", "Value", "bad-expiry");
+    };
+    ok($@, "Got error for invalid expiry");
+
+    sleep(1.5);
+    my $rv = $o->get("key");
+    is($rv->errnum, COUCHBASE_KEY_ENOENT, "key has expired");
+}
+
 1;
