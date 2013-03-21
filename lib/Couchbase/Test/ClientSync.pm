@@ -259,6 +259,14 @@ sub T06_multi :Test(no_plan) {
        "all keys have been decremented");
 }
 
+sub T06_multi_GH4 :Test(no_plan) {
+    my $self = shift;
+    my $o = $self->cbo;
+    my $rv = $o->set_multi(['single_key', 'single_value']);
+    ok($rv->{"single_key"}->is_ok, "Single arrayref on setmulti does not fail");
+}
+
+
 sub T07_stats :Test(no_plan) {
     my $self = shift;
     my $o = $self->cbo;
