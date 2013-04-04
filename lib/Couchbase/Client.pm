@@ -122,62 +122,28 @@ sub _MkCtorIDX {
     return \@arglist;
 }
 
-my %RETRY_ERRORS = (
-    COUCHBASE_NETWORK_ERROR, 1,
-    COUCHBASE_CONNECT_ERROR, 1,
-    COUCHBASE_ETIMEDOUT, 1,
-    COUCHBASE_UNKNOWN_HOST, 1
-);
-
 sub new {
     my ($pkg,$opts) = @_;
-    my $server_list;
-    if($opts->{servers}) {
-        $server_list = delete $opts->{servers};
-        if(ref $server_list ne 'ARRAY') {
-            $server_list = [$server_list];
-        }
-    } elsif ($opts->{server}) {
-        $server_list = [ delete $opts->{server} or die "server is false" ];
+    my $server_str;
+    my $server_spec = $opts->{servers} || $opts->{server};
+
+    if (ref $server_spec eq 'ARRAY') {
+        $server_str = join(";", @$server_spec);
     } else {
-        die("Must have server or servers");
+        $server_str = $server_spec;
     }
 
-    my $connected_ok;
-    my $no_init_connect = $opts->{no_init_connect};
-    my $self;
-
-    my @all_errors;
-
-    my $privopts;
-    while(!$connected_ok && (my $server = shift @$server_list)) {
-        $opts->{server} = $server;
-        $privopts = {%$opts};
-        my $arglist = _MkCtorIDX($privopts);
-        $self = $pkg->construct($arglist);
-        my $errors = $self->get_errors;
-        my $error_retriable;
-        if(scalar @$errors) {
-            push @all_errors, @$errors;
-            foreach (@$errors) {
-                my ($errno,$errstr) = @$_;
-                if(exists $RETRY_ERRORS{$errno}) {
-                    $error_retriable++;
-                }
-            }
-            if(!$error_retriable) {
-                last;
-            }
-        } else {
-            last;
-        }
-        if($no_init_connect) {
-            last;
-        }
+    if (!$server_str) {
+        die("Must have 'servers' or 'server'");
     }
-    @{$self->get_errors} = @all_errors;
+
+    my $privopts = { %$opts };
+
+    $privopts->{server} = $server_str;
+    delete $privopts->{servers};
+    my $arglist = _MkCtorIDX($privopts);
+    my $self = $pkg->construct($arglist);
     return $self;
-
 }
 
 #This is called from within C to record our stats:
