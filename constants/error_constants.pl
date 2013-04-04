@@ -23,6 +23,7 @@ my @constant_basenames = qw(
     ERANGE
     ERROR
     ETMPFAIL
+    CLIENT_ETMPFAIL
     KEY_EEXISTS
     KEY_ENOENT
     NETWORK_ERROR
