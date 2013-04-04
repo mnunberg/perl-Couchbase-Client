@@ -1,5 +1,8 @@
 #include "perl-couchbase-async.h"
 
+#define _R \
+    resp->v.v0
+
 static inline void
 tell_perl(PLCBA_cookie_t *cookie, AV *ret,
             const char *key, size_t nkey)
@@ -42,7 +45,7 @@ tell_perl(PLCBA_cookie_t *cookie, AV *ret,
 void plcba_callback_notify_err(PLCBA_t *async,
                                PLCBA_cookie_t *cookie,
                                const char *key, size_t nkey,
-                               libcouchbase_error_t err)
+                               lcb_error_t err)
 {
     AV *ret;
     
@@ -64,76 +67,77 @@ void plcba_callback_notify_err(PLCBA_t *async,
     object = &(cookie->parent->base); \
     plcb_ret_set_err(object, ret, err);
 
-static void
-get_callback(
-    libcouchbase_t instance,
-    const void *v_cookie,
-    libcouchbase_error_t err,
-    const void *key, size_t nkey,
-    const void *bytes, size_t nbytes,
-    uint32_t flags, uint64_t cas)
+static void get_callback(lcb_t instance,
+                         const void *v_cookie,
+                         lcb_error_t err,
+                         const lcb_get_resp_t *resp)
 {
     _CB_INIT;
     //warn("Get callback");
     if(err == LIBCOUCHBASE_SUCCESS) {
         //warn("Got value of %d bytes", nbytes);
-        plcb_ret_set_strval(object, ret, bytes, nbytes, flags, cas);
+        plcb_ret_set_strval(object, ret, _R.bytes, _R.nbytes, _R.flags, _R.cas);
     }
-    tell_perl(cookie, ret, key, nkey);
+    tell_perl(cookie, ret, _R.key, _R.nkey);
 }
 
-static void
-storage_callback(libcouchbase_t instance,
-                 const void *v_cookie,
-                 libcouchbase_storage_t operation,
-                 libcouchbase_error_t err,
-                 const void *key, size_t nkey,
-                 uint64_t cas)
+static void storage_callback(lcb_t instance,
+                             const void *v_cookie,
+                             lcb_storage_t operation,
+                             lcb_error_t err,
+                             const lcb_store_resp_t *resp)
 {
     _CB_INIT;
-    if(cas) {
-        plcb_ret_set_cas(object, ret, &cas);
+    if(_R.cas) {
+        plcb_ret_set_cas(object, ret, &_R.cas);
     }
-    tell_perl(cookie, ret, key, nkey);
+    tell_perl(cookie, ret, _R.key, _R.nkey);
 }
 
 static void
-arithmetic_callback(libcouchbase_t instance,
+arithmetic_callback(lcb_t instance,
                     const void *v_cookie,
-                    libcouchbase_error_t err,
-                    const void *key, size_t nkey,
-                    uint64_t value, uint64_t cas)
+                    lcb_error_t err,
+                    const lcb_arithmetic_resp_t *resp)
 {
     _CB_INIT;
     if(err == LIBCOUCHBASE_SUCCESS) {
-        plcb_ret_set_numval(object, ret, value, cas);
+        plcb_ret_set_numval(object, ret, _R.value, _R.cas);
     }
-    tell_perl(cookie, ret, key, nkey);
+    tell_perl(cookie, ret, _R.key, _R.nkey);
 }
 
-static void
-remove_callback(libcouchbase_t instance,
-                const void *v_cookie,
-                libcouchbase_error_t err,
-                const void *key, size_t nkey)
+static void remove_callback(lcb_t instance,
+                            const void *v_cookie,
+                            lcb_error_t err,
+                            const lcb_remove_resp_t *resp)
 {
     _CB_INIT;
-    tell_perl(cookie, ret, key, nkey);
+    plcb_ret_set_cas(object, ret, &_R.cas);
+    tell_perl(cookie, ret, _R.key, _R.nkey);
 }
 
 /*stat not implemented*/
 
-#define touch_callback remove_callback
+static void touch_callback(lcb_t instance,
+                           const void *v_cookie,
+                           lcb_error_t err,
+                           const lcb_touch_resp_t *resp)
+{
+    _CB_INIT;
+    plcb_ret_set_cas(object, ret, &_R.cas);
+    tell_perl(cookie, ret, _R.key, _R.nkey);
+}
 
 static void
-error_callback(libcouchbase_t instance,
-               libcouchbase_error_t err,
+error_callback(lcb_t instance,
+               lcb_error_t err,
                const char *errinfo)
 {
     PLCBA_t *async;
     dSP;
 
-    async = (PLCBA_t*)libcouchbase_get_cookie(instance);
+    async = (PLCBA_t*)lcb_get_cookie(instance);
     ENTER;
     SAVETMPS;
     PUSHMARK(SP);
@@ -151,19 +155,19 @@ error_callback(libcouchbase_t instance,
 void
 plcba_setup_callbacks(PLCBA_t *async)
 {
-    libcouchbase_t instance;
+    lcb_t instance;
     
     instance = async->base.instance;
     
-    libcouchbase_set_get_callback(instance, get_callback);
-    libcouchbase_set_storage_callback(instance, storage_callback);
-    libcouchbase_set_arithmetic_callback(instance, arithmetic_callback);
-    libcouchbase_set_remove_callback(instance, remove_callback);
+    lcb_set_get_callback(instance, get_callback);
+    lcb_set_store_callback(instance, storage_callback);
+    lcb_set_arithmetic_callback(instance, arithmetic_callback);
+    lcb_set_remove_callback(instance, remove_callback);
     /*
-    libcouchbase_set_stats_callback(instance, stats_callback);
+    lcb_set_stats_callback(instance, stats_callback);
     */
-    libcouchbase_set_touch_callback(instance, touch_callback);
-    libcouchbase_set_error_callback(instance, error_callback);
+    lcb_set_touch_callback(instance, touch_callback);
+    lcb_set_error_callback(instance, error_callback);
     
-    libcouchbase_set_cookie(instance, async);
+    lcb_set_cookie(instance, async);
 }

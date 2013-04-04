@@ -80,7 +80,7 @@ my @event_bases = qw(
     WRITE_EVENT
 );
 
-constant("LIBCOUCHBASE_$_", name => "COUCHBASE_$_") for (@event_bases);
+constant("LCB_$_", name => "COUCHBASE_$_") for (@event_bases);
 
 my @async_reqidx = qw(
     KEY
@@ -150,7 +150,7 @@ constant("PLCBA_EVSTATE_$_", name => "EVSTATE_$_") for (@evstates);
 
 my @http_methods = qw(GET POST PUT DELETE);
 
-constant("LIBCOUCHBASE_HTTP_METHOD_$_",
+constant("LCB_HTTP_METHOD_$_",
          name => "COUCH_METHOD_$_") for (@http_methods);
 
 write_output($ARGV[0]);

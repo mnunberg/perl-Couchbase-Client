@@ -142,7 +142,7 @@ typedef struct {
       bits */
     AV *plpriv;
     
-    libcouchbase_couch_request_t lcb_request;
+    lcb_http_request_t lcb_request;
     plcb_couch_reqflags_t flags;
     
     PLCB_t *parent;
@@ -165,13 +165,13 @@ void plcb_couch_handle_free(PLCB_couch_handle_t *handle);
 
 /* Non-chunked */
 void plcb_couch_handle_execute_all(PLCB_couch_handle_t *handle,
-                                   libcouchbase_http_method_t method,
+                                   lcb_http_method_t method,
                                    const char *path, size_t npath,
                                    const char *body, size_t nbody);
 
 /* Chunked, prepare the handle */
 void plcb_couch_handle_execute_chunked_init(PLCB_couch_handle_t *handle,
-                                            libcouchbase_http_method_t method,
+                                            lcb_http_method_t method,
                                             const char *path, size_t npath,
                                             const char *body, size_t nbody);
 

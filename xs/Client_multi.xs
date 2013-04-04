@@ -56,20 +56,20 @@ PLCB_MAYBE_ALLOC_GENFUNCS(syncs_maybe_alloc, PLCB_sync_t, 32, static);
     }
 
 #define _MAYBE_SET_IMMEDIATE_ERROR(err, retav, waitvar) \
-    if(err == LIBCOUCHBASE_SUCCESS) { waitvar++; } \
+    if(err == LCB_SUCCESS) { waitvar++; } \
     else { \
         plcb_ret_set_err(object, retav, err); \
     }
 
 #define _MAYBE_WAIT(waitvar) \
     if(waitvar) { \
-        object->io_ops->run_event_loop(object->io_ops); \
+        plcb_evloop_start(object); \
     }
 
 #define _dMULTI_VARS \
     PLCB_t *object; \
-    libcouchbase_t instance; \
-    libcouchbase_error_t err; \
+    lcb_t instance; \
+    lcb_error_t err; \
     int nreq, i; \
     time_t now; \
     HV *ret;
@@ -174,8 +174,8 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
                                 (const void* const*)keys, sizes, NULL);
     }
     
-    if(err == LIBCOUCHBASE_SUCCESS) {
-        object->io_ops->run_event_loop(object->io_ops);
+    if(err == LCB_SUCCESS) {
+        plcb_evloop_start(object);
     } else {
         for(i = 0; i < nreq; i++) {
             AV *errav = newAV();
@@ -196,7 +196,7 @@ PLCB_multi_set_common(SV *self, AV *args, int cmd)
     _dMULTI_VARS
     PLCB_sync_t *syncs = NULL;
     struct syncs_maybe_alloc syncs_buf;
-    libcouchbase_storage_t storop;
+    lcb_storage_t storop;
     plcb_conversion_spec_t conversion_spec = PLCB_CONVERT_SPEC_NONE;
     
     int nwait;

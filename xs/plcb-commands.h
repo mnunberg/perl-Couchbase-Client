@@ -92,19 +92,19 @@ enum {
 
 #define plcb_command_needs_key(cmd) ( (cmd) & PLCB_COMMANDf_NEEDSKEY )
 
-static libcouchbase_storage_t PLCB__StorageMap[] = {
+static lcb_storage_t PLCB__StorageMap[] = {
     #define X(v, prop) \
-        [PLCB__CMDPRIV_ ## v] = LIBCOUCHBASE_ ## v,
+        [PLCB__CMDPRIV_ ## v] = LCB_ ## v,
     X_STORAGE
     #undef X
 };
 
-static inline libcouchbase_storage_t
+static inline lcb_storage_t
 plcb_command_to_storop(int cmd)
 {
     int cmd_base = cmd & PLCB_COMMAND_MASK_STRIP;
     if (cmd_base == PLCB__CMDPRIV_CAS) {
-        return LIBCOUCHBASE_SET;
+        return LCB_SET;
     }
     return PLCB__StorageMap[cmd_base];
 }    

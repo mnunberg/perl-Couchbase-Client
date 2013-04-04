@@ -63,6 +63,7 @@ xs/plcb-return.h
 xs/plcb-convert.h
 xs/plcb-commands.h
 xs/typemap
+xs/lcb_10_compat.h
 
 xs/callbacks.c
 xs/convert.c
@@ -126,7 +127,5 @@ constants/print_constants.pl
 src/Makefile.PL
 src/libcouchbase.pm
 
-src/memcached-headers.tar.gz
 src/libcouchbase-__LIBCOUCHBASE_RELEASE__.tar.gz
-src/libvbucket-__LIBVBUCKET_RELEASE__.tar.gz
 src/libevent-__LIBEVENT_RELEASE__.tar.gz

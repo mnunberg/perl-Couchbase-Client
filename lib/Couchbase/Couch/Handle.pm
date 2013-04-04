@@ -9,7 +9,7 @@ use Data::Dumper;
 
 BEGIN {
     require XSLoader;
-    XSLoader::load('Couchbase::Client', 0.19);
+    XSLoader::load('Couchbase::Client', '2.0.0_0');
 }
 
 

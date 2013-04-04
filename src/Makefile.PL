@@ -45,8 +45,8 @@ my %MM_Options = (
 
 my $LIBCOUCHBASE_CFUNC = <<'EOC';
 unsigned int version = 0;
-(void)libcouchbase_get_version(&version);
-if(version >= 0x010001) {
+(void)lcb_get_version(&version);
+if(version >= 0x020000) {
     return 0;
 }
 return 1;
@@ -72,27 +72,19 @@ return 1;
 
 EOC
 
-my $LIBSASL_CFUNC = <<EOC;
-
-#include <stdlib.h>
-sasl_server_init(NULL, NULL);
-return 0;
-
-EOC
-
 sub check_dependency {
     my ($names,$fn,%extra) = @_;
     $names = ref $names ? $names : [ $names ];
-    
+
     print STDERR "\nChecking for @{$names}...\n";
     local %ENV = %ENV;
-    
+
     foreach my $libname (@$names) {
         my (undef,undef,$ldargs,$runpath,$sofile) =
             ExtUtils::Liblist->ext("$SEARCHPATH_S -l$libname", 0, 1);
 
         next unless ($sofile && ($sofile = $sofile->[0]) );
-        
+
         print STDERR "\tfound shared object: $sofile \n";
         my %cl_opts = (
             %CHECKLIB_OPTIONS,
@@ -137,30 +129,30 @@ sub create_buildscript_invocation {
     my ($mm,$build,$install,$deps) = @_;
 
     #mm is the parent Makefile, here
-    
+
     # we need to make sure our flags match whatever Devel::CheckLib might have
     # used to determine an available dependency:
-    
+
     my $script_cppflags = $mm->{INC};
     my $config_ccflags = $Config{ccflags};
-    
+
     # Strip any -D's, -f's, -g, and -O from the flags. and remove -pthread
-    
+
     $config_ccflags =~ s/-(?:D|f|O|M|g)\S+//g;
-    
+
     #string excessive whitespace:
     $config_ccflags =~ s/\s+/ /g;
-    
+
     $script_cppflags .= ' ' . $config_ccflags;
-    
-    
+
+
     $PLCBTopLevel::U_LibPath ||= "";
-    
+
     my $script_ldflags = $mm->{LDLOADLIBS} . ' ' . $PLCBTopLevel::U_LibPath .
         ' ' . $Config{ldflags};
-    
+
     my $java_arg = $PLCBTopLevel::HaveJava ? "--have-java" : "";
-    
+
     my @lines = (
 
         #begin long commandline invocation:
@@ -262,7 +254,7 @@ sub mangle_parent_makefile {
     ldrunpath2rpath($parent, $runpath);
 
     $parent->{INC} .= " -I$blib_dep_path\$(DFSEP)include";
-    
+
     my $couchbase_h = File::Spec->catfile($blib_dep_path,
                                           "include",
                                           "libcouchbase",
@@ -275,8 +267,8 @@ sub mangle_parent_makefile {
     no warnings qw(redefine once);
     *MY::postamble = sub {
         my @lines;
-        
-        # Insert header file dependency for $(OBJECT)        
+
+        # Insert header file dependency for $(OBJECT)
         push @lines, (
             "$dep:",
             (insert_announcement("will build for ultimate target $dep")),
@@ -308,13 +300,13 @@ sub MM_Configure {
 
     if($ENV{PLCB_BUILD_ALL}) {
         log_err('build_all reuqested');
-        @to_build = qw(VBUCKET COUCHBASE EVENT ISASL);
+        @to_build = qw(COUCHBASE EVENT);
         goto GT_MANGLE;
     }
-    
+
     printf STDERR ("\nWill run a few test programs to see ".
                    "if depencies are required\n");
-    
+
     my $have_libcouchbase =
         check_dependency('couchbase',$LIBCOUCHBASE_CFUNC,
             header => ['sys/types.h', 'libcouchbase/couchbase.h'] );
@@ -322,20 +314,14 @@ sub MM_Configure {
     if($have_libcouchbase) {
         return $h; #nothing to do here.
     } else {
-        push @to_build, qw(COUCHBASE VBUCKET);
+        push @to_build, qw(COUCHBASE);
     }
 
     if(!check_dependency(
         'event', $LIBEVENT_CFUNC, header => ['event.h', 'stdio.h'] )) {
         push @to_build, 'EVENT';
     }
-    
-    
-    if(0 && !check_dependency(
-        ['sasl2', 'sasl'], $LIBSASL_CFUNC,
-            header => [ 'stdlib.h', 'sasl/sasl.h'] )) {
-        push @to_build, 'ISASL';
-    }
+
 
     GT_MANGLE:
     my $errmsg = "\n".
@@ -349,13 +335,13 @@ sub MM_Configure {
                 "\n".
                 "Install bundled libraries?";
     my $promptval = prompt($errmsg, "y");
-    
+
     if($promptval !~ /^y/i) {
         print STDERR "You have selected not to build and install the bundled\n".
                     "dependencies. Couchbase::Client will not be built\n";
         exit(0);
     }
-    
+
     print STDERR "Will build: @to_build\n\n...";
     mangle_parent_makefile($parent, \@to_build);
 

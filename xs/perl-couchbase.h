@@ -3,6 +3,7 @@
 
 #include <sys/types.h> /*for size_t*/
 #include <libcouchbase/couchbase.h>
+#include "lcb_10_compat.h"
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
@@ -100,7 +101,7 @@ typedef enum {
     (PLCBf_USE_COMPRESSION|PLCBf_USE_STORABLE|PLCBf_USE_CONVERT_UTF8)
 
 struct PLCB_st {
-    libcouchbase_t instance; /*our library handle*/
+    lcb_t instance; /*our library handle*/
     PLCB_sync_t sync; /*object to collect results from callbacks*/
     HV *stats_hv; /*object to collect statistics from*/
     AV *errors; /*per-operation error stack*/
@@ -118,7 +119,7 @@ struct PLCB_st {
     STRLEN compress_threshold;
     
     /*io operations, needed for starting/stopping the event loop*/
-    struct libcouchbase_io_opt_st *io_ops;
+    struct lcb_io_opt_st *io_ops;
     
     /*how many operations are pending on this object*/
     int npending;
@@ -184,10 +185,10 @@ void plcb_callbacks_set_single(PLCB_t *object);
 void plcb_ctor_cbc_opts(AV *options,
     char **hostp, char **userp, char **passp, char **bucketp);
 void plcb_ctor_conversion_opts(PLCB_t *object, AV *options);
-void plcb_ctor_init_common(PLCB_t *object, libcouchbase_t instance,
+void plcb_ctor_init_common(PLCB_t *object, lcb_t instance,
                            AV *options);
 void plcb_errstack_push(PLCB_t *object,
-                        libcouchbase_error_t err, const char *errinfo);
+                        lcb_error_t err, const char *errinfo);
 
 /*cleanup functions*/
 void plcb_cleanup(PLCB_t *object);
@@ -219,7 +220,7 @@ plcb_multi_iterator_next(PLCB_iter_t *iter, SV **keyp, SV **retp);
 
 void
 plcb_multi_iterator_collect(PLCB_iter_t *iter,
-                            libcouchbase_error_t err,
+                            lcb_error_t err,
                             const void *key, size_t nkey,
                             const void *value, size_t nvalue,
                             uint32_t flags, uint64_t cas);
@@ -233,5 +234,11 @@ plcb_multi_iterator_cleanup(PLCB_iter_t *iter);
  */
 void
 plcb_evloop_wait_unref(PLCB_t *obj);
+
+#define plcb_evloop_start(obj) \
+    (obj)->io_ops->v.v0.run_event_loop(obj->io_ops)
+
+#define plcb_evloop_stop(obj) \
+    (obj)->io_ops->v.v0.stop_event_loop(obj->io_ops)
 
 #endif /* PERL_COUCHBASE_H_ */

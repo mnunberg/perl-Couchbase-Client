@@ -117,7 +117,7 @@ void plcb_ctor_conversion_opts(PLCB_t *object, AV *options)
     meth_maybe_assign(PLCB_CTORIDX_JSON_VERIFY_METHOD, couch.cv_json_verify, "JSON verify");
 }
 
-void plcb_ctor_init_common(PLCB_t *object, libcouchbase_t instance,
+void plcb_ctor_init_common(PLCB_t *object, lcb_t instance,
                            AV *options)
 {
     NV timeout_value;
@@ -143,7 +143,7 @@ void plcb_ctor_init_common(PLCB_t *object, libcouchbase_t instance,
         if(!timeout_value) {
             warn("Cannot use 0 for timeout");
         } else {
-            libcouchbase_set_timeout(instance,
+            lcb_set_timeout(instance,
                 timeout_value * (1000*1000));
         }
     }

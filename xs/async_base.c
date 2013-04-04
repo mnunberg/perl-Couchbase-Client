@@ -96,7 +96,7 @@ error_true_multi(
     PLCBA_cookie_t *cookie,
     size_t num_keys,
     const char **keys, size_t *nkey,
-    libcouchbase_error_t err)
+    lcb_error_t err)
 {
     int i;
     for(i = 0; i < num_keys; i++) {
@@ -110,16 +110,16 @@ error_pseudo_multi(
     PLCBA_t *async,
     PLCBA_cookie_t *cookie,
     AV *reqlist,
-    libcouchbase_error_t *errors)
+    lcb_error_t *errors)
 {
     int i, idx_max;
     AV *reqav;
-    libcouchbase_error_t errtmp;
+    lcb_error_t errtmp;
     SV **tmpsv;
     
     idx_max = av_len(reqlist);
     for(i = 0; i <= idx_max; i++) {
-        if(errors[i] == LIBCOUCHBASE_SUCCESS) {
+        if(errors[i] == LCB_SUCCESS) {
             continue;
         }
         reqav = (AV*)*(av_fetch(reqlist, i, 0));
@@ -140,13 +140,13 @@ PLCBA_request(
     struct PLCBA_request_st r;
     
     PLCBA_t *async;
-    libcouchbase_t instance;
+    lcb_t instance;
     PLCB_t *base;
     AV *reqav;
     
     PLCBA_cookie_t *cookie;
     int nreq, i;
-    libcouchbase_error_t *errors;
+    lcb_error_t *errors;
     int errcount;
     int has_conversion;
     
@@ -156,8 +156,8 @@ PLCBA_request(
     void **multi_key;
     size_t *multi_nkey;
     
-    libcouchbase_error_t err;
-    libcouchbase_storage_t storop;
+    lcb_error_t err;
+    lcb_storage_t storop;
     
     _mk_common_vars(self, instance, base, async);
     
@@ -221,10 +221,10 @@ PLCBA_request(
         av2request(async, cmd, (AV*)(SvRV(*tmpsv)), &r);
         
     #define pseudo_multi_begin \
-        Newxz(errors, nreq, libcouchbase_error_t); \
+        Newxz(errors, nreq, lcb_error_t); \
         errcount = 0;
     #define pseudo_multi_maybe_add \
-        if( (errors[i] = err) != LIBCOUCHBASE_SUCCESS ) \
+        if( (errors[i] = err) != LCB_SUCCESS ) \
             errcount++;
     #define pseudo_multi_end \
         if(errcount) \
@@ -240,16 +240,16 @@ PLCBA_request(
                 pseudo_multi_maybe_add; \
             } \
             if(errcount < nreq) { \
-                libcouchbase_wait(instance); \
+                lcb_wait(instance); \
             } \
         } else { \
             av2request(async, cmd, params, &r); \
             _do_cbop(); \
-            if(err != LIBCOUCHBASE_SUCCESS) { \
+            if(err != LCB_SUCCESS) { \
                 warn("Key %s did not return OK (%d)", r.key, err); \
                 error_single(async, cookie, r.key, r.nkey, err); \
             } else { \
-                libcouchbase_wait(instance); \
+                lcb_wait(instance); \
             } \
         } \
     
@@ -280,11 +280,11 @@ PLCBA_request(
             }
 
             _do_cbop(multi_key, multi_nkey, multi_exp);
-            if(err != LIBCOUCHBASE_SUCCESS) {
+            if(err != LCB_SUCCESS) {
                 error_true_multi(
                     async, cookie, nreq, (const char**)multi_key, multi_nkey, err);
             } else {
-                libcouchbase_wait(instance);
+                lcb_wait(instance);
             }
             Safefree(multi_key);
             Safefree(multi_nkey);
@@ -292,10 +292,10 @@ PLCBA_request(
         } else {
             av2request(async, cmd, params, &r);
             _do_cbop(&(r.key), &(r.nkey), &(r.exp));
-            if(err != LIBCOUCHBASE_SUCCESS) {
+            if(err != LCB_SUCCESS) {
                 error_single(async, cookie, r.key, r.nkey, err);
             } else {
-                libcouchbase_wait(instance);
+                lcb_wait(instance);
             }
         }
         break;
@@ -380,7 +380,7 @@ PLCBA_construct(const char *pkg, AV *options)
 {
     PLCBA_t *async;
     char *host, *username, *password, *bucket;
-    libcouchbase_t instance;
+    lcb_t instance;
     SV *blessed_obj;
     
     Newxz(async, 1, PLCBA_t);
@@ -423,23 +423,23 @@ PLCBA_HaveEvent(const char *pkg, short flags, SV *opaque)
 void
 PLCBA_connect(SV *self)
 {
-    libcouchbase_t instance;
+    lcb_t instance;
     PLCBA_t *async;
     PLCB_t *base;
-    libcouchbase_error_t err;
+    lcb_error_t err;
     
     _mk_common_vars(self, instance, base, async);
-    if( (err = libcouchbase_connect(instance)) != LIBCOUCHBASE_SUCCESS) {
+    if( (err = lcb_connect(instance)) != LCB_SUCCESS) {
         die("Problem with initial connection: %s (%d)",
-            libcouchbase_strerror(instance, err), err);
+            lcb_strerror(instance, err), err);
     }
-    libcouchbase_wait(instance);
+    lcb_wait(instance);
 }
 
 void
 PLCBA_DESTROY(SV *self)
 {
-    libcouchbase_t instance;
+    lcb_t instance;
     PLCBA_t *async;
     PLCB_t *base;
     

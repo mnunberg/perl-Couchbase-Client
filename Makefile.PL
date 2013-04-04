@@ -201,7 +201,7 @@ sub const_cccmd {
 
 sub libscan {
     my ($self,$path) = @_;
-    if($path =~ /\.pl$/i || $path =~ /PLCB_Conf/) {
+    if($path =~ /\.pl$/i || $path =~ /PLCB_Conf/ || $path =~ /HACKING/) {
         return "";
     } else {
         return $path;

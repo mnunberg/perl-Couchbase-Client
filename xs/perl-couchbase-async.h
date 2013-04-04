@@ -5,8 +5,8 @@
 #include <perlio.h>
 #include "plcb-commands.h"
 
-typedef void(*plcba_c_evhandler)(libcouchbase_socket_t, short, void*);
-typedef struct libcouchbase_io_opt_st plcba_cbcio;
+typedef void(*plcba_c_evhandler)(lcb_socket_t, short, void*);
+typedef struct lcb_io_opt_st plcba_cbcio;
 
 
 /*two layered approach:
@@ -108,7 +108,7 @@ struct PLCBA_c_event_st {
     short flags;
     PLCBA_evstate_t state;
     /*FD from libcouchbase*/
-    libcouchbase_socket_t fd;    
+    lcb_socket_t fd;
 };
 
 
@@ -239,7 +239,7 @@ plcba_cbcio *plcba_make_io_opts(PLCBA_t *async);
 void plcba_callback_notify_err(PLCBA_t *async,
                                PLCBA_cookie_t *cookie,
                                const char *key, size_t nkey,
-                               libcouchbase_error_t err);
+                               lcb_error_t err);
 
 
 /*prototypes for perl-facing functions, for Async.xs*/

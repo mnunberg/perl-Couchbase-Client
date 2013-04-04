@@ -75,10 +75,8 @@ sub tarball_2_dir {
 ### Tarball Names                                                            ###
 ################################################################################
 ################################################################################
-my $LIBVBUCKET_TARBALL = lib_2_tarball('libvbucket');
 my $LIBCOUCHBASE_TARBALL = lib_2_tarball('libcouchbase');
 my $LIBEVENT_TARBALL = lib_2_tarball('libevent');
-my $MEMCACHED_H_TARBALL = "memcached-headers.tar.gz";
 
 ################################################################################
 ################################################################################
@@ -95,15 +93,6 @@ chdir $TOPLEVEL;
 mkpath($INST_DIR);
 mkpath($INCLUDE_PATH);
 mkpath($LIB_PATH);
-
-{
-    my $ae = Archive::Extract->new(archive => $MEMCACHED_H_TARBALL);
-    $ae->extract(to => $INST_DIR);
-    
-}
-unless(-e File::Spec->catfile($INCLUDE_PATH, 'memcached', 'protocol_binary.h')) {
-    die("Can't extract memcached headers");
-}
 
 $ENV{PKG_CONFIG_PATH} .= ":"
 . File::Spec->catfile($INST_DIR, 'lib', 'pkgconfig');
@@ -167,29 +156,6 @@ if(should_build('EVENT')) {
     runcmd("$MAKEPROG install");
 }
 
-
-################################################################################
-### libvbucket                                                               ###
-################################################################################
-# if(should_build('VBUCKET'))
-{
-    chdir $TOPLEVEL;
-    chdir tarball_2_dir($LIBVBUCKET_TARBALL);
-    if(!-e 'Makefile') {
-        runcmd("./configure", @COMMON_OPTIONS);
-        log_info("Configured libvbucket");
-    }
-
-    runcmd("$MAKEPROG");
-    log_info("build libvbucket");
-    runcmd("$MAKEPROG install");
-    log_info("installed libvbucket");
-    runcmd("$MAKEPROG check") if $RUN_TESTS;
-    log_info("tested libvbucket");
-}
-
-
-
 ################################################################################
 ### libcouchbase                                                             ###
 ################################################################################
@@ -200,8 +166,6 @@ if(should_build('EVENT')) {
 
     my @libcouchbase_options = (
         @COMMON_OPTIONS,
-        "--disable-tools",
-        "--enable-embed-libevent-plugin",
     );
 
     if($^O =~ /solaris/) {
@@ -219,26 +183,6 @@ if(should_build('EVENT')) {
         push @libcouchbase_options, '--with-couchbasemock='.$mockpath;
     } else {
         push @libcouchbase_options, '--disable-couchbasemock';
-    }
-
-    #First, we need to mangle the 'configure' script:
-    {
-        my @conflines;
-        open my $confh, "+<", "configure" or die "opening configure: $!";
-        @conflines = <$confh>;
-        foreach my $line (@conflines) {
-            if($line =~ s/LIBS=(-l\S+)/LIBS="\$LIBS $1"/msg) {
-                print STDERR ">> REPLACING: $line";
-            }
-            if($line =~ s/sasl_server_init\(NULL,/sasl_client_init\(/) {
-                print STDERR ">> REPLACING: $line";
-            }
-        }
-        seek($confh, 0, 0);
-        print $confh @conflines;
-        truncate($confh, tell($confh));
-
-        close($confh);
     }
 
     runcmd("./configure", @libcouchbase_options) unless -e 'Makefile';

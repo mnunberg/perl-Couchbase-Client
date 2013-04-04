@@ -41,9 +41,9 @@ plcb_ret_set_numval(PLCB_t *obj, AV *ret, uint64_t value, uint64_t cas)
 
 #define plcb_ret_set_err(obj, ret, err) \
     av_store(ret, PLCB_RETIDX_ERRNUM, newSViv(err)); \
-    if(err != LIBCOUCHBASE_SUCCESS) { \
+    if(err != LCB_SUCCESS) { \
         av_store(ret, PLCB_RETIDX_ERRSTR, \
-        newSVpv(libcouchbase_strerror(obj->instance, err), 0)); \
+        newSVpv(lcb_strerror(obj->instance, err), 0)); \
     }
 
 #define plcb_ret_blessed_rv(obj, ret) \

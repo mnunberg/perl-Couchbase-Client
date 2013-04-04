@@ -6,8 +6,17 @@
 
 #ifndef _WIN32
 #include <libcouchbase/libevent_io_opts.h>
-#define plcba_default_io_opts() \
-    libcouchbase_create_libevent_io_opts(NULL)
+
+static lcb_io_opt_t plcba_default_io_opts(void)
+{
+    struct lcb_create_io_ops_st options = { 0 };
+    lcb_io_opt_t iops = NULL;
+    options.v.v0.cookie = NULL;
+    options.v.v0.type = LCB_IO_OPS_DEFAULT;
+    lcb_create_io_ops(&iops, &options);
+    return iops;
+}
+
 
 #else
 
@@ -60,7 +69,7 @@ static void *create_event(plcba_cbcio *cbcio)
     PLCBA_c_event *cevent;
     PLCBA_t *async;
     
-    async = (PLCBA_t*)cbcio->cookie;
+    async = (PLCBA_t*)cbcio->v.v0.cookie;
     Newxz(cevent, 1, PLCBA_c_event);
     
     cevent->pl_event = newAV();
@@ -86,7 +95,7 @@ static void *create_event(plcba_cbcio *cbcio)
 static void destroy_event(plcba_cbcio *cbcio, void *event)
 {
     PLCBA_c_event *cevent = (PLCBA_c_event*)event;
-    PLCBA_t *async = (PLCBA_t*)cbcio->cookie;
+    PLCBA_t *async = (PLCBA_t*)cbcio->v.v0.cookie;
     
     //warn("Event destruction requested");
     
@@ -150,7 +159,7 @@ modify_event_perl(PLCBA_t *async, PLCBA_c_event *cevent,
 
 /*start select()ing on a socket*/
 static int update_event(plcba_cbcio *cbcio,
-                        libcouchbase_socket_t sock,
+                        lcb_socket_t sock,
                         void *event,
                         short flags,
                         void *cb_data,
@@ -162,7 +171,7 @@ static int update_event(plcba_cbcio *cbcio,
     PLCBA_evstate_t new_state;
     
     cevent = (PLCBA_c_event*)event;
-    object = (PLCBA_t*)(cbcio->cookie);
+    object = (PLCBA_t*)(cbcio->v.v0.cookie);
     
     if(!flags) {
         action = PLCBA_EVACTION_UNWATCH;
@@ -178,7 +187,6 @@ static int update_event(plcba_cbcio *cbcio,
        cevent->c.arg == cb_data &&
        new_state == cevent->state) {
         /*nothing to do here*/
-        return;
         return 0;
     }
     
@@ -194,7 +202,7 @@ static int update_event(plcba_cbcio *cbcio,
 
 /*stop select()ing a socket*/
 static void delete_event(plcba_cbcio *cbcio,
-                         libcouchbase_socket_t sock, void *event)
+                         lcb_socket_t sock, void *event)
 {
     update_event(cbcio, sock, event, 0, NULL, NULL);
 }
@@ -237,7 +245,7 @@ static int update_timer(plcba_cbcio *cbcio,
     cevent->c.handler = handler;
     cevent->c.arg = cb_data;
         
-    modify_timer_perl(cbcio->cookie, cevent, usecs, PLCBA_EVACTION_WATCH);
+    modify_timer_perl(cbcio->v.v0.cookie, cevent, usecs, PLCBA_EVACTION_WATCH);
     return 0;
 }
 
@@ -245,7 +253,7 @@ static void delete_timer(plcba_cbcio *cbcio, void *event)
 {
     PLCBA_c_event *cevent = (PLCBA_c_event*)event;
     //warn("Deletion requested for timer!");
-    modify_timer_perl(cbcio->cookie, cevent, 0, PLCBA_EVACTION_UNWATCH);
+    modify_timer_perl(cbcio->v.v0.cookie, cevent, 0, PLCBA_EVACTION_UNWATCH);
 }
 
 
@@ -255,7 +263,7 @@ static void run_event_loop(plcba_cbcio *cbcio)
     PLCBA_t *async;
     PLCBA_c_event *cevent;
     
-    async = (PLCBA_t*)cbcio->cookie;
+    async = (PLCBA_t*)cbcio->v.v0.cookie;
     
     //warn("Resuming events..");
     for(cevent = async->cevents; cevent; cevent = cevent->next) {
@@ -284,7 +292,7 @@ static void stop_event_loop(plcba_cbcio *cbcio)
     PLCBA_c_event *cevent;
     dSP;
 
-    async = cbcio->cookie;
+    async = cbcio->v.v0.cookie;
     
     for(cevent = async->cevents; cevent; cevent = cevent->next) {
         if(cevent->evtype == PLCBA_EVTYPE_IO && cevent->fd > 0) {
@@ -307,7 +315,7 @@ void destructor(plcba_cbcio *cbcio)
         return;
     }
     
-    if(! (async = cbcio->cookie) ) {
+    if(! (async = cbcio->v.v0.cookie) ) {
         return; /*already freed*/
     }
     
@@ -322,7 +330,7 @@ void destructor(plcba_cbcio *cbcio)
         }
     }
     async->cevents = NULL;
-    cbcio->cookie = NULL;
+    cbcio->v.v0.cookie = NULL;
 }
 
 
@@ -333,22 +341,22 @@ plcba_make_io_opts(PLCBA_t *async)
     
     cbcio = plcba_default_io_opts();
     
-    cbcio->cookie = async;
+    cbcio->v.v0.cookie = async;
     
     /* i/o events */
-    cbcio->create_event = create_event;
-    cbcio->destroy_event = destroy_event;
-    cbcio->update_event = update_event;
-    cbcio->delete_event = delete_event;
+    cbcio->v.v0.create_event = create_event;
+    cbcio->v.v0.destroy_event = destroy_event;
+    cbcio->v.v0.update_event = update_event;
+    cbcio->v.v0.delete_event = delete_event;
     
     /* timer events */
-    cbcio->create_timer = create_timer;
-    cbcio->destroy_timer = destroy_event;
-    cbcio->delete_timer = delete_timer;
-    cbcio->update_timer = update_timer;
+    cbcio->v.v0.create_timer = create_timer;
+    cbcio->v.v0.destroy_timer = destroy_event;
+    cbcio->v.v0.delete_timer = delete_timer;
+    cbcio->v.v0.update_timer = update_timer;
     
-    cbcio->run_event_loop = run_event_loop;
-    cbcio->stop_event_loop = stop_event_loop;
+    cbcio->v.v0.run_event_loop = run_event_loop;
+    cbcio->v.v0.stop_event_loop = stop_event_loop;
     cbcio->destructor = destructor;
     
     return cbcio;

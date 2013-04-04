@@ -2,7 +2,7 @@
 
 void
 plcb_multi_iterator_collect(PLCB_iter_t *iter,
-                            libcouchbase_error_t err,
+                            lcb_error_t err,
                             const void *key, size_t nkey,
                             const void *value, size_t nvalue,
                             uint32_t flags, uint64_t cas)
@@ -40,20 +40,26 @@ plcb_multi_iterator_collect(PLCB_iter_t *iter,
     iter->remaining--;
 }
 
-static void
-iter_get_callback(libcouchbase_t instance, const void *cookie,
-                  libcouchbase_error_t err, const void *key, size_t nkey,
-                  const void *value, size_t nvalue, uint32_t flags, uint64_t cas)
+static void iter_get_callback(lcb_t instance,
+                              const void *cookie,
+                              lcb_error_t err,
+                              const lcb_get_resp_t *resp)
 {
     PLCB_iter_t *iter = (PLCB_iter_t*)cookie;
-    plcb_multi_iterator_collect(iter, err, key, nkey, value, nvalue, flags, cas);
+    plcb_multi_iterator_collect(iter, err,
+                                resp->v.v0.key,
+                                resp->v.v0.nkey,
+                                resp->v.v0.bytes,
+                                resp->v.v0.nbytes,
+                                resp->v.v0.flags,
+                                resp->v.v0.cas);
 
     /* This is the stopping version */
-    iter->parent->io_ops->stop_event_loop(iter->parent->io_ops);
+    plcb_evloop_stop(iter->parent);
 }
 
 /**
- * Create a new iterator object. This wraps around libcouchbase_mget
+ * Create a new iterator object. This wraps around lcb_mget
  */
 SV*
 plcb_multi_iterator_new(PLCB_t *obj, SV *cbo_sv,
@@ -62,7 +68,7 @@ plcb_multi_iterator_new(PLCB_t *obj, SV *cbo_sv,
 {
     SV *my_iv, *ret_rv;
     PLCB_iter_t *iterobj;
-    libcouchbase_error_t err;
+    lcb_error_t err;
 
     Newxz(iterobj, 1, PLCB_iter_t);
     iterobj->parent_rv = newRV_inc(SvRV(cbo_sv));
@@ -101,7 +107,7 @@ void
 plcb_multi_iterator_next(PLCB_iter_t *iter, SV **keyp, SV **retp)
 {
     SV *retrv;
-    libcouchbase_get_callback old_callback;
+    lcb_get_callback old_callback;
     int old_remaining;
     int return_final;
 
@@ -126,13 +132,13 @@ plcb_multi_iterator_next(PLCB_iter_t *iter, SV **keyp, SV **retp)
     }
 
     /* Install the single callback */
-    old_callback = libcouchbase_set_get_callback(iter->parent->instance,
+    old_callback = lcb_set_get_callback(iter->parent->instance,
             iter_get_callback);
 
-    iter->parent->io_ops->run_event_loop(iter->parent->io_ops);
+    plcb_evloop_start(iter->parent);
 
     /* Restore the old callback */
-    libcouchbase_set_get_callback(iter->parent->instance, old_callback);
+    lcb_set_get_callback(iter->parent->instance, old_callback);
 
     goto GT_FETCHONE;
 }
