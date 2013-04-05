@@ -105,6 +105,7 @@ static void complete_callback(lcb_http_request_t couchreq,
 {
     PLCB_couch_handle_t *handle = (PLCB_couch_handle_t*)cookie;
     lcb_http_status_t status = resp->v.v0.status;
+
     handle->flags |= PLCB_COUCHREQf_TERMINATED;
     handle->lcb_request = NULL;
 
@@ -181,6 +182,12 @@ SV* plcb_couch_handle_new(HV *stash, SV *cbo_sv, PLCB_t *cbo)
 
 void plcb_couch_handle_free(PLCB_couch_handle_t *handle)
 {
+    if (handle->lcb_request) {
+        lcb_cancel_http_request(handle->parent->instance,
+                                handle->lcb_request);
+        handle->lcb_request = NULL;
+    }
+
     if (handle->plpriv) {
         SvREFCNT_dec(handle->plpriv);
         handle->plpriv = NULL;
