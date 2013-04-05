@@ -19,12 +19,12 @@ BEGIN {
 sub _perl_initialize {
     my $self = shift;
     $self->info->_priv([]);
-    
+
     # These two statements declare the callbacks.
     # The CALLBACK_DATA and CALLBACK_COMPLETE correspond to the handlers which
     # will be invoked by libcouchbase for the respective events.
     # These callbacks should warn.
-    
+
     $self->info->[COUCHIDX_CALLBACK_DATA] = \&default_data_callback;
     $self->info->[COUCHIDX_CALLBACK_COMPLETE] = \&default_complete_callback;
     return $self;
@@ -60,25 +60,25 @@ sub _perl_initialize {
     my $self = shift;
     my %options = @_;
     $self->SUPER::_perl_initialize(%options);
-    
+
     my $priv = $self->info->_priv;
-    
+
     # Establish our JSON::SL object.
     $priv->[FLD_JSNDEC] = JSON::SL->new();
-    
+
     # Set the path for objects we wish to receive. Anything under "rows": [ ..]
     # is a result for the user
     $priv->[FLD_JSNDEC]->set_jsonpointer(["/rows/^"]);
-    
+
     # This array reference will serve as a FIFO queue. A user will receive
     # objects from the head, while JSON::SL will write parsed JSON objects
     # to its tail.
     $priv->[FLD_ITERBUF] = [];
-    
+
     # Set up our callbacks..
     $self->info->[COUCHIDX_CALLBACK_DATA] = \&_cb_data;
     $self->info->[COUCHIDX_CALLBACK_COMPLETE] = \&_cb_complete;
-    
+
     return $self;
 }
 
@@ -91,19 +91,19 @@ sub _cb_data {
     # a bunch of bytes
     my ($self,$info,$bytes) = @_;
     return unless defined $bytes;
-    
+
     my $sl = $info->_priv->[FLD_JSNDEC];
     my $buf = $info->_priv->[FLD_ITERBUF];
-    
+
     # pass some more data into JSON::SL
     my @results = $sl->feed($bytes);
-    
+
     # check to see what our result count was for this stream of bytes. If we have
     # received at least one extra object, then we can be assured the user has
     # enough data, and therefore we can signal to the C code to stop the event
     # loop (or decrement the wait count)
     my $rescount = scalar @results;
-    
+
     # This converts results (as raw JSON::SL results) into more sugary
     # objects for Couch
     foreach (@results) {
@@ -112,7 +112,7 @@ sub _cb_data {
         $o->_cbo($self->info->[COUCHIDX_CBO]);
         push @$buf, $o;
     }
-    
+
     if ($rescount) {
         # if we have enough data, it is time to signal to the C code that
         # the internal event loop should be unreferenced (i.e. we no longer
@@ -135,28 +135,28 @@ sub count {
 sub next {
     my $self = shift;
     my $rows = $self->info->_priv->[FLD_ITERBUF];
-    
+
     # First we checked if there are remaining items in the row queue. If there are
     # then we don't need to do any network I/O, but simply pop an item and
     # return.
     if (@$rows) {
         return shift @$rows;
     }
-    
+
     # so there's nothing in the queue. See if we can get something from the
     # network.
     my $rv = $self->_iter_step;
-    
+
     # a true return value means we can wait for extra data
     if ($rv) {
         die "Iteration stopped but got nothing in buffer" unless @$rows;
         return shift @$rows;
     }
-    
+
     # if $rv is false, then we cannot wait for more data (either error, terminated)
     # or some other condition. In this case we finalize the resultset metadata
     $self->info->_extract_row_errors($self->info->_priv->[FLD_JSNDEC]->root);
-    
+
     # TODO: does this line actually do anything?
     return shift @$rows;
 }
@@ -176,7 +176,7 @@ sub remaining_json {
 package Couchbase::Couch::Handle::Slurpee;
 use strict;
 use warnings;
-use JSON::XS;
+use JSON;
 use Couchbase::Client::IDXConst;
 use base qw(Couchbase::Couch::Handle);
 
@@ -191,7 +191,7 @@ sub slurp_jsonized {
     $self->slurp_raw(@args);
     my $info = $self->info;
     if ($info->value) {
-        $info->[RETIDX_VALUE] = JSON::XS::decode_json($info->[RETIDX_VALUE]);
+        $info->[RETIDX_VALUE] = decode_json($info->[RETIDX_VALUE]);
         $info->_extract_row_errors($info->value);
     }
     return $info;

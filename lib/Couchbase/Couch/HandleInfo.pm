@@ -12,7 +12,7 @@ use warnings;
 use Couchbase::Client::Return;
 use Couchbase::Client::IDXConst;
 use Couchbase::Client::Return;
-use JSON::XS;
+use JSON;
 use base qw(Couchbase::Client::Return);
 
 use Class::XSAccessor::Array {
@@ -63,7 +63,7 @@ sub errstr {
         if ($self->errinfo->{errors}) {
             $ret .= " [There were some errors fetching individual rows. "
                     ."See ->errinfo]";
-                    
+
         } elsif ($self->errinfo->{error}) {
             $ret .= sprintf(" [Query Error (error=%s, reason=%s)]",
                             $self->errinfo->{error}, $self->errinfo->{reason});
@@ -96,7 +96,7 @@ sub _extract_view_results {
     my $self = shift;
     my $json = delete $self->[RETIDX_VALUE];
     if (defined $json) {
-        $json = JSON::XS::decode_json($json);
+        $json = decode_json($json);
         $self->_extract_row_errors($json);
         $self->[RETIDX_VALUE] = delete $json->{rows};
     }

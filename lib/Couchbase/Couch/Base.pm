@@ -8,10 +8,9 @@ use Couchbase::Couch::Handle;
 use Couchbase::Couch::HandleInfo;
 use Couchbase::Couch::Design;
 use Couchbase::Client::IDXConst;
-use JSON::XS;
+use JSON;
 use JSON::SL;
 use Data::Dumper;
-use Log::Fu;
 use URI;
 
 
@@ -53,7 +52,7 @@ sub couch_doc_get {
     my $self = shift;
     my $ret = $self->get(@_);
     if ($ret->value) {
-        $ret->[RETIDX_VALUE] = JSON::XS::decode_json($ret->[RETIDX_VALUE]);
+        $ret->[RETIDX_VALUE] = decode_json($ret->[RETIDX_VALUE]);
     }
     return $ret;
 }
@@ -89,7 +88,6 @@ sub _process_viewpath_common {
 
     if (delete $options{ForUpdate}) {
         $qparams{include_docs} = "true";
-        log_warn("ForUpdate requested");
     }
     if (%options) {
         # TODO: pop any other known parameters?

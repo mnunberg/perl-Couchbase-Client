@@ -169,6 +169,9 @@ WriteMakefile(
         #these are needed for asynchronous tests and modules
         'POE::Sugar::Attributes' => 0.02,
         'POE'               => 1.312,
+
+        'JSON'              => 2.53,
+        'JSON::SL'          => '1.0.0'
     },
 
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
