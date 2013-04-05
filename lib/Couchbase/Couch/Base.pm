@@ -86,7 +86,7 @@ sub couch_design_put {
 sub _process_viewpath_common {
     my ($orig,%options) = @_;
     my %qparams;
-    
+
     if (delete $options{ForUpdate}) {
         $qparams{include_docs} = "true";
         log_warn("ForUpdate requested");
@@ -95,10 +95,18 @@ sub _process_viewpath_common {
         # TODO: pop any other known parameters?
         %qparams = (%qparams,%options);
     }
+
+    if (ref $orig eq 'ARRAY') {
+        # Assume this is an array of [ design, view ]
+        $orig = sprintf("_design/%s/_view/%s", @$orig);
+    }
+
+
     if (%qparams) {
         $orig = URI->new($orig);
         $orig->query_form(\%qparams);
     }
+
     return $orig . "";
 }
 
@@ -112,17 +120,17 @@ sub couch_view_slurp {
     }
     $viewpath = _process_viewpath_common($viewpath,%options);
     $handle->slurp(COUCH_METHOD_GET, $viewpath, "");
-    
+
 }
 
 sub couch_view_iterator {
     my ($self,$viewpath,%options) = @_;
-    
+
     $viewpath = _process_viewpath_common($viewpath, %options);
 
     my $handle = $self->_couch_handle_new(
         \%Couchbase::Couch::Handle::ViewIterator::);
-    
+
     $handle->_perl_initialize();
     $handle->prepare(COUCH_METHOD_GET, $viewpath, "");
     return $handle;
@@ -139,7 +147,7 @@ Couchbase::Couch::Base - API For Couch Operations
 =head1 SYNOPSIS
 
     NYI
-    
+
 =head1 DESCRIPTION
 
 All documentation here pertains to L<Couchbase::Client> which is the client object
@@ -181,7 +189,10 @@ be an encoded JSON string, or a hash, which this module shall encode for you.
 
 =head3 couch_view_slurp($path,%options)
 
-Get all results from a fiew. C<%options> may be a hash of options. Recognized
+Get all results from a view. C<$path> may be a string path (i.e. the
+path component of the URI), or an arrayref of C<[$design, $view]>.
+
+C<%options> may be a hash of options. Recognized
 options are directives to this module for behavior, while unrecognized options
 are passed as-is as query parameters to the view engine.
 
@@ -202,12 +213,12 @@ The iterator works as so:
     while (my $row = $iter->next) {
         # do something with $row
     }
-    
+
 Where C<$row> is a L<Couchbase::Couch::ViewRow> object (the resultant
 hash is blessed as-is into this package).
 
-The C<%options> hash follows the same semantics as L<couch_view_slurp> with the
-following I<recognized> options:
+The C<$path> and C<%options> parameters follow the same semantics as in
+L<couch_view_slurp> with the following I<recognized> options:
 
 =over
 
@@ -232,4 +243,3 @@ Follows the same semantics as L<Couchbase::Client>'s C<get>
 =head3 couch_doc_store($key,$value,...)
 
 Follows the same semantics as L<Couchbase::Client>'s C<set>
-
