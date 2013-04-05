@@ -248,4 +248,49 @@ EOF
     ok(!@kv_errors, "No errors during async handle usage");
 }
 
+sub TV07_synopsis :Test(no_plan) {
+    my $self = shift;
+    my $client = $self->cbo;
+
+    my $ddoc = {
+        '_id' => '_design/blog',
+        language => 'javascript',
+        views => {
+            'recent-posts' => {
+                map => 'function(d) { if(d.date) { emit(d.date, d.title); }}'
+            }
+        }
+    };
+
+    my $rv = $client->couch_design_put($ddoc);
+    if (!$rv->is_ok) {
+        # check for possible errors here..
+    }
+
+    # Now, let's load up some documents
+
+    my @posts = (
+        ["i-like-perl" => {
+            title => "Perl is cool",
+            date => "4/26/2013"
+        }],
+        ["couchbase-and-perl" => {
+            title => "Couchbase::Client is super fast",
+            date => "4/26/2013"
+        }]
+    );
+
+    # This is a convenience around set_multi. It encodes values into JSON
+    my $rvs = $client->couch_set_multi(@posts);
+
+    # Now, query the view. We use stale = 'false' to ensure consistency
+
+    $rv = $client->couch_view_slurp(['blog', 'recent-posts'], stale => 'false');
+
+    # Now dump the rows to the screen
+    # OK, this is test code. We can't dump to screen, but we can ensure that
+    # this works "in general"
+    ok($rv->value->[0]->{id});
+}
+
 1;

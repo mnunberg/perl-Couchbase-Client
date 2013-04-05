@@ -98,7 +98,7 @@ sub _process_viewpath_common {
         unless ($orig->[0] && $orig->[1]) {
             die("Path cannot be empty");
         }
-        
+
         # Assume this is an array of [ design, view ]
         $orig = sprintf("_design/%s/_view/%s", @$orig);
     }
@@ -249,3 +249,14 @@ Follows the same semantics as L<Couchbase::Client>'s C<get>
 =head3 couch_doc_store($key,$value,...)
 
 Follows the same semantics as L<Couchbase::Client>'s C<set>
+
+=head2 SEE ALSO
+
+L<Couchbase::Couch::Handle> - contains documentation for
+C<Couchbase::Couch::ViewIterator>
+
+L<Couchbase::Couch::HandleInfo> - Documents the L<Couchbase::Client::Return>-like
+object for fetching view row metadata
+
+L<Couchbase::Couch::ViewRow> - Documents the row objects returned by the
+iterator.

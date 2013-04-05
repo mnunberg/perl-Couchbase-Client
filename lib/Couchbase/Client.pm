@@ -236,9 +236,51 @@ Atomic CAS
         }
     }
 
+View/MapReduce Operations
+
+    # Create a design document
+
+    my $ddoc = {
+        '_id' => '_design/blog',
+        language => 'javascript',
+        views => {
+            'recent-posts' => {
+                map => 'function(d) { if(d.date) { emit(d.date, d.title); }}'
+            }
+        }
+    };
+
+    my $rv = $client->couch_design_put($ddoc);
+    if (!$rv->is_ok) {
+        # check for possible errors here..
+    }
+
+    # Now, let's load up some documents
+
+    my @posts = (
+        ["i-like-perl" => {
+            title => "Perl is cool",
+            date => "4/26/2013"
+        }],
+        ["couchbase-and-perl" => {
+            title => "Couchbase::Client is super fast",
+            date => "4/26/2013"
+        }]
+    );
+
+    # This is a convenience around set_multi. It encodes values into JSON
+    my $rvs = $client->couch_set_multi(@posts);
+
+    # Now, query the view. We use stale = 'false' to ensure consistency
+
+    $rv = $client->couch_view_slurp(['blog', 'recent-posts'], stale => 'false');
+
+    # Now dump the rows to the screen.
+    print Dumper($rv->value);
+
 =head2 DESCRIPTION
 
-<Couchbase::Client> is the client for couchbase (http://www.couchbase.org),
+C<Couchbase::Client> is the client for couchbase (http://www.couchbase.org),
 which is based partially on the C<memcached> server and the Memcache protocol.
 
 In further stages, this module will attempt to retain backwards compatibility with
@@ -737,6 +779,17 @@ The return format is as so:
         ...
     }
 
+
+=head3 couch_design_put($json)
+
+=head3 couch_design_get($name)
+
+=head3 couch_view_slurp($view, $options)
+
+=head3 couch_view_iterator($view, $options)
+
+See L<Couchbase::Couch::Base> for a detailed overview of these methods
+
 =head2 SEE ALSO
 
 L<Couchbase::Client::Errors>
@@ -755,4 +808,3 @@ Copyright (C) 2012 M. Nunberg
 
 You may use and distributed this software under the same terms and conditions as
 Perl itself.
-
