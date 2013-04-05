@@ -22,7 +22,7 @@ sub SKIP_CLASS {
     if(defined $msg) {
         my $cstr = ref $cls ? ref $cls : $cls;
         my $header = ("#" x 10) . " $cstr SKIP " . ("#" x 10);
-        
+
         diag $header;
         diag "";
         diag $msg;
@@ -34,7 +34,7 @@ sub SKIP_CLASS {
 sub mock_init
 {
     my $self = shift;
-    if(!$Mock) {
+    if ( (!$Mock) && (!$RealServer) ) {
         die("Mock object not found. Initialize mock object with Initialize()");
     }
     $self->{mock} = $Mock;
@@ -64,13 +64,13 @@ use constant {
 
 sub common_options {
     my ($self,$bucket_type) = @_;
-    
+
     if($RealServer) {
         return { %$RealServer };
     }
     my $mock = $self->mock;
     my $opthash = {};
-    
+
     if(!$bucket_type) {
         $bucket_type = BUCKET_DEFAULT;
     } elsif ($bucket_type =~ /mem/) {
@@ -81,7 +81,7 @@ sub common_options {
         warn("No such bucket type $bucket_type");
         $bucket_type = BUCKET_DEFAULT;
     }
-    
+
     my $bucket = $self->mock->buckets->[0] or die "No buckets!";
     if($bucket_type == BUCKET_MEMCACHED) {
         $bucket = (grep $_->{type} eq 'memcache',
@@ -93,7 +93,7 @@ sub common_options {
     if(!$bucket) {
         die("Can't find common options for bucket (@_)");
     }
-    
+
     if($bucket->{password}) {
         $opthash->{username} = "some_user";
         $opthash->{password} = $bucket->{password};
@@ -112,6 +112,13 @@ sub memd_options {
     return {
         servers => [ $hostname ]
     };
+}
+
+sub make_cbo {
+    my $self = shift;
+    my %options = %{ $self->common_options };
+    $options{compress_threshold} = 100;
+    return Couchbase::Client->new(\%options);
 }
 
 sub k2v {
@@ -138,7 +145,6 @@ sub Initialize {
         $RealServer->{server} ||= "localhost:8091";
         $RealServer->{bucket} ||= "default";
         $MemdPort ||= delete $RealServer->{memd_port};
-        $Mock = 1;
     } else {
         eval {
             $Mock = Couchbase::MockServer->new(%opts);

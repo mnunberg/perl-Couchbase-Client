@@ -40,6 +40,7 @@ lib/Couchbase/Test/Async/Loop.pm
 lib/Couchbase/Test/Settings.pm
 lib/Couchbase/Test/Interop.pm
 lib/Couchbase/Test/Netfail.pm
+lib/Couchbase/Test/Views.pm
 
 ################################################################################
 ### Views Perl API                                                           ###

@@ -20,10 +20,12 @@ use Couchbase::Test::Async;
 use Couchbase::Test::Settings;
 use Couchbase::Test::Interop;
 use Couchbase::Test::Netfail;
+use Couchbase::Test::Views;
 
 Couchbase::Test::ClientSync->runtests();
 Couchbase::Test::Async->runtests();
 Couchbase::Test::Settings->runtests();
 Couchbase::Test::Interop->runtests();
 Couchbase::Test::Netfail->runtests();
+Couchbase::Test::Views->runtests();
 #Test::Class->runtests();
