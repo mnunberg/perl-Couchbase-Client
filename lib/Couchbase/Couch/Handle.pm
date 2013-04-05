@@ -47,11 +47,12 @@ sub default_complete_callback {
 package Couchbase::Couch::Handle::ViewIterator;
 use strict;
 use warnings;
-use Constant::Generate [qw(ITERBUF JSNDEC)], -prefix => 'FLD_';
+use Constant::Generate [qw(ITERBUF JSNDEC JSNROOT)], -prefix => 'FLD_';
 use Couchbase::Client::IDXConst;
 use JSON::SL;
 use Couchbase::Couch::Handle;
 use Couchbase::Couch::ViewRow;
+use Data::Dumper;
 
 use base qw(Couchbase::Couch::Handle);
 
@@ -65,6 +66,12 @@ sub _perl_initialize {
 
     # Establish our JSON::SL object.
     $priv->[FLD_JSNDEC] = JSON::SL->new();
+
+    $priv->[FLD_JSNDEC]->root_callback(sub {
+        if ($_[0]) {
+            $priv->[FLD_JSNROOT] = $_[0]
+        }
+    });
 
     # Set the path for objects we wish to receive. Anything under "rows": [ ..]
     # is a result for the user
@@ -128,19 +135,30 @@ sub _cb_complete {
 # convenience method. Returns the 'total_rows' field.
 sub count {
     my $self = shift;
-    $self->info->_extract_item_count($self->info->_priv->[FLD_JSNDEC]->root);
+    $self->info->_extract_item_count($self->info->_priv->[FLD_JSNROOT]);
+    return $self->info->count;
 }
 
 # User level entry point to the iterator.
 sub next {
     my $self = shift;
     my $rows = $self->info->_priv->[FLD_ITERBUF];
+    my $is_wantarray = wantarray();
+
+    my $return_stuff = sub {
+        if ($is_wantarray) {
+            my @ret = @$rows;
+            @$rows = ();
+            return @ret;
+        }
+        return shift @$rows;
+    };
 
     # First we checked if there are remaining items in the row queue. If there are
     # then we don't need to do any network I/O, but simply pop an item and
     # return.
     if (@$rows) {
-        return shift @$rows;
+        return $return_stuff->();
     }
 
     # so there's nothing in the queue. See if we can get something from the
@@ -150,23 +168,21 @@ sub next {
     # a true return value means we can wait for extra data
     if ($rv) {
         die "Iteration stopped but got nothing in buffer" unless @$rows;
-        return shift @$rows;
+        return $return_stuff->();
     }
 
     # if $rv is false, then we cannot wait for more data (either error, terminated)
     # or some other condition. In this case we finalize the resultset metadata
-    $self->info->_extract_row_errors($self->info->_priv->[FLD_JSNDEC]->root);
+    $self->info->_extract_row_errors($self->info->_priv->[FLD_JSNROOT]);
 
     # TODO: does this line actually do anything?
-    return shift @$rows;
+    return $return_stuff->();
 }
 
 # convenience method to return any remaining JSON not parsed or extracted.
 sub remaining_json {
     my $self = shift;
-    if ($self->info->_priv->[FLD_JSNDEC]) {
-        return $self->info->_priv->[FLD_JSNDEC]->root;
-    }
+    return $self->info->_priv->[FLD_JSNROOT];
 }
 
 # This handle simply 'slurps' data. It has three modes
@@ -267,6 +283,9 @@ upon.
 
 Return the next result in the iterator. The returned object is either a false
 value (indicating no more results), or a L<Couchbase::Couch::ViewRow> object.
+
+If called in array/list context, a list of rows is returned; the amount of rows
+returned is dependent on how much data is currently in the row read buffer.
 
 =head2 stop()
 

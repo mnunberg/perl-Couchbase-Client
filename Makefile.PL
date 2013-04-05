@@ -171,7 +171,7 @@ WriteMakefile(
         'POE'               => 1.312,
 
         'JSON'              => 2.53,
-        'JSON::SL'          => '1.0.0'
+        'JSON::SL'          => '1.0.1'
     },
 
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },

@@ -95,8 +95,16 @@ sub _process_viewpath_common {
     }
 
     if (ref $orig eq 'ARRAY') {
+        unless ($orig->[0] && $orig->[1]) {
+            die("Path cannot be empty");
+        }
+        
         # Assume this is an array of [ design, view ]
         $orig = sprintf("_design/%s/_view/%s", @$orig);
+    }
+
+    if (!$orig) {
+        die("Path cannot be empty");
     }
 
 

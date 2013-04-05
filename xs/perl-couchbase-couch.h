@@ -5,7 +5,7 @@
 #ifndef PERL_COUCHBASE_VIEWS_H_
 #define PERL_COUCHBASE_VIEWS_H_
 
-#define PLCB_JSON_CLASSNAME "JSON::XS"
+#define PLCB_JSON_CLASSNAME "JSON"
 
 #define PLCB_COUCH_HANDLE_INFO_CLASSNAME "Couchbase::Couch::HandleInfo"
 
@@ -76,7 +76,7 @@
  *               Data CV
  *               Couchbase::Client SV
  *               Status
- *               User Data (most likely a JSON::XS object)
+ *               User Data (most likely a JSON object)
  *
  * The object shall contain an accessor upon which to access the 'raw'
  * array and other such fields.

@@ -84,12 +84,12 @@ sub _extract_row_errors {
 
 sub _extract_item_count {
     my ($self,$hash) = @_;
-    if ($self->[COUCHIDX_ROWCOUNT]) {
-        return $self->[COUCHIDX_ROWCOUNT];
+    if (!defined $hash) {
+        return;
     }
-    if (defined $hash && exists $hash->{total_rows}) {
-        $self->[COUCHIDX_ROWCOUNT] = $hash->{total_rows};
-    }
+
+    $self->[COUCHIDX_ROWCOUNT] = $hash->{total_rows};
+    return $self->[COUCHIDX_ROWCOUNT];
 }
 
 sub _extract_view_results {
