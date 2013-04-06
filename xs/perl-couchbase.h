@@ -13,6 +13,12 @@
 #define PLCB_ITER_CLASSNAME "Couchbase::Client::Iterator"
 #define PLCB_STATS_SUBNAME "Couchbase::Client::_stats_helper"
 
+/** Field name for OBSERVE result */
+#define PLCB_OBS_CAS "CAS"
+#define PLCB_OBS_NPERSIST "Persisted"
+#define PLCB_OBS_NREPLICATE "Replicated"
+#define PLCB_OBS_PERSIST_MASTER "PersistedMaster"
+
 #if IVSIZE >= 8
 #define PLCB_PERL64
 #endif
@@ -40,6 +46,12 @@ typedef struct {
     size_t nkey;
     AV *ret;
 } PLCB_sync_t;
+
+/** Used for observe responses, holds metadata */
+typedef struct {
+    PLCB_sync_t sync;
+    uint64_t orig_cas;
+} PLCB_obs_t;
 
 #define PLCB_ITER_ERROR -2
 
@@ -180,6 +192,9 @@ typedef enum {
 void plcb_callbacks_setup(PLCB_t *object);
 void plcb_callbacks_set_multi(PLCB_t *object);
 void plcb_callbacks_set_single(PLCB_t *object);
+
+
+void plcb_observe_result(PLCB_obs_t *obs, const lcb_observe_resp_t *resp);
 
 /*options for common constructor settings*/
 void plcb_ctor_cbc_opts(AV *options,

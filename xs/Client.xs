@@ -145,11 +145,11 @@ PLCB_connect(SV *self)
 
 #define _sync_return_single(object, err, syncp) \
     if(err != LCB_SUCCESS ) { \
-        plcb_ret_set_err(object, syncp->ret, err); \
+        plcb_ret_set_err(object, (syncp)->ret, err); \
     } else { \
         wait_for_single_response(object); \
     } \
-    return plcb_ret_blessed_rv(object, syncp->ret);
+    return plcb_ret_blessed_rv(object, (syncp)->ret);
 
 #define _sync_initialize_single(object, syncp); \
     syncp = &object->sync; \
@@ -363,6 +363,42 @@ SV *PLCB_stats(SV *self, AV *stats)
 
     object->stats_hv = NULL;
     return ret_hvref;
+}
+
+
+SV *PLCB_observe(SV *self, SV *key, uint64_t cas)
+{
+    lcb_t instance;
+    PLCB_t *object;
+    lcb_error_t err;
+    char *skey;
+    AV *ret_av;
+    SV *ret_rv;
+    STRLEN key_len;
+
+    PLCB_obs_t obs;
+
+    lcb_observe_cmd_t cmd = { 0 };
+    const lcb_observe_cmd_t *cmdp = &cmd;
+
+
+    mk_instance_vars(self, instance, object);
+
+    memset(&obs, 0, sizeof(obs));
+    obs.sync.parent = object;
+
+    plcb_get_str_or_die(key, skey, key_len, cas);
+    obs.sync.ret = newAV();
+    av_store(obs.sync.ret, PLCB_RETIDX_VALUE,
+        newRV_noinc((SV*)newHV()));
+
+    cmd.v.v0.key = skey;
+    cmd.v.v0.nkey = key_len;
+
+    obs.orig_cas = cas;
+
+    err = lcb_observe(instance, &obs, 1, &cmdp);
+    _sync_return_single(object, err, &(obs.sync));
 }
 
 static SV*
@@ -593,6 +629,25 @@ PLCB_remove(self, key, ...)
     OUTPUT:
     RETVAL
 
+SV *
+PLCB_observe(self, key, ...)
+    SV *self
+    SV *key
+    PREINIT:
+    uint64_t *cas_ptr;
+    STRLEN cas_len;
+    SV *cas_sv;
+
+    CODE:
+    if (items == 2) {
+        RETVAL = PLCB_observe(self, key, 0);
+    } else {
+        cas_sv = ST(2);
+        plcb_cas_from_sv(cas_sv, cas_ptr, cas_len);
+        RETVAL = PLCB_observe(self, key, *cas_ptr);
+    }
+
+    OUTPUT: RETVAL
 
 SV *
 PLCB_get_errors(self)

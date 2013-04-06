@@ -161,6 +161,16 @@ static void cb_error(lcb_t instance, lcb_error_t err, const char *errinfo)
     plcb_errstack_push(object, err, errinfo);
 }
 
+static void cb_observe(lcb_t instance, const void *cookie,
+        lcb_error_t error, const lcb_observe_resp_t *resp)
+{
+    PLCB_obs_t *obs = (PLCB_obs_t*)cookie;
+    plcb_observe_result(obs, resp);
+    if (resp->v.v0.key == NULL) {
+        plcb_evloop_wait_unref(obs->sync.parent);
+    }
+}
+
 static void cb_stat(lcb_t instance,
                     const void *cookie,
                     lcb_error_t err,
@@ -233,6 +243,7 @@ void plcb_callbacks_setup(PLCB_t *object)
     lcb_set_remove_callback(instance, cb_remove);
     lcb_set_arithmetic_callback(instance, cb_arithmetic);
     lcb_set_stat_callback(instance, cb_stat);
+    lcb_set_observe_callback(instance, cb_observe);
     
     lcb_set_cookie(instance, object);
 }
