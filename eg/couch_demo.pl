@@ -8,17 +8,50 @@ use blib;
 use Couchbase::Client;
 use Couchbase::Client::IDXConst;
 use Data::Dumper::Concise;
-use JSON::XS;
+use JSON;
 use Log::Fu;
 use Carp qw(confess);
+use Getopt::Long;
+
+
 $SIG{__DIE__} = \&confess;
+
+GetOptions(
+	   'u|username=s' => \my $Username,
+	   'p|password=s' => \my $Password,
+	   's|server=s' => \my $Server,
+	   'create-view' => \my $CreateView,
+	   'stale-false' => \my $StaleFalse,
+	   'h|help' => \my $PrintHelp);
+
+$Username ||= "Administrator";
+$Password ||= "123456";
+$Server ||= "localhost:8091";
+
+
+if ($PrintHelp) {
+    print <<EOF;
+    
+Options:
+-u --username
+-p --password
+-s --server
+   --create-view [ whether to create view ]
+   --stale-false [ whether to refresh index ]
+-h --help This message
+
+EOF
+
+    exit(0);
+}
+
 
 # Create the client
 my $cbo = Couchbase::Client->new({
         username=> "Administrator",
         password=> "123456",
-        bucket => "membase0",
-        server => "10.0.0.99:8091"
+        bucket => "default",
+        server => "127.0.0.1:8091"
 });
 
 # Create some sample data to work with
@@ -55,13 +88,16 @@ foreach (0..100) {
     my $results = $cbo->couch_set_multi(@posts);
     my @errkeys = grep { !$results->{$_}->is_ok } keys %$results;
     if (@errkeys) {
+        foreach my $rv (values %$results) {
+            printf("%d: %s\n", $rv->errnum, $rv->errstr);
+        }
         die ("Store did not succeed! Errored keys: ".join(",", @errkeys));
     }
 }
 
 
 #create a design doc
-{
+if ($CreateView) {
     my $design_json = {
         _id => "_design/blog",
         language => "javascript",
@@ -73,12 +109,12 @@ foreach (0..100) {
             }
         }
     };
-    #my $retval = $cbo->couch_design_put($design_json);
-    #log_infof("Path=%s, Return HTTP=%d, (Ok=%d)",
-    #          $retval->path, $retval->http_code, $retval->is_ok);
-    #if (!$retval->is_ok) {
-    #    log_errf("Couldn't save design doc: %s", Dumper($retval->value));
-    #}
+    my $retval = $cbo->couch_design_put($design_json);
+    log_infof("Path=%s, Return HTTP=%d, (Ok=%d)",
+              $retval->path, $retval->http_code, $retval->is_ok);
+    if (!$retval->is_ok) {
+        log_errf("Couldn't save design doc: %s", Dumper($retval->value));
+    }
 }
 
 # Get the design document again..
@@ -103,6 +139,7 @@ log_info("View path is $view");
 {
     my $resultset = $Design->get_view_results("recent_posts");
     if (!$resultset->is_ok) {
+	    print Dumper($resultset);
         die "Got resultset error: ". $resultset->errstr;
     }
     eval {
@@ -116,9 +153,12 @@ log_info("View path is $view");
 # We can be more efficient by using an iterator to incrementally fetch the results
 {
     $|= 1;
-    my $iter = $Design->get_view_iterator("recent_posts",
-                                          ForUpdate => 1,
-                                          limit => 10);
+    my %opts = (limit => 10, ForUpdate => 1);
+    if ($StaleFalse) {
+	$opts{stale} = "false";
+    }
+    
+    my $iter = $Design->get_view_iterator("recent_posts", %opts);
     
     log_infof("Have iterator. Path: %s", $iter->path);
     my $rescount = 0;
