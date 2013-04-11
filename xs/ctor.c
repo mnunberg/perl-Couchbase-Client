@@ -23,7 +23,7 @@ static void ctor_extract_methpairs(AV *options,
                                    int idx, SV **outmeth, SV **inmeth)
 {
     SV **tmpsv;
-    AV *methav;
+    AV *methav = NULL;
     int ii;
     
     SV **assgn_array[] = { outmeth, inmeth };
@@ -51,8 +51,6 @@ static void ctor_extract_methpairs(AV *options,
 void plcb_ctor_conversion_opts(PLCB_t *object, AV *options)
 {
     SV **tmpsv;
-    AV *methav;
-    int dummy;
     
 #define meth_assert_getpairs(flag, optidx) \
     ((object->my_flags & flag) \

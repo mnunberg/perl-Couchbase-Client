@@ -68,9 +68,6 @@ PLCBCH_DESTROY(PLCB_couch_handle_t *handle)
 SV *
 PLCBCH_error(PLCB_couch_handle_t *handle)
 
-    PREINIT:
-    SV *err;
-
     CODE:
     if ( (handle->flags & PLCB_COUCHREQf_ERROR) == 0) {
         RETVAL = &PL_sv_undef;

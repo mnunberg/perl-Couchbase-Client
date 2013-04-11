@@ -12,6 +12,9 @@ PLCB_MAYBE_ALLOC_GENFUNCS(sizet_maybe_alloc, size_t, MULTI_STACK_ELEM, static);
 PLCB_STRUCT_MAYBE_ALLOC_SIZED(syncs_maybe_alloc, PLCB_sync_t, 32);
 PLCB_MAYBE_ALLOC_GENFUNCS(syncs_maybe_alloc, PLCB_sync_t, 32, static);
 
+PLCB_STRUCT_MAYBE_ALLOC_SIZED(timet_maybe_alloc, time_t, MULTI_STACK_ELEM);
+PLCB_MAYBE_ALLOC_GENFUNCS(timet_maybe_alloc, time_t, MULTI_STACK_ELEM, static);
+
 #ifndef mk_instance_vars
 #define mk_instance_vars(sv, inst_name, obj_name) \
     if(!SvROK(sv)) { die("self must be a reference"); } \
@@ -95,7 +98,7 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
     
     struct pointer_maybe_alloc keys_buffer;
     struct sizet_maybe_alloc sizes_buffer;
-    struct sizet_maybe_alloc exps_buffer;
+    struct timet_maybe_alloc exps_buffer;
 
     mk_instance_vars(self, instance, object);
     _MULTI_INIT_COMMON(object, ret, nreq, args, now);
@@ -112,13 +115,13 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
         exps_buffer.allocated = 0;
         exps_buffer.bufp = NULL;
     } else {
-        sizet_maybe_alloc_init(&exps_buffer, nreq);
+        timet_maybe_alloc_init(&exps_buffer, nreq);
     }
     
 #define do_free_buffers() \
         pointer_maybe_alloc_cleanup(&keys_buffer); \
         sizet_maybe_alloc_cleanup(&sizes_buffer); \
-        sizet_maybe_alloc_cleanup(&exps_buffer);
+        timet_maybe_alloc_cleanup(&exps_buffer);
 
     keys = keys_buffer.bufp;
     sizes = sizes_buffer.bufp;
@@ -133,7 +136,7 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
             }
             plcb_get_str_or_die(*tmpsv, keys[i], sizes[i], "key");            
         } else {
-            AV *argav;
+            AV *argav = NULL;
             
             if(SvROK(*tmpsv) == 0 || ( (argav = (AV*)SvRV(*tmpsv))
                                       && SvTYPE(argav) != SVt_PVAV)) {
@@ -217,7 +220,7 @@ PLCB_multi_set_common(SV *self, AV *args, int cmd)
     }
     
     for(i = 0; i < nreq; i++) {
-        AV *argav;
+        AV *argav = NULL;
         SV **tmpsv;
         char *value;
         STRLEN nvalue;
@@ -293,7 +296,7 @@ PLCB_multi_arithmetic_common(SV *self, AV *args, int cmd)
     syncs = syncs_buf.bufp;
 
     for(i = 0; i < nreq; i++) {
-        AV *argav;
+        AV *argav = NULL;
         SV **tmpsv;
         time_t exp = 0;
         int64_t delta = 1;
@@ -378,7 +381,7 @@ PLCB_multi_remove(SV *self, AV *args)
     syncs = syncs_buf.bufp;
     
     for(i = 0; i < nreq; i++) {
-        AV *argav;
+        AV *argav = NULL;
         SV **tmpsv;
         uint64_t cas = 0;
         
@@ -435,7 +438,7 @@ SV* PLCB__get_multi(self, ...)
     get_iterator = PLCB_CMD_ITER_GET
     
     PREINIT:
-    AV *args;
+    AV *args = NULL;
     
     CODE:
     _MAYBE_MULTI_ARG(args);
@@ -463,7 +466,7 @@ PLCB__set_multi(self, ...)
     
     
     PREINIT:
-    AV *args;
+    AV *args = NULL;
     
     CODE:
     _MAYBE_MULTI_ARG(args);
@@ -482,7 +485,7 @@ PLCB__arithmetic_multi(self, ...)
     decr_multi      = PLCB_CMD_DECR
     
     PREINIT:
-    AV *args;
+    AV *args = NULL;
     
     CODE:
     _MAYBE_MULTI_ARG(args);
@@ -499,7 +502,7 @@ PLCB_remove_multi(self, ...)
     delete_multi = 1
     
     PREINIT:
-    AV *args;
+    AV *args = NULL;
     
     CODE:
     _MAYBE_MULTI_ARG(args);

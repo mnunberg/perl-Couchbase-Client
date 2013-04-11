@@ -21,7 +21,7 @@ void plcb_observe_result(PLCB_obs_t *obs, const lcb_observe_resp_t *resp)
     }
 
     SV **tmpsv;
-    HV *res = (SV*) SvRV(*av_fetch(obs->sync.ret, PLCB_RETIDX_VALUE, 0));
+    HV *res = (HV*) SvRV(*av_fetch(obs->sync.ret, PLCB_RETIDX_VALUE, 0));
 
     if (resp->v.v0.from_master &&
             resp->v.v0.cas &&

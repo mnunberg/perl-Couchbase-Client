@@ -133,8 +133,8 @@ void plcb_convert_storage(
         *data_len = SvCUR(*data_sv);
     }
     
-    if( (object->my_flags & PLCBf_DO_CONVERSION == 0 ||
-         object->my_flags & PLCBf_DECONVERT == 0)
+    if( ( (object->my_flags & PLCBf_DO_CONVERSION) == 0 ||
+         (object->my_flags & PLCBf_DECONVERT) == 0)
        && SvROK(*data_sv) == 0) {
         return;
     }

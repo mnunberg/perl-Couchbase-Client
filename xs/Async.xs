@@ -12,9 +12,6 @@ SV *
 PLCBA__get_base_rv(self)
     SV *self
     
-    PREINIT:
-    SV *ret;
-    
     CODE:
     /*this returns the underlying 'base' object, for selected proxy-methods*/
     if(!SvROK(self)) {

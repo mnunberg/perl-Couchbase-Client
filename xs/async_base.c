@@ -27,9 +27,7 @@ static inline void av2request(
                 }
     
     SV **tmpsv;
-    STRLEN dummy;
-    char *dummystr;
-    uint64_t *dummy_cas;
+    uint64_t *dummy_cas = NULL;
     plcb_conversion_spec_t conversion_spec = PLCB_CONVERT_SPEC_NONE;
     
     if(plcba_cmd_needs_key(cmd)) {
@@ -114,7 +112,6 @@ error_pseudo_multi(
 {
     int i, idx_max;
     AV *reqav;
-    lcb_error_t errtmp;
     SV **tmpsv;
     
     idx_max = av_len(reqlist);
@@ -136,13 +133,11 @@ PLCBA_request(
     SV *callcb, SV *cbdata, int cbtype,
     AV *params)
 {
-    int cmdtype;
     struct PLCBA_request_st r;
     
     PLCBA_t *async;
     lcb_t instance;
     PLCB_t *base;
-    AV *reqav;
     
     PLCBA_cookie_t *cookie;
     int nreq, i;
@@ -436,13 +431,17 @@ PLCBA_connect(SV *self)
     lcb_wait(instance);
 }
 
+/**
+ * Apparently this function isn't used?
+ */
 void
 PLCBA_DESTROY(SV *self)
 {
-    lcb_t instance;
     PLCBA_t *async;
+    lcb_t instance;
     PLCB_t *base;
-    
+    _mk_common_vars(self, instance, base, async);
+
     #define _DEC_AND_NULLIFY(fld) \
         if(async->fld) { SvREFCNT_dec(async->fld); async->fld = NULL; }
     

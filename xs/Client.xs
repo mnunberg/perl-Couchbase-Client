@@ -117,7 +117,6 @@ PLCB_connect(SV *self)
 {
     lcb_t instance;
     lcb_error_t err;
-    AV *retav;
     PLCB_t *object;
 
     mk_instance_vars(self, instance, object);
@@ -291,8 +290,6 @@ SV *PLCB_remove(SV *self, SV *key, uint64_t cas)
     lcb_error_t err;
 
     char *skey;
-    AV *ret_av;
-    SV *ret_rv;
     STRLEN key_len;
     PLCB_sync_t *syncp;
 
@@ -372,8 +369,6 @@ SV *PLCB_observe(SV *self, SV *key, uint64_t cas)
     PLCB_t *object;
     lcb_error_t err;
     char *skey;
-    AV *ret_av;
-    SV *ret_rv;
     STRLEN key_len;
 
     PLCB_obs_t obs;
@@ -414,6 +409,7 @@ return_empty(SV *self, int error, const char *errmsg)
     av_store(ret_av, PLCB_RETIDX_ERRSTR, newSVpvf(
         "Couchbase::Client usage error: %s", errmsg));
     plcb_ret_blessed_rv(object, ret_av);
+    return &PL_sv_undef;
 }
 
 /*used for settings accessors*/
@@ -481,7 +477,7 @@ PLCB__set(self, key, value, ...)
     couch_replace= PLCB_CMD_COUCH_REPLACE
 
     PREINIT:
-    UV exp_offset;
+    UV exp_offset = 0;
     int cmd_base;
 
     CODE:
@@ -575,9 +571,8 @@ PLCB__cas(self, key, value, cas_sv, ...)
     couch_cas = PLCB_CMD_COUCH_CAS
 
     PREINIT:
-    UV exp_offset;
-    uint64_t *cas_val;
-    STRLEN cas_len;
+    UV exp_offset = 0;
+    uint64_t *cas_val = NULL;
     int cmd;
 
     CODE:
@@ -613,8 +608,7 @@ PLCB_remove(self, key, ...)
     delete = 1
 
     PREINIT:
-    uint64_t *cas_ptr;
-    STRLEN cas_len;
+    uint64_t *cas_ptr = NULL;
     SV *cas_sv;
 
     CODE:
@@ -634,8 +628,7 @@ PLCB_observe(self, key, ...)
     SV *self
     SV *key
     PREINIT:
-    uint64_t *cas_ptr;
-    STRLEN cas_len;
+    uint64_t *cas_ptr = NULL;
     SV *cas_sv;
 
     CODE:
@@ -656,7 +649,6 @@ PLCB_get_errors(self)
     PREINIT:
     lcb_t instance;
     PLCB_t *object;
-    AV *errors;
 
     CODE:
     mk_instance_vars(self, instance, object);
@@ -702,8 +694,8 @@ PLCB__settings(self, ...)
     dereference_scalar_ref_settings  = SETTINGS_ALIAS_DEREF_RVPV
 
     PREINIT:
-    int flag;
-    int new_value;
+    int flag = 0;
+    int new_value = 0;
     lcb_t instance;
     PLCB_t *object;
 

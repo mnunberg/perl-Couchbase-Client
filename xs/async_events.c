@@ -128,8 +128,7 @@ modify_event_perl(PLCBA_t *async, PLCBA_c_event *cevent,
                   short flags)
 {
     SV **tmpsv;
-    dSP;
-    
+
     tmpsv = av_fetch(cevent->pl_event, PLCBA_EVIDX_FD, 1);
     if(SvIOK(*tmpsv)) {
         if(SvIV(*tmpsv) != cevent->fd) {
@@ -225,8 +224,6 @@ static inline void
 modify_timer_perl(PLCBA_t *async,PLCBA_c_event *cevent,
                   uint32_t usecs, PLCBA_evaction_t action)
 {
-    SV **tmpsv;
-    dSP;
     //warn("Calling cv_timermod");
     plcb_call_sv_with_args_noret(async->cv_timermod,
                                  1, 3,
