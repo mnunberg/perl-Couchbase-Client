@@ -76,6 +76,7 @@ xs/ctor.c
 xs/Client.xs
 xs/Client_multi.xs
 xs/Iterator_get.xs
+xs/observe.c
 
 ################################################################################
 ### Async C Support                                                          ###
