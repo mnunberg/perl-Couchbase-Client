@@ -359,8 +359,15 @@ sub _cleanup_exe {
 # where $ld is an array ref of linker flags
 sub _findcc {
     # Need to use $keep=1 to work with MSWin32 backslashes and quotes
+    
     my $Config_ccflags =  $Config{ccflags};  # use copy so ASPerl will compile
-    my @Config_ldflags =  @Config{qw(ldflags perllibs)};
+    $Config_ccflags =~ s/-arch\s+[^\s]+//g;
+    
+    
+    my $tmp_ldflags = $Config{ldflags};
+    $tmp_ldflags =~ s/-arch\s+[^\s]+//g;
+    
+    my @Config_ldflags =  ($tmp_ldflags, $Config{perllibs});
     my @ccflags = grep { length } quotewords('\s+', 1, $Config_ccflags);
     my @ldflags = grep { length } quotewords('\s+', 1, @Config_ldflags);
     my @paths = split(/$Config{path_sep}/, $ENV{PATH});

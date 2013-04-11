@@ -16,6 +16,12 @@ use Cwd qw(abs_path);
 
 use lib (__DIR__ . '/..');
 
+sub chomp_arch {
+    my $s = shift;
+    $s =~ s/-arch\s+[^\s]+//g;
+    return $s;
+}
+
 my $Sharepath = File::Spec->catfile(
     'auto', 'share', 'dist', 'Couchbase-Client', 'Library');
 
@@ -134,7 +140,7 @@ sub create_buildscript_invocation {
     # used to determine an available dependency:
 
     my $script_cppflags = $mm->{INC};
-    my $config_ccflags = $Config{ccflags};
+    my $config_ccflags = chomp_arch($Config{ccflags});
 
     # Strip any -D's, -f's, -g, and -O from the flags. and remove -pthread
 
@@ -149,7 +155,7 @@ sub create_buildscript_invocation {
     $PLCBTopLevel::U_LibPath ||= "";
 
     my $script_ldflags = $mm->{LDLOADLIBS} . ' ' . $PLCBTopLevel::U_LibPath .
-        ' ' . $Config{ldflags};
+        ' ' . chomp_arch($Config{ldflags});
 
     my $java_arg = $PLCBTopLevel::HaveJava ? "--have-java" : "";
 
