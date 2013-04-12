@@ -106,10 +106,7 @@ plcb_multi_iterator_new(PLCB_t *obj, SV *cbo_sv,
 void
 plcb_multi_iterator_next(PLCB_iter_t *iter, SV **keyp, SV **retp)
 {
-    SV *retrv;
     lcb_get_callback old_callback;
-    int old_remaining;
-    int return_final;
 
     *keyp = NULL;
     *retp = NULL;

@@ -2,6 +2,8 @@
 #include "plcb-util.h"
 #include "plcb-commands.h"
 
+static int PLCB_connect(SV* self);
+
 static inline void
 wait_for_single_response(PLCB_t *object)
 {
@@ -112,7 +114,7 @@ SV *PLCB_construct(const char *pkg, AV *options)
     return plcb_ret_blessed_rv(object, av);
 
 
-int
+static int
 PLCB_connect(SV *self)
 {
     lcb_t instance;
@@ -382,7 +384,7 @@ SV *PLCB_observe(SV *self, SV *key, uint64_t cas)
     memset(&obs, 0, sizeof(obs));
     obs.sync.parent = object;
 
-    plcb_get_str_or_die(key, skey, key_len, cas);
+    plcb_get_str_or_die(key, skey, key_len, "CAS");
     obs.sync.ret = newAV();
     av_store(obs.sync.ret, PLCB_RETIDX_VALUE,
         newRV_noinc((SV*)newHV()));
