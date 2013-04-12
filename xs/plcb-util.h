@@ -41,7 +41,7 @@ static inline uint64_t plcb_sv_to_u64(SV *in)
     
     sv_blob = SvPV(in, blob_len);
     if(blob_len != 8) {
-        die("expected 8-byte data string. Got %d", blob_len);
+        die("expected 8-byte data string. Got %d", (int)blob_len);
     }
     ret = *(uint64_t*)sv_blob;
     return ret;
@@ -56,14 +56,22 @@ static inline uint64_t plcb_sv_to_u64(SV *in)
 
 /*Extract a packed 8 byte blob from an SV into a CAS value*/
 
+static inline void plcb_cas_from_sv_real(SV *sv, uint64_t *cas_p)
+{
+    STRLEN len;
+    *cas_p = *(uint64_t*)SvPV(sv, len);
+    if (len == 8) {
+        if (!*cas_p) {
+            die("Expected 8 byte CAS. Got %d\n", (int)len);
+        }
+    } else {
+        die("CAS Specified, but is NULL");
+    }
+}
+
 #define plcb_cas_from_sv(sv, cas_p, lenvar) \
-    ((cas_p) = (uint64_t*)SvPV(sv, lenvar))  \
-    ? (\
-        (lenvar == 8) \
-            ? (cas_p) \
-            : (void*)die("Expected 8-byte CAS. Got %d", lenvar) \
-        ) \
-    : (void*)die("CAS specified, but is null")
+    plcb_cas_from_sv_real(sv, cas_p)
+
     
 #endif /*PLCB_PERL64*/
 
