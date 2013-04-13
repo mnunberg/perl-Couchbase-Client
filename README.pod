@@ -155,3 +155,37 @@ on github.
 =head3 Couchbase::VBucket - VBucket server mapping module
 
 Just a little utility module. May be useful for testing.
+
+=head1 Installation
+
+C<Couchbase::Client> depends on C<libcouchbase>. You may either use the bundled
+C<libcouchbase> (which is the default installation mode), or using a user/system
+installed C<libcouchbase>.
+
+In any event, the process consists of doing something like:
+
+    perl Makefile.PL
+    make
+    make test
+    make install
+
+Of course, the C<test> target is optional.
+
+=head2 Using Embedded Libraries
+
+This option is normally only available if using a pre-made CPAN distribution.
+The Git repository does not contain the actual C<libcouchbase> source code, so
+there are some extra steps needed. These are documented in the C<HACKING.POD>
+file in the root of this distribution.
+
+
+=head2 Using an Existing libcouchbase
+
+If C<libcouchbase> is already installed, the script should detect this. If it
+doesn't, you may need to pass some extra arguments to C<Makefile.PL>. For example
+if your C<libcouchbase> is installed as C</sources/lcb/inst>, you'd do
+
+    perl Makefile.PL --dynamic --incpath -I/sources/lcb/inst/include --libpath -L/sources/lcb/inst/lib
+    
+where the C<--incpath> and C<--libpath> parameters specify extra compiler/linker
+flags to use.
