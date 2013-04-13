@@ -168,7 +168,6 @@ static void cb_observe(lcb_t instance, const void *cookie,
     printf("Hi!\n");
     
     if (resp->v.v0.key == NULL) {
-        warn("Observe response done");
         plcb_evloop_wait_unref(obs->sync.parent);
         return;
     }

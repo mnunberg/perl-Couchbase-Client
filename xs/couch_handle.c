@@ -254,7 +254,6 @@ void plcb_couch_handle_execute_all(PLCB_couch_handle_t *handle,
 
     handle->flags = 0;
     if (err != LIBCOUCHBASE_SUCCESS) {
-        warn("Got error!!!");
         plcb_ret_set_err(handle->parent, handle->plpriv, err);
         handle->flags |= (PLCB_COUCHREQf_TERMINATED|PLCB_COUCHREQf_ERROR);
         return;
