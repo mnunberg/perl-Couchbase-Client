@@ -165,10 +165,15 @@ static void cb_observe(lcb_t instance, const void *cookie,
         lcb_error_t error, const lcb_observe_resp_t *resp)
 {
     PLCB_obs_t *obs = (PLCB_obs_t*)cookie;
-    plcb_observe_result(obs, resp);
+    printf("Hi!\n");
+    
     if (resp->v.v0.key == NULL) {
+        warn("Observe response done");
         plcb_evloop_wait_unref(obs->sync.parent);
+        return;
     }
+    
+    plcb_observe_result(obs, resp);
 }
 
 static void cb_stat(lcb_t instance,
