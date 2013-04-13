@@ -15,7 +15,7 @@ my $params = {
         'perl-Couchbase-Client/CouchbaseMock-0.5-SNAPSHOT.jar',
 
     #version numbers for libcouchbase and libvbucket
-    LIBCOUCHBASE_RELEASE => '2.0.4',
+    LIBCOUCHBASE_RELEASE => '2.0.5_2_gacffe1a',
 
     LIBEVENT_RELEASE    => '2.0.17-stable',
 };
