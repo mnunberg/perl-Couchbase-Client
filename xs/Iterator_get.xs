@@ -18,6 +18,7 @@ next(PLCB_iter_t *iterator)
             PUSHs(sv_2mortal(ksv));
             PUSHs(sv_2mortal(retav));
         }
+
     } else {
         EXTEND(SP, 1);
         PUSHs(sv_2mortal(newSViv(iterator->remaining)));
@@ -36,6 +37,7 @@ error(PLCB_iter_t *iterator)
     CODE:
     if (iterator->remaining != PLCB_ITER_ERROR) {
         RETVAL = &PL_sv_undef;
+
     } else {
         RETVAL = newRV_noinc((SV*)iterator->error_av);
     }

@@ -8,9 +8,10 @@
     v_base = &(v_async->base); \
     v_instance = v_base->instance;
 
-static inline void av2request(
-    PLCBA_t *async, int cmd,
-    AV *reqav, struct PLCBA_request_st *request)
+static void av2request(PLCBA_t *async,
+                       int cmd,
+                       AV *reqav,
+                       struct PLCBA_request_st *request)
 {
     #define _fetch_nonull(idx) \
         ((tmpsv = av_fetch(reqav, idx, 0)) && SvTYPE(*tmpsv) != SVt_NULL)
@@ -88,13 +89,12 @@ static inline void av2request(
 #define error_single plcba_callback_notify_err
 
 /*single error for multiple operations on a cookie*/
-static inline void
-error_true_multi(
-    PLCBA_t *async,
-    PLCBA_cookie_t *cookie,
-    size_t num_keys,
-    const char **keys, size_t *nkey,
-    lcb_error_t err)
+static void error_true_multi(PLCBA_t *async,
+                             PLCBA_cookie_t *cookie,
+                             size_t num_keys,
+                             const char **keys,
+                             size_t *nkey,
+                             lcb_error_t err)
 {
     int i;
     for(i = 0; i < num_keys; i++) {
@@ -103,12 +103,10 @@ error_true_multi(
 }
 
 /*multiple errors for multiple operations on a cookie*/
-static inline void
-error_pseudo_multi(
-    PLCBA_t *async,
-    PLCBA_cookie_t *cookie,
-    AV *reqlist,
-    lcb_error_t *errors)
+static void error_pseudo_multi(PLCBA_t *async,
+                               PLCBA_cookie_t *cookie,
+                               AV *reqlist,
+                               lcb_error_t *errors)
 {
     int i, idx_max;
     AV *reqav;
@@ -126,12 +124,13 @@ error_pseudo_multi(
     }
 }
 
-void
-PLCBA_request(
-    SV *self,
-    int cmd, int reqtype,
-    SV *callcb, SV *cbdata, int cbtype,
-    AV *params)
+void PLCBA_request(SV *self,
+                   int cmd,
+                   int reqtype,
+                   SV *callcb,
+                   SV *cbdata,
+                   int cbtype,
+                   AV *params)
 {
     struct PLCBA_request_st r;
     
@@ -343,8 +342,7 @@ PLCBA_request(
 }
 
 
-static inline void
-extract_async_options(PLCBA_t *async, AV *options)
+static void extract_async_options(PLCBA_t *async, AV *options)
 {
     #define _assert_get_cv(idxbase, target, diemsg) \
         if( (tmpsv = av_fetch(options, PLCBA_CTORIDX_ ## idxbase, 0)) == NULL \
@@ -370,8 +368,7 @@ extract_async_options(PLCBA_t *async, AV *options)
     #undef _assert_get_cv
 }
 
-SV *
-PLCBA_construct(const char *pkg, AV *options)
+SV* PLCBA_construct(const char *pkg, AV *options)
 {
     PLCBA_t *async;
     char *host, *username, *password, *bucket;
@@ -402,8 +399,7 @@ PLCBA_construct(const char *pkg, AV *options)
 }
 
 /*called from perl when an event arrives*/
-void
-PLCBA_HaveEvent(const char *pkg, short flags, SV *opaque)
+void PLCBA_HaveEvent(const char *pkg, short flags, SV *opaque)
 {
     /*TODO: optmize this to take an arrayref, and maybe configure ourselves for
      event loops which have a different calling convention, e.g. POE*/
@@ -415,8 +411,7 @@ PLCBA_HaveEvent(const char *pkg, short flags, SV *opaque)
     cevent->c.handler(cevent->fd, flags, cevent->c.arg);
 }
 
-void
-PLCBA_connect(SV *self)
+void PLCBA_connect(SV *self)
 {
     lcb_t instance;
     PLCBA_t *async;
@@ -434,8 +429,7 @@ PLCBA_connect(SV *self)
 /**
  * Apparently this function isn't used?
  */
-void
-PLCBA_DESTROY(SV *self)
+void PLCBA_DESTROY(SV *self)
 {
     PLCBA_t *async;
     lcb_t instance;

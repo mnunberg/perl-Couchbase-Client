@@ -166,14 +166,18 @@ void plcb_couch_handle_free(PLCB_couch_handle_t *handle);
 /* Non-chunked */
 void plcb_couch_handle_execute_all(PLCB_couch_handle_t *handle,
                                    lcb_http_method_t method,
-                                   const char *path, size_t npath,
-                                   const char *body, size_t nbody);
+                                   const char *path,
+                                   size_t npath,
+                                   const char *body,
+                                   size_t nbody);
 
 /* Chunked, prepare the handle */
 void plcb_couch_handle_execute_chunked_init(PLCB_couch_handle_t *handle,
                                             lcb_http_method_t method,
-                                            const char *path, size_t npath,
-                                            const char *body, size_t nbody);
+                                            const char *path,
+                                            size_t npath,
+                                            const char *body,
+                                            size_t nbody);
 
 
 /* Chunked, wait until callback signal is done */

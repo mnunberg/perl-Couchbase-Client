@@ -1,11 +1,13 @@
 #include "perl-couchbase.h"
 
-void
-plcb_multi_iterator_collect(PLCB_iter_t *iter,
-                            lcb_error_t err,
-                            const void *key, size_t nkey,
-                            const void *value, size_t nvalue,
-                            uint32_t flags, uint64_t cas)
+void plcb_multi_iterator_collect(PLCB_iter_t *iter,
+                                 lcb_error_t err,
+                                 const void *key,
+                                 size_t nkey,
+                                 const void *value,
+                                 size_t nvalue,
+                                 uint32_t flags,
+                                 uint64_t cas)
 {
     SV *blessed_rv, *ksv;
     AV *cur_ret;
@@ -28,6 +30,7 @@ plcb_multi_iterator_collect(PLCB_iter_t *iter,
 
     /* Simply set the return value, and stop the event loop */
     plcb_ret_set_err(iter->parent, cur_ret, err);
+
     if (err == LIBCOUCHBASE_SUCCESS) {
         plcb_ret_set_strval(iter->parent, cur_ret, value, nvalue, flags, cas);
     }
@@ -62,8 +65,11 @@ static void iter_get_callback(lcb_t instance,
  * Create a new iterator object. This wraps around lcb_mget
  */
 SV*
-plcb_multi_iterator_new(PLCB_t *obj, SV *cbo_sv,
-                        const void * const *keys, size_t *sizes, time_t *exps,
+plcb_multi_iterator_new(PLCB_t *obj,
+                        SV *cbo_sv,
+                        const void * const *keys,
+                        size_t *sizes,
+                        time_t *exps,
                         size_t nitems)
 {
     SV *my_iv, *ret_rv;
@@ -92,9 +98,11 @@ plcb_multi_iterator_new(PLCB_t *obj, SV *cbo_sv,
         SvREFCNT_dec(tmprv);
         plcb_ret_set_err(obj, iterobj->error_av, err);
         iterobj->remaining = PLCB_ITER_ERROR;
+
     } else {
         iterobj->remaining = nitems;
     }
+
     return ret_rv;
 }
 
@@ -117,10 +125,12 @@ plcb_multi_iterator_next(PLCB_iter_t *iter, SV **keyp, SV **retp)
     }
 
     GT_FETCHONE:
+
     if (av_len(iter->buffer_av) > 0) {
         *retp = av_pop(iter->buffer_av);
         *keyp = av_pop(iter->buffer_av);
         return;
+
     } else {
         if (iter->remaining == 0) {
             /* Nothing left, and nothing in the buffer */
@@ -130,7 +140,7 @@ plcb_multi_iterator_next(PLCB_iter_t *iter, SV **keyp, SV **retp)
 
     /* Install the single callback */
     old_callback = lcb_set_get_callback(iter->parent->instance,
-            iter_get_callback);
+                                        iter_get_callback);
 
     plcb_evloop_start(iter->parent);
 

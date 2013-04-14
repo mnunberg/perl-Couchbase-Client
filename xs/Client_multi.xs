@@ -17,21 +17,25 @@ PLCB_MAYBE_ALLOC_GENFUNCS(timet_maybe_alloc, time_t, MULTI_STACK_ELEM, static);
 
 #ifndef mk_instance_vars
 #define mk_instance_vars(sv, inst_name, obj_name) \
-    if(!SvROK(sv)) { die("self must be a reference"); } \
+    if (!SvROK(sv)) { \
+        die("self must be a reference"); \
+    } \
     obj_name = NUM2PTR(PLCB_t*, SvIV(SvRV(sv))); \
-    if(!obj_name) { die("tried to access de-initialized PLCB_t"); } \
+    if(!obj_name) { \
+        die("tried to access de-initialized PLCB_t"); \
+    } \
     inst_name = obj_name->instance;
 
 #endif
 
 #define _fetch_assert(tmpsv, av, idx, diemsg) \
-    if( (tmpsv = av_fetch(av, idx, 0)) == NULL) { \
+    if ( (tmpsv = av_fetch(av, idx, 0)) == NULL) { \
         die("%s (expected something at %d)", diemsg, idx); \
     }
 
 
 #define _MULTI_INIT_COMMON(object, ret, nreq, args, now) \
-    if( (nreq = av_len(args) + 1) == 0 ) { \
+    if ( (nreq = av_len(args) + 1) == 0 ) { \
         die("Need at least one spec"); \
     } \
     ret = newHV(); \
@@ -49,23 +53,25 @@ PLCB_MAYBE_ALLOC_GENFUNCS(timet_maybe_alloc, time_t, MULTI_STACK_ELEM, static);
 
 
 #define _exp_from_av(av, idx, nowvar, expvar, tmpsv) \
-    if( (tmpsv = av_fetch(av, idx, 0)) && (expvar = SvUV(*tmpsv))) { \
+    if ( (tmpsv = av_fetch(av, idx, 0)) && (expvar = SvUV(*tmpsv))) { \
         PLCB_UEXP2EXP(expvar, expvar, nowvar); \
     }
 
 #define _cas_from_av(av, idx, casvar, tmpsv) \
-    if( (tmpsv = av_fetch(av, idx, 0)) && SvTRUE(*tmpsv) ) { \
+    if ( (tmpsv = av_fetch(av, idx, 0)) && SvTRUE(*tmpsv) ) { \
         casvar = plcb_sv_to_u64(*tmpsv); \
     }
 
 #define _MAYBE_SET_IMMEDIATE_ERROR(err, retav, waitvar) \
-    if(err == LCB_SUCCESS) { waitvar++; } \
+    if (err == LCB_SUCCESS) { \
+        waitvar++; \
+    } \
     else { \
         plcb_ret_set_err(object, retav, err); \
     }
 
 #define _MAYBE_WAIT(waitvar) \
-    if(waitvar) { \
+    if (waitvar) { \
         plcb_evloop_start(object); \
     }
 
@@ -114,41 +120,45 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
     if (cmd_base == PLCB_CMD_GET) {
         exps_buffer.allocated = 0;
         exps_buffer.bufp = NULL;
+
     } else {
         timet_maybe_alloc_init(&exps_buffer, nreq);
     }
     
 #define do_free_buffers() \
-        pointer_maybe_alloc_cleanup(&keys_buffer); \
-        sizet_maybe_alloc_cleanup(&sizes_buffer); \
-        timet_maybe_alloc_cleanup(&exps_buffer);
+    pointer_maybe_alloc_cleanup(&keys_buffer); \
+    sizet_maybe_alloc_cleanup(&sizes_buffer); \
+    timet_maybe_alloc_cleanup(&exps_buffer);
 
     keys = keys_buffer.bufp;
     sizes = sizes_buffer.bufp;
     exps = exps_buffer.bufp;
 
-    for(i = 0; i < nreq; i++) {
+    for (i = 0; i < nreq; i++) {
         _fetch_assert(tmpsv, args, i, "arguments");
         
-        if(SvTYPE(*tmpsv) <= SVt_PV) {
-            if(exps) {
+        if (SvTYPE(*tmpsv) <= SVt_PV) {
+            if (exps) {
                 die("This command requires a valid expiry");
             }
-            plcb_get_str_or_die(*tmpsv, keys[i], sizes[i], "key");            
+            plcb_get_str_or_die(*tmpsv, keys[i], sizes[i], "key");
+
         } else {
             AV *argav = NULL;
             
-            if(SvROK(*tmpsv) == 0 || ( (argav = (AV*)SvRV(*tmpsv))
-                                      && SvTYPE(argav) != SVt_PVAV)) {
+            if (SvROK(*tmpsv) == 0 ||
+                    ( (argav = (AV*)SvRV(*tmpsv)) && SvTYPE(argav) != SVt_PVAV)) {
                 die("Expected an array reference");
             }
+
             _fetch_assert(tmpsv, argav, 0, "missing key");
             
             plcb_get_str_or_die(*tmpsv, keys[i], sizes[i], "key");
             
-            if(exps) {
+            if (exps) {
                 _fetch_assert(tmpsv, argav, 1, "expiry");
-                if(! (exps[i] = SvUV(*tmpsv)) ) {
+
+                if (! (exps[i] = SvUV(*tmpsv)) ) {
                     die("expiry of 0 passed. This is not what you want");
                 }
             }
@@ -160,8 +170,12 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
         SV *iter_ret;
         assert(cmd_base == PLCB_CMD_GET || cmd_base == PLCB_CMD_GAT);
 
-        iter_ret = plcb_multi_iterator_new(object, self,
-                (const void * const*)keys, sizes, exps, nreq);
+        iter_ret = plcb_multi_iterator_new(object,
+                                           self,
+                                           (const void * const *) keys,
+                                           sizes,
+                                           exps,
+                                           nreq);
         do_free_buffers();
         return iter_ret;
     }
@@ -169,22 +183,35 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
     plcb_callbacks_set_multi(object);
     SAVEDESTRUCTOR(restore_single_callbacks, object);
     
-    if(cmd == PLCB_CMD_TOUCH) {
-        err = libcouchbase_mtouch(instance, syncp, nreq,
-                                  (const void* const*)keys, sizes, exps);
+    if (cmd == PLCB_CMD_TOUCH) {
+        err = libcouchbase_mtouch(instance,
+                                  syncp,
+                                  nreq,
+                                  (const void* const *) keys,
+                                  sizes,
+                                  exps);
+
     } else {
-        err = libcouchbase_mget(instance, syncp, nreq,
-                                (const void* const*)keys, sizes, NULL);
+        err = libcouchbase_mget(instance,
+                                syncp,
+                                nreq,
+                                (const void* const *) keys,
+                                sizes,
+                                NULL);
     }
     
-    if(err == LCB_SUCCESS) {
+    if (err == LCB_SUCCESS) {
         plcb_evloop_start(object);
+
     } else {
-        for(i = 0; i < nreq; i++) {
+        for (i = 0; i < nreq; i++) {
             AV *errav = newAV();
             plcb_ret_set_err(object, errav, err);
-            hv_store(ret, keys[i], sizes[i],
-                     plcb_ret_blessed_rv(object, errav), 0);
+            hv_store(ret,
+                     keys[i],
+                     sizes[i],
+                     plcb_ret_blessed_rv(object, errav),
+                     0);
         }
     }
 
@@ -219,7 +246,7 @@ PLCB_multi_set_common(SV *self, AV *args, int cmd)
         conversion_spec = PLCB_CONVERT_SPEC_JSON;
     }
     
-    for(i = 0; i < nreq; i++) {
+    for (i = 0; i < nreq; i++) {
         AV *argav = NULL;
         SV **tmpsv;
         char *value;
@@ -231,8 +258,8 @@ PLCB_multi_set_common(SV *self, AV *args, int cmd)
         
         _fetch_assert(tmpsv, args, i, "empty argument in spec");
         
-        if (SvROK(*tmpsv) == 0 || ( ((argav = (AV*)SvRV(*tmpsv)) &&
-                                    SvTYPE(argav) != SVt_PVAV))) {
+        if (SvROK(*tmpsv) == 0 ||
+                ( ((argav = (AV*)SvRV(*tmpsv)) && SvTYPE(argav) != SVt_PVAV))) {
             die("Expected array reference");
         }
         
@@ -243,6 +270,7 @@ PLCB_multi_set_common(SV *self, AV *args, int cmd)
         value_sv = *tmpsv;
         
         switch(cmd_base) {
+
         case PLCB_CMD_SET:
         case PLCB_CMD_ADD:
         case PLCB_CMD_REPLACE:
@@ -251,37 +279,49 @@ PLCB_multi_set_common(SV *self, AV *args, int cmd)
             _exp_from_av(argav, 2, now, exp, tmpsv);
             _cas_from_av(argav, 3, cas, tmpsv);
             break;
+
         case PLCB_CMD_CAS:
             _fetch_assert(tmpsv, argav, 2, "Expected cas");
             _cas_from_av(argav, 2, cas, tmpsv);
             _exp_from_av(argav, 3, now, exp, tmpsv);
             break;
+
         default:
             die("Unhandled command %d", cmd);
         }
         
         _SYNC_RESULT_INIT(object, ret, syncs[i]);
 
-        plcb_convert_storage(object, &value_sv, &nvalue, &store_flags,
+        plcb_convert_storage(object,
+                             &value_sv,
+                             &nvalue,
+                             &store_flags,
                              conversion_spec);
         
-        err = libcouchbase_store(
-            instance, &syncs[i], storop, syncs[i].key, syncs[i].nkey,
-            SvPVX(value_sv), nvalue, store_flags, exp, cas);
+        err = libcouchbase_store(instance,
+                                 &syncs[i],
+                                 storop,
+                                 syncs[i].key,
+                                 syncs[i].nkey,
+                                 SvPVX(value_sv),
+                                 nvalue,
+                                 store_flags,
+                                 exp,
+                                 cas);
         
         plcb_convert_storage_free(object, value_sv, store_flags);
         
         _MAYBE_SET_IMMEDIATE_ERROR(err, syncs[i].ret, nwait);
         
     }
+
     _MAYBE_WAIT(nwait);
 
     syncs_maybe_alloc_cleanup(&syncs_buf);
     return newRV_inc( (SV*)ret);
 }
 
-static SV*
-PLCB_multi_arithmetic_common(SV *self, AV *args, int cmd)
+static SV* PLCB_multi_arithmetic_common(SV *self, AV *args, int cmd)
 {
     _dMULTI_VARS
     
@@ -295,7 +335,7 @@ PLCB_multi_arithmetic_common(SV *self, AV *args, int cmd)
     syncs_maybe_alloc_init(&syncs_buf, nreq);
     syncs = syncs_buf.bufp;
 
-    for(i = 0; i < nreq; i++) {
+    for (i = 0; i < nreq; i++) {
         AV *argav = NULL;
         SV **tmpsv;
         time_t exp = 0;
@@ -311,23 +351,25 @@ PLCB_multi_arithmetic_common(SV *self, AV *args, int cmd)
         _fetch_assert(tmpsv, args, i, "empty argument in spec");
         
         
-        if(SvTYPE(*tmpsv) == SVt_PV) {
+        if (SvTYPE(*tmpsv) == SVt_PV) {
             /*simple key*/
-            if(cmd == PLCB_CMD_ARITHMETIC) {
+            if (cmd == PLCB_CMD_ARITHMETIC) {
                 die("Expected array reference!");
             }
             _do_arith_simple(*tmpsv);
+
         } else {
-            if(SvROK(*tmpsv) == 0 || ( (argav = (AV*)SvRV(*tmpsv)) &&
-                                      SvTYPE(argav) != SVt_PVAV)) {
+            if (SvROK(*tmpsv) == 0 ||
+                    ( (argav = (AV*)SvRV(*tmpsv)) && SvTYPE(argav) != SVt_PVAV)) {
                 die("Expected ARRAY reference");
             }
         }
         
         _fetch_assert(tmpsv, argav, 0, "expected key");
         
-        if(av_len(argav) == 0) {
+        if (av_len(argav) == 0) {
             _do_arith_simple(*tmpsv);
+
         } else {
             plcb_get_str_or_die(*tmpsv, syncs[i].key, syncs[i].nkey, "key");
         }
@@ -336,12 +378,12 @@ PLCB_multi_arithmetic_common(SV *self, AV *args, int cmd)
         delta = SvIV(*tmpsv);
         delta = (cmd == PLCB_CMD_DECR) ? (-delta) : delta;
         
-        if(cmd != PLCB_CMD_ARITHMETIC) {
+        if (cmd != PLCB_CMD_ARITHMETIC) {
             goto GT_CBC_CMD;
         }
         
         /*fetch initial value here*/
-        if( (tmpsv = av_fetch(argav, 2, 0)) && SvTYPE(*tmpsv) != SVt_NULL ) {
+        if ( (tmpsv = av_fetch(argav, 2, 0)) && SvTYPE(*tmpsv) != SVt_NULL ) {
             initial = SvUV(*tmpsv);
             do_create = 1;
         }
@@ -380,17 +422,19 @@ PLCB_multi_remove(SV *self, AV *args)
     syncs_maybe_alloc_init(&syncs_buf, nreq);
     syncs = syncs_buf.bufp;
     
-    for(i = 0; i < nreq; i++) {
+    for (i = 0; i < nreq; i++) {
         AV *argav = NULL;
         SV **tmpsv;
         uint64_t cas = 0;
         
         _fetch_assert(tmpsv, args, i, "empty arguments in spec");
-        if(SvTYPE(*tmpsv) == SVt_PV) {
+
+        if (SvTYPE(*tmpsv) == SVt_PV) {
             plcb_get_str_or_die(*tmpsv, syncs[i].key, syncs[i].nkey, "key");
+
         } else {
-            if(SvROK(*tmpsv) == 0 || ( (argav = (AV*)SvRV(*tmpsv)) &&
-                                      SvTYPE(argav) != SVt_PVAV)) {
+            if(SvROK(*tmpsv) == 0 ||
+                    ( (argav = (AV*)SvRV(*tmpsv)) && SvTYPE(argav) != SVt_PVAV)) {
                 die("Expected ARRAY reference");
             }
             _fetch_assert(tmpsv, argav, 0, "key");
@@ -400,8 +444,12 @@ PLCB_multi_remove(SV *self, AV *args)
         
         _SYNC_RESULT_INIT(object, ret, syncs[i]);
         
-        err = libcouchbase_remove(instance, &syncs[i],
-                                  syncs[i].key, syncs[i].nkey, cas);
+        err = libcouchbase_remove(instance,
+                                  &syncs[i],
+                                  syncs[i].key,
+                                  syncs[i].nkey,
+                                  cas);
+
         _MAYBE_SET_IMMEDIATE_ERROR(err, syncs[i].ret, nwait);
     }
     _MAYBE_WAIT(nwait);
@@ -413,8 +461,8 @@ PLCB_multi_remove(SV *self, AV *args)
 #define _MAYBE_MULTI_ARG(array) \
     if(items == 2) { \
         array = (AV*)ST(1); \
-        if( (SvROK((SV*)array)) && (array = (AV*)SvRV((SV*)array))) { \
-            if(SvTYPE(array) < SVt_PVAV) { \
+        if ( (SvROK((SV*)array)) && (array = (AV*)SvRV((SV*)array))) { \
+            if (SvTYPE(array) < SVt_PVAV) { \
                 die("Expected ARRAY reference for arguments"); \
             } \
         } \

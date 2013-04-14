@@ -27,11 +27,7 @@ static lcb_io_opt_t plcba_default_io_opts(void)
 #endif
 
 
-static inline void
-plcb_call_sv_with_args_noret(SV *code,
-                       int mortalize,
-                       int nargs,
-                       ...)
+static void plcb_call_sv_with_args_noret(SV *code, int mortalize, int nargs, ...)
 {
     va_list ap;
     SV *cursv;    
@@ -44,11 +40,13 @@ plcb_call_sv_with_args_noret(SV *code,
     EXTEND(SP, nargs);
         
     va_start(ap, nargs);
-    while(nargs) {
+
+    while (nargs) {
         cursv = va_arg(ap, SV*);
-        if(mortalize) {
+        if (mortalize) {
             cursv = sv_2mortal(cursv);
         }
+
         PUSHs(cursv);
         nargs--;
     }
@@ -75,14 +73,16 @@ static void *create_event(plcba_cbcio *cbcio)
     cevent->pl_event = newAV();
     cevent->evtype = PLCBA_EVTYPE_IO;
     
-    av_store(cevent->pl_event, PLCBA_EVIDX_OPAQUE,
+    av_store(cevent->pl_event,
+             PLCBA_EVIDX_OPAQUE,
              newSViv(PTR2IV(cevent)));
     
-    if(async->cevents) {
+    if (async->cevents) {
         cevent->prev = NULL;
         cevent->next = async->cevents;
         async->cevents->prev = cevent;
         async->cevents = cevent;
+
     } else {
         async->cevents = cevent;
         cevent->next = NULL;
@@ -99,22 +99,25 @@ static void destroy_event(plcba_cbcio *cbcio, void *event)
     
     //warn("Event destruction requested");
     
-    if(cevent == async->cevents) {
-        if(cevent->next) {
+    if (cevent == async->cevents) {
+        if (cevent->next) {
             async->cevents = cevent->next;
         }
-    } else if(cevent->next == NULL) {
-        if(cevent->prev) {
+
+    } else if (cevent->next == NULL) {
+        if (cevent->prev) {
             cevent->prev->next = NULL;
         }
+
     } else if (cevent->next && cevent->prev) {
         cevent->next->prev = cevent->prev;
         cevent->prev->next = cevent->next;
+
     } else {
         die("uhh... messed up double-linked list state");
     }
     
-    if(cevent->pl_event) {
+    if (cevent->pl_event) {
         SvREFCNT_dec(cevent->pl_event);
         cevent->pl_event = NULL;
     }
@@ -122,38 +125,40 @@ static void destroy_event(plcba_cbcio *cbcio, void *event)
     Safefree(cevent);
 }
 
-static inline void
-modify_event_perl(PLCBA_t *async, PLCBA_c_event *cevent,
-                  PLCBA_evaction_t action,
-                  short flags)
+static void modify_event_perl(PLCBA_t *async,
+                              PLCBA_c_event *cevent,
+                              PLCBA_evaction_t action,
+                              short flags)
 {
     SV **tmpsv;
 
     tmpsv = av_fetch(cevent->pl_event, PLCBA_EVIDX_FD, 1);
-    if(SvIOK(*tmpsv)) {
-        if(SvIV(*tmpsv) != cevent->fd) {
+    if (SvIOK(*tmpsv)) {
+        if (SvIV(*tmpsv) != cevent->fd) {
             /*file descriptor mismatch!*/
             av_delete(cevent->pl_event, PLCBA_EVIDX_DUPFH, G_DISCARD);
         }
+
     } else {
         sv_setiv(*tmpsv, cevent->fd);
     }
     
-    plcb_call_sv_with_args_noret(async->cv_evmod, 1, 3,
+    plcb_call_sv_with_args_noret(async->cv_evmod,
+                                 1,
+                                 3,
                                  newRV_inc( (SV*)(cevent->pl_event)),
-                                 newSViv(action), newSViv(flags));
+                                 newSViv(action),
+                                 newSViv(flags));
     
     /*set the current flags*/
-    if(action != PLCBA_EVACTION_SUSPEND && action != PLCBA_EVACTION_RESUME) {
-        sv_setiv(
-            *(av_fetch(cevent->pl_event, PLCBA_EVIDX_WATCHFLAGS, 1)),
-            flags);
+    if (action != PLCBA_EVACTION_SUSPEND && action != PLCBA_EVACTION_RESUME) {
+        sv_setiv( *(av_fetch(cevent->pl_event, PLCBA_EVIDX_WATCHFLAGS, 1)),
+                 flags);
     }
     
     /*set the current state*/
-    sv_setiv(
-        *(av_fetch(cevent->pl_event, PLCBA_EVIDX_STATEFLAGS, 1)),
-        cevent->state);
+    sv_setiv( *(av_fetch(cevent->pl_event, PLCBA_EVIDX_STATEFLAGS, 1)),
+             cevent->state);
 }
 
 /*start select()ing on a socket*/
@@ -172,16 +177,17 @@ static int update_event(plcba_cbcio *cbcio,
     cevent = (PLCBA_c_event*)event;
     object = (PLCBA_t*)(cbcio->v.v0.cookie);
     
-    if(!flags) {
+    if (!flags) {
         action = PLCBA_EVACTION_UNWATCH;
         new_state = PLCBA_EVSTATE_INITIALIZED;
+
     } else {
         action = PLCBA_EVACTION_WATCH;
         new_state = PLCBA_EVSTATE_ACTIVE;
     }
 
     
-    if(cevent->flags == flags &&
+    if (cevent->flags == flags &&
        cevent->c.handler == handler &&
        cevent->c.arg == cb_data &&
        new_state == cevent->state) {
@@ -200,8 +206,7 @@ static int update_event(plcba_cbcio *cbcio,
 }
 
 /*stop select()ing a socket*/
-static void delete_event(plcba_cbcio *cbcio,
-                         lcb_socket_t sock, void *event)
+static void delete_event(plcba_cbcio *cbcio, lcb_socket_t sock, void *event)
 {
     update_event(cbcio, sock, event, 0, NULL, NULL);
 }
@@ -220,20 +225,25 @@ static void *create_timer(plcba_cbcio *cbcio)
     return cevent;
 }
 
-static inline void
-modify_timer_perl(PLCBA_t *async,PLCBA_c_event *cevent,
-                  uint32_t usecs, PLCBA_evaction_t action)
+static void modify_timer_perl(PLCBA_t *async,
+                              PLCBA_c_event *cevent,
+                              uint32_t usecs,
+                              PLCBA_evaction_t action)
 {
     //warn("Calling cv_timermod");
     plcb_call_sv_with_args_noret(async->cv_timermod,
-                                 1, 3,
+                                 1,
+                                 3,
                                  newRV_inc( (SV*)cevent->pl_event ),
-                                 newSViv(action), newSVuv(usecs));
+                                 newSViv(action),
+                                 newSVuv(usecs));
 }
+
 static int update_timer(plcba_cbcio *cbcio,
-                         void *event, uint32_t usecs,
-                         void *cb_data,
-                         plcba_c_evhandler handler)
+                        void *event,
+                        uint32_t usecs,
+                        void *cb_data,
+                        plcba_c_evhandler handler)
 {
     /*we cannot do any sane caching or clever magic like we do for I/O
      watchers, because the time will always be different*/
@@ -263,11 +273,14 @@ static void run_event_loop(plcba_cbcio *cbcio)
     async = (PLCBA_t*)cbcio->v.v0.cookie;
     
     //warn("Resuming events..");
-    for(cevent = async->cevents; cevent; cevent = cevent->next) {
-        if(cevent->evtype == PLCBA_EVTYPE_IO && cevent->fd > 0) {
+    for (cevent = async->cevents; cevent; cevent = cevent->next) {
+
+        if (cevent->evtype == PLCBA_EVTYPE_IO && cevent->fd > 0) {
             cevent->state = PLCBA_EVSTATE_ACTIVE;
-            modify_event_perl(
-                async, cevent, PLCBA_EVACTION_RESUME, cevent->flags);
+            modify_event_perl(async,
+                              cevent,
+                              PLCBA_EVACTION_RESUME,
+                              cevent->flags);
         }
     }
     
@@ -291,8 +304,9 @@ static void stop_event_loop(plcba_cbcio *cbcio)
 
     async = cbcio->v.v0.cookie;
     
-    for(cevent = async->cevents; cevent; cevent = cevent->next) {
-        if(cevent->evtype == PLCBA_EVTYPE_IO && cevent->fd > 0) {
+    for (cevent = async->cevents; cevent; cevent = cevent->next) {
+
+        if (cevent->evtype == PLCBA_EVTYPE_IO && cevent->fd > 0) {
             cevent->state = PLCBA_EVSTATE_SUSPENDED;
             modify_event_perl(async, cevent, PLCBA_EVACTION_SUSPEND, -1);
         }
@@ -308,19 +322,21 @@ void destructor(plcba_cbcio *cbcio)
     /*free any remaining events*/
     PLCBA_c_event *cevent;
     PLCBA_t *async;
-    if(!cbcio) {
+
+    if (!cbcio) {
         return;
     }
     
-    if(! (async = cbcio->v.v0.cookie) ) {
+    if (! (async = cbcio->v.v0.cookie) ) {
         return; /*already freed*/
     }
     
     cevent = async->cevents;
-    while(cevent) {
-        if(cevent->next) {
+    while (cevent) {
+        if (cevent->next) {
             cevent = cevent->next;
             free(cevent->prev);
+
         } else {
             free(cevent);
             cevent = NULL;
@@ -331,8 +347,7 @@ void destructor(plcba_cbcio *cbcio)
 }
 
 
-plcba_cbcio *
-plcba_make_io_opts(PLCBA_t *async)
+plcba_cbcio* plcba_make_io_opts(PLCBA_t *async)
 {
     plcba_cbcio *cbcio;
     

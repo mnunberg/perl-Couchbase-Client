@@ -198,57 +198,62 @@ void plcb_observe_result(PLCB_obs_t *obs, const lcb_observe_resp_t *resp);
 
 /*options for common constructor settings*/
 void plcb_ctor_cbc_opts(AV *options,
-    char **hostp, char **userp, char **passp, char **bucketp);
+                        char **hostp,
+                        char **userp,
+                        char **passp,
+                        char **bucketp);
+
 void plcb_ctor_conversion_opts(PLCB_t *object, AV *options);
-void plcb_ctor_init_common(PLCB_t *object, lcb_t instance,
-                           AV *options);
-void plcb_errstack_push(PLCB_t *object,
-                        lcb_error_t err, const char *errinfo);
+void plcb_ctor_init_common(PLCB_t *object, lcb_t instance, AV *options);
+void plcb_errstack_push(PLCB_t *object, lcb_error_t err, const char *errinfo);
 
 /*cleanup functions*/
 void plcb_cleanup(PLCB_t *object);
 
 /*conversion functions*/
-void plcb_convert_storage(
-    PLCB_t* object, SV **input_sv, STRLEN *data_len, uint32_t *flags,
-    plcb_conversion_spec_t spec);
+void plcb_convert_storage(PLCB_t* object,
+                          SV **input_sv,
+                          STRLEN *data_len,
+                          uint32_t *flags,
+                          plcb_conversion_spec_t spec);
 
-void plcb_convert_storage_free(
-    PLCB_t *object, SV *output_sv, uint32_t flags);
-SV* plcb_convert_retrieval(
-    PLCB_t *object, const char *data, size_t data_len, uint32_t flags);
+void plcb_convert_storage_free(PLCB_t *object, SV *output_sv, uint32_t flags);
+SV* plcb_convert_retrieval(PLCB_t *object,
+                           const char *data,
+                           size_t data_len,
+                           uint32_t flags);
 
 
-int
-plcb_convert_settings(PLCB_t *object, int flag, int new_value);
+int plcb_convert_settings(PLCB_t *object, int flag, int new_value);
 
 /**
  * Iterator functions
  */
-SV*
-plcb_multi_iterator_new(PLCB_t *obj, SV *cbo_sv,
-                        const void * const *keys, size_t *sizes, time_t *exps,
-                        size_t nitems);
+SV* plcb_multi_iterator_new(PLCB_t *obj,
+                            SV *cbo_sv,
+                            const void * const *keys,
+                            size_t *sizes,
+                            time_t *exps,
+                            size_t nitems);
 
-void
-plcb_multi_iterator_next(PLCB_iter_t *iter, SV **keyp, SV **retp);
+void plcb_multi_iterator_next(PLCB_iter_t *iter, SV **keyp, SV **retp);
 
-void
-plcb_multi_iterator_collect(PLCB_iter_t *iter,
-                            lcb_error_t err,
-                            const void *key, size_t nkey,
-                            const void *value, size_t nvalue,
-                            uint32_t flags, uint64_t cas);
+void plcb_multi_iterator_collect(PLCB_iter_t *iter,
+                                 lcb_error_t err,
+                                 const void *key,
+                                 size_t nkey,
+                                 const void *value,
+                                 size_t nvalue,
+                                 uint32_t flags,
+                                 uint64_t cas);
 
-void
-plcb_multi_iterator_cleanup(PLCB_iter_t *iter);
+void plcb_multi_iterator_cleanup(PLCB_iter_t *iter);
 
 /**
  * This function decrements the wait count by one, and possibly calls stop_event_loop
  * if the reference count has hit 0.
  */
-void
-plcb_evloop_wait_unref(PLCB_t *obj);
+void plcb_evloop_wait_unref(PLCB_t *obj);
 
 #define plcb_evloop_start(obj) \
     (obj)->io_ops->v.v0.run_event_loop(obj->io_ops)

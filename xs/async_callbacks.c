@@ -3,19 +3,22 @@
 #define _R \
     resp->v.v0
 
-static inline void
-tell_perl(PLCBA_cookie_t *cookie, AV *ret,
-            const char *key, size_t nkey)
+static void tell_perl(PLCBA_cookie_t *cookie,
+                      AV *ret,
+                      const char *key,
+                      size_t nkey)
 {
     dSP;
     
-    hv_store(cookie->results, key, nkey,
+    hv_store(cookie->results,
+             key,
+             nkey,
              plcb_ret_blessed_rv(&(cookie->parent->base), ret),
              0);
     
     cookie->remaining--;    
     
-    if(cookie->cbtype == PLCBA_CBTYPE_INCREMENTAL ||
+    if (cookie->cbtype == PLCBA_CBTYPE_INCREMENTAL ||
        (cookie->cbtype == PLCBA_CBTYPE_COMPLETION &&
         cookie->remaining == 0)) {
         
@@ -34,7 +37,7 @@ tell_perl(PLCBA_cookie_t *cookie, AV *ret,
         LEAVE;
     }
     
-    if(!cookie->remaining) {
+    if (!cookie->remaining) {
         SvREFCNT_dec(cookie->results);
         SvREFCNT_dec(cookie->callcb);
         SvREFCNT_dec(cookie->cbdata);
@@ -44,7 +47,8 @@ tell_perl(PLCBA_cookie_t *cookie, AV *ret,
 
 void plcba_callback_notify_err(PLCBA_t *async,
                                PLCBA_cookie_t *cookie,
-                               const char *key, size_t nkey,
+                               const char *key,
+                               size_t nkey,
                                lcb_error_t err)
 {
     AV *ret;
@@ -74,7 +78,7 @@ static void get_callback(lcb_t instance,
 {
     _CB_INIT;
     //warn("Get callback");
-    if(err == LIBCOUCHBASE_SUCCESS) {
+    if (err == LIBCOUCHBASE_SUCCESS) {
         //warn("Got value of %d bytes", nbytes);
         plcb_ret_set_strval(object, ret, _R.bytes, _R.nbytes, _R.flags, _R.cas);
     }
@@ -88,20 +92,20 @@ static void storage_callback(lcb_t instance,
                              const lcb_store_resp_t *resp)
 {
     _CB_INIT;
-    if(_R.cas) {
+    if (_R.cas) {
         plcb_ret_set_cas(object, ret, &_R.cas);
     }
+
     tell_perl(cookie, ret, _R.key, _R.nkey);
 }
 
-static void
-arithmetic_callback(lcb_t instance,
-                    const void *v_cookie,
-                    lcb_error_t err,
-                    const lcb_arithmetic_resp_t *resp)
+static void arithmetic_callback(lcb_t instance,
+                                const void *v_cookie,
+                                lcb_error_t err,
+                                const lcb_arithmetic_resp_t *resp)
 {
     _CB_INIT;
-    if(err == LIBCOUCHBASE_SUCCESS) {
+    if (err == LIBCOUCHBASE_SUCCESS) {
         plcb_ret_set_numval(object, ret, _R.value, _R.cas);
     }
     tell_perl(cookie, ret, _R.key, _R.nkey);
@@ -129,10 +133,7 @@ static void touch_callback(lcb_t instance,
     tell_perl(cookie, ret, _R.key, _R.nkey);
 }
 
-static void
-error_callback(lcb_t instance,
-               lcb_error_t err,
-               const char *errinfo)
+static void error_callback(lcb_t instance, lcb_error_t err, const char *errinfo)
 {
     PLCBA_t *async;
     dSP;
@@ -152,8 +153,7 @@ error_callback(lcb_t instance,
     LEAVE;
 }
 
-void
-plcba_setup_callbacks(PLCBA_t *async)
+void plcba_setup_callbacks(PLCBA_t *async)
 {
     lcb_t instance;
     

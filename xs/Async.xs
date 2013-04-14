@@ -14,7 +14,7 @@ PLCBA__get_base_rv(self)
     
     CODE:
     /*this returns the underlying 'base' object, for selected proxy-methods*/
-    if(!SvROK(self)) {
+    if (!SvROK(self)) {
         die("I was not given a reference");
     }
     RETVAL = newRV_inc(SvRV(self));

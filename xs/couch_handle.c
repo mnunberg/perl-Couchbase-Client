@@ -8,7 +8,10 @@
  * Couchbase::Couch::Handle and its subclasses
  */
 
-static void call_to_perl(PLCB_couch_handle_t *handle, int cbidx, SV *datasv, AV *statusav)
+static void call_to_perl(PLCB_couch_handle_t *handle,
+                         int cbidx,
+                         SV *datasv,
+                         AV *statusav)
 {
     SV **tmpsv;
     
@@ -38,12 +41,11 @@ static void call_to_perl(PLCB_couch_handle_t *handle, int cbidx, SV *datasv, AV 
     LEAVE;
 }
 
-static
-void data_callback(lcb_http_request_t couchreq,
-                   lcb_t instance,
-                   const void *cookie,
-                   lcb_error_t error,
-                   const lcb_http_resp_t *resp)
+static void data_callback(lcb_http_request_t couchreq,
+                          lcb_t instance,
+                          const void *cookie,
+                          lcb_error_t error,
+                          const lcb_http_resp_t *resp)
 {
     PLCB_couch_handle_t *handle = (PLCB_couch_handle_t*)cookie;
     SV **tmpsv;
@@ -58,6 +60,7 @@ void data_callback(lcb_http_request_t couchreq,
     if (resp->v.v0.nbytes) {
         datasv = newSVpv((const char*)resp->v.v0.bytes,
                          resp->v.v0.nbytes);
+
     } else {
         datasv = &PL_sv_undef;
     }
@@ -65,15 +68,19 @@ void data_callback(lcb_http_request_t couchreq,
 
     if (error != LIBCOUCHBASE_SUCCESS) {
         plcb_ret_set_err(handle->parent, handle->plpriv, error);
-        lcb_cancel_http_request(handle->parent->instance,
-                                couchreq);
+        lcb_cancel_http_request(handle->parent->instance, couchreq);
+
         handle->lcb_request = NULL;
         handle->flags |=
                 (PLCB_COUCHREQf_TERMINATED |
                 PLCB_COUCHREQf_ERROR |
                 PLCB_COUCHREQf_STOPITER);
         plcb_evloop_wait_unref(handle->parent);
-        call_to_perl(handle, PLCB_COUCHIDX_CALLBACK_COMPLETE, datasv, handle->plpriv);
+        call_to_perl(handle,
+                     PLCB_COUCHIDX_CALLBACK_COMPLETE,
+                     datasv,
+                     handle->plpriv);
+
     } else {
         call_to_perl(handle, PLCB_COUCHIDX_CALLBACK_DATA, datasv, handle->plpriv);
 
@@ -112,6 +119,7 @@ static void complete_callback(lcb_http_request_t couchreq,
     if (error != LIBCOUCHBASE_SUCCESS || (status < 200 && status > 299)) {
         handle->flags |= PLCB_COUCHREQf_ERROR;
     }
+
     plcb_ret_set_err(handle->parent, handle->plpriv, error);
 
     if ( (handle->flags & PLCB_COUCHREQf_CHUNKED) == 0) {
@@ -125,6 +133,7 @@ static void complete_callback(lcb_http_request_t couchreq,
         }
         /* Not chunked, decrement reference count */
         plcb_evloop_wait_unref(handle->parent);
+
     } else {
         /* chunked */
 
@@ -133,8 +142,10 @@ static void complete_callback(lcb_http_request_t couchreq,
          */
         sv_setiv(*( av_fetch(handle->plpriv, PLCB_COUCHIDX_HTTP, 1)), status);
 
-        call_to_perl(handle, PLCB_COUCHIDX_CALLBACK_COMPLETE,
-                     &PL_sv_undef, handle->plpriv);
+        call_to_perl(handle,
+                     PLCB_COUCHIDX_CALLBACK_COMPLETE,
+                     &PL_sv_undef,
+                     handle->plpriv);
 
         /**
          * Because we might receive this callback in succession to a data
@@ -192,6 +203,7 @@ void plcb_couch_handle_free(PLCB_couch_handle_t *handle)
         SvREFCNT_dec(handle->plpriv);
         handle->plpriv = NULL;
     }
+
     if (handle->self_rv) {
         SvREFCNT_dec(handle->self_rv);
         handle->self_rv = NULL;
@@ -209,17 +221,20 @@ void plcb_couch_handle_finish(PLCB_couch_handle_t *handle)
     if ( (handle->flags & PLCB_COUCHREQf_ACTIVE) == 0) {
         return;
     }
+
     if (handle->lcb_request) {
-        lcb_cancel_http_request(handle->parent->instance,
-                                handle->lcb_request);
+        lcb_cancel_http_request(handle->parent->instance, handle->lcb_request);
     }
+
     handle->flags |= PLCB_COUCHREQf_TERMINATED;
 }
 
 
 static void make_http_cmd(lcb_http_method_t method,
-                          const char *path, size_t npath,
-                          const char *body, size_t nbody,
+                          const char *path,
+                          size_t npath,
+                          const char *body,
+                          size_t nbody,
                           int chunked,
                           lcb_http_cmd_t *cmd)
 {
@@ -240,8 +255,10 @@ static void make_http_cmd(lcb_http_method_t method,
 
 void plcb_couch_handle_execute_all(PLCB_couch_handle_t *handle,
                                    lcb_http_method_t method,
-                                   const char *path, size_t npath,
-                                   const char *body, size_t nbody)
+                                   const char *path,
+                                   size_t npath,
+                                   const char *body,
+                                   size_t nbody)
 {
     lcb_error_t err;
     lcb_http_cmd_t htcmd = { 0 };
@@ -253,6 +270,7 @@ void plcb_couch_handle_execute_all(PLCB_couch_handle_t *handle,
                                 &handle->lcb_request);
 
     handle->flags = 0;
+
     if (err != LIBCOUCHBASE_SUCCESS) {
         plcb_ret_set_err(handle->parent, handle->plpriv, err);
         handle->flags |= (PLCB_COUCHREQf_TERMINATED|PLCB_COUCHREQf_ERROR);
@@ -270,23 +288,29 @@ void plcb_couch_handle_execute_all(PLCB_couch_handle_t *handle,
 
 void plcb_couch_handle_execute_chunked_init(PLCB_couch_handle_t *handle,
                                             lcb_http_method_t method,
-                                            const char *path, size_t npath,
-                                            const char *body, size_t nbody)
+                                            const char *path,
+                                            size_t npath,
+                                            const char *body,
+                                            size_t nbody)
 {
     lcb_error_t err;
     handle->flags = PLCB_COUCHREQf_CHUNKED;
     lcb_http_cmd_t htcmd = { 0 };
     make_http_cmd(method, path, npath, body, nbody, 1, &htcmd);
     
-    err = lcb_make_http_request(handle->parent->instance, handle,
-                                  LCB_HTTP_TYPE_VIEW, &htcmd,
-                                  &handle->lcb_request);
+    err = lcb_make_http_request(handle->parent->instance,
+                                handle,
+                                LCB_HTTP_TYPE_VIEW,
+                                &htcmd,
+                                &handle->lcb_request);
 
     if (err != LIBCOUCHBASE_SUCCESS) {
         /* Pretend we're done, and call the data callback */
         plcb_ret_set_err(handle->parent, handle->plpriv, err);
-        call_to_perl(handle, PLCB_COUCHIDX_CALLBACK_COMPLETE,
-                     &PL_sv_undef, handle->plpriv);
+        call_to_perl(handle,
+                     PLCB_COUCHIDX_CALLBACK_COMPLETE,
+                     &PL_sv_undef,
+                     handle->plpriv);
     }
     
     handle->flags |= PLCB_COUCHREQf_ACTIVE;

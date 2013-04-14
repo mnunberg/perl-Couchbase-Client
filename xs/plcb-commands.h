@@ -99,7 +99,7 @@ static lcb_storage_t PLCB__StorageMap[] = {
     #undef X
 };
 
-static inline lcb_storage_t
+static lcb_storage_t
 plcb_command_to_storop(int cmd)
 {
     int cmd_base = cmd & PLCB_COMMAND_MASK_STRIP;

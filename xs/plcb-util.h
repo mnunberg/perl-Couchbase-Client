@@ -28,24 +28,27 @@
 
 #else
 
-static inline uint64_t plcb_sv_to_u64(SV *in)
+static uint64_t plcb_sv_to_u64(SV *in)
 {
     char *sv_blob;
     STRLEN blob_len;
     uint64_t ret;
     
-    if(SvIOK(in)) {
+    if (SvIOK(in)) {
         /*Numeric*/
         return SvUV(in);
     }
     
     sv_blob = SvPV(in, blob_len);
-    if(blob_len != 8) {
+
+    if (blob_len != 8) {
         die("expected 8-byte data string. Got %d", (int)blob_len);
     }
+
     ret = *(uint64_t*)sv_blob;
     return ret;
 }
+
 #define plcb_sv_to_64(sv) ((int64_t)(plcb_sv_to_u64(sv)))
 
 #define plcb_sv_from_u64(sv, num) \
@@ -56,14 +59,16 @@ static inline uint64_t plcb_sv_to_u64(SV *in)
 
 /*Extract a packed 8 byte blob from an SV into a CAS value*/
 
-static inline void plcb_cas_from_sv_real(SV *sv, uint64_t *cas_p)
+static void plcb_cas_from_sv_real(SV *sv, uint64_t *cas_p)
 {
     STRLEN len;
     *cas_p = *(uint64_t*)SvPV(sv, len);
+
     if (len == 8) {
         if (!*cas_p) {
             die("Expected 8 byte CAS. Got %d\n", (int)len);
         }
+
     } else {
         die("CAS Specified, but is NULL");
     }

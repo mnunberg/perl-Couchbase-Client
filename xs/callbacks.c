@@ -26,16 +26,30 @@ static void single_keyop_common(lcb_t instance,
                                 uint64_t cas)
 {
     PLCB_sync_t *syncp = plcb_sync_cast(cookie);
+
     if (syncp->type != PLCB_SYNCTYPE_SINGLE) {
-        plcb_multi_iterator_collect((PLCB_iter_t*)cookie, err,
-                key, nkey, bytes, nbytes, flags, cas);
+        plcb_multi_iterator_collect((PLCB_iter_t*) cookie,
+                                    err,
+                                    key,
+                                    nkey,
+                                    bytes,
+                                    nbytes,
+                                    flags,
+                                    cas);
         return;
     }
+
     plcb_ret_set_err(syncp->parent, syncp->ret, err);
-    if(err == LCB_SUCCESS && bytes) {
-        plcb_ret_set_strval(
-            syncp->parent, syncp->ret, bytes, nbytes, flags, cas);
+
+    if (err == LCB_SUCCESS && bytes) {
+        plcb_ret_set_strval( syncp->parent,
+                            syncp->ret,
+                            bytes,
+                            nbytes,
+                            flags,
+                            cas);
     }
+
     plcb_evloop_wait_unref(syncp->parent);
 }
 
@@ -54,23 +68,34 @@ static void multi_keyop_common(lcb_t instance,
     HV *results;
 
     if (syncp->type != PLCB_SYNCTYPE_SINGLE) {
-        plcb_multi_iterator_collect((PLCB_iter_t*)cookie, err,
-                key, nkey, bytes, nbytes, flags, cas);
+
+        plcb_multi_iterator_collect((PLCB_iter_t*) cookie,
+                                    err,
+                                    key,
+                                    nkey,
+                                    bytes,
+                                    nbytes,
+                                    flags,
+                                    cas);
         return;
     }
 
     ret = newAV();
     results = (HV*)(syncp->ret);
     
-    hv_store(results, key, nkey,
-             plcb_ret_blessed_rv(syncp->parent, ret), 0);
+    hv_store(results,
+             key,
+             nkey,
+             plcb_ret_blessed_rv(syncp->parent, ret),
+             0);
     
     plcb_ret_set_err(syncp->parent, ret, err);
     
-    if(err == LCB_SUCCESS && nbytes) {
+    if (err == LCB_SUCCESS && nbytes) {
         plcb_ret_set_strval(
             syncp->parent, ret, bytes, nbytes, flags, cas);
     }
+
     plcb_evloop_wait_unref(syncp->parent);
 }
 
@@ -83,9 +108,15 @@ static void cb_get(lcb_t instance,
                    lcb_error_t error,
                    const lcb_get_resp_t *resp)
 {
-    single_keyop_common(instance, cookie, error,
-                        _R.key, _R.nkey,
-                        _R.bytes, _R.nbytes, _R.flags, _R.cas);
+    single_keyop_common(instance,
+                        cookie,
+                        error,
+                        _R.key,
+                        _R.nkey,
+                        _R.bytes,
+                        _R.nbytes,
+                        _R.flags,
+                        _R.cas);
 }
 
 static void cb_get_multi(lcb_t instance,
@@ -93,9 +124,15 @@ static void cb_get_multi(lcb_t instance,
                          lcb_error_t error,
                          const lcb_get_resp_t *resp)
 {
-    multi_keyop_common(instance, cookie, error,
-                       _R.key, _R.nkey,
-                       _R.bytes, _R.nbytes, _R.flags, _R.cas);
+    multi_keyop_common(instance,
+                       cookie,
+                       error,
+                       _R.key,
+                       _R.nkey,
+                       _R.bytes,
+                       _R.nbytes,
+                       _R.flags,
+                       _R.cas);
 }
 
 static void cb_touch(lcb_t instance,
@@ -103,8 +140,15 @@ static void cb_touch(lcb_t instance,
                      lcb_error_t error,
                      const lcb_touch_resp_t *resp)
 {
-    single_keyop_common(instance, cookie, error,
-                        _R.key, _R.nkey, NULL, 0, 0, _R.cas);
+    single_keyop_common(instance,
+                        cookie,
+                        error,
+                        _R.key,
+                        _R.nkey,
+                        NULL,
+                        0,
+                        0,
+                        _R.cas);
 }
 
 static void cb_touch_multi(lcb_t instance,
@@ -112,8 +156,15 @@ static void cb_touch_multi(lcb_t instance,
                            lcb_error_t error,
                            const lcb_touch_resp_t *resp)
 {
-    multi_keyop_common(instance, cookie, error,
-                       _R.key, _R.nkey, NULL, 0, 0, _R.cas);
+    multi_keyop_common(instance,
+                       cookie,
+                       error,
+                       _R.key,
+                       _R.nkey,
+                       NULL,
+                       0,
+                       0,
+                       _R.cas);
 }
 
 static void cb_remove(lcb_t instance,
@@ -121,8 +172,15 @@ static void cb_remove(lcb_t instance,
                       lcb_error_t error,
                       const lcb_remove_resp_t *resp)
 {
-    single_keyop_common(instance, cookie, error,
-                        _R.key, _R.nkey, NULL, 0, 0, _R.cas);
+    single_keyop_common(instance,
+                        cookie,
+                        error,
+                        _R.key,
+                        _R.nkey,
+                        NULL,
+                        0,
+                        0,
+                        _R.cas);
 }
 
 static void cb_storage(lcb_t instance,
@@ -133,9 +191,11 @@ static void cb_storage(lcb_t instance,
 {
     PLCB_sync_t *syncp = plcb_sync_cast(cookie);
     plcb_ret_set_err(syncp->parent, syncp->ret, err);
-    if(err == LCB_SUCCESS) {
+
+    if (err == LCB_SUCCESS) {
         plcb_ret_set_cas(syncp->parent, syncp->ret, &(_R.cas));
     }
+
     plcb_evloop_wait_unref(syncp->parent);
 }
 
@@ -146,10 +206,14 @@ static void cb_arithmetic(lcb_t instance,
 {
     PLCB_sync_t *syncp = plcb_sync_cast(cookie);
     plcb_ret_set_err(syncp->parent, syncp->ret, err);
-    if(err == LCB_SUCCESS) {
-        plcb_ret_set_numval(syncp->parent, syncp->ret,
-                            _R.value, _R.cas);
+
+    if (err == LCB_SUCCESS) {
+        plcb_ret_set_numval(syncp->parent,
+                            syncp->ret,
+                            _R.value,
+                            _R.cas);
     }
+
     plcb_evloop_wait_unref(syncp->parent);
 }
 
@@ -161,8 +225,10 @@ static void cb_error(lcb_t instance, lcb_error_t err, const char *errinfo)
     plcb_errstack_push(object, err, errinfo);
 }
 
-static void cb_observe(lcb_t instance, const void *cookie,
-        lcb_error_t error, const lcb_observe_resp_t *resp)
+static void cb_observe(lcb_t instance,
+                       const void *cookie,
+                       lcb_error_t error,
+                       const lcb_observe_resp_t *resp)
 {
     PLCB_obs_t *obs = (PLCB_obs_t*)cookie;
     printf("Hi!\n");
@@ -186,25 +252,27 @@ static void cb_stat(lcb_t instance,
     
     object = (PLCB_t*)lcb_get_cookie(instance);
     
-    if(_R.key == NULL && _R.server_endpoint == NULL) {
+    if (_R.key == NULL && _R.server_endpoint == NULL) {
         plcb_evloop_wait_unref(object);
         return;
     }
     
     server_sv = newSVpvn(_R.server_endpoint, strlen(_R.server_endpoint));
-    if(_R.nkey) {
+    if (_R.nkey) {
         key_sv = newSVpvn(_R.key, _R.nkey);
+
     } else {
         key_sv = newSVpvn("", 0);
     }
     
-    if(_R.nbytes) {
+    if (_R.nbytes) {
         data_sv = newSVpvn(_R.bytes, _R.nbytes);
+
     } else {
         data_sv = newSVpvn("", 0);
     }
     
-    if(!object->stats_hv) {
+    if (!object->stats_hv) {
         die("We have nothing to write our stats to!");
     }
     
