@@ -21,7 +21,7 @@
 #define plcb_sv_from_u64(sv, num) (sv_setuv(sv, num))
 #define plcb_sv_from_u64_new(nump) newSVuv( (*nump) )
 
-#define plcb_cas_from_sv(sv, cas_p, lenvar) \
+#define plcb_cas_from_sv(sv, cas_p) \
     (SvIOK(sv)) \
     ? cas_p = (uint64_t*)&(SvIVX(sv)) \
     : (uint64_t*)die("Expected valid (UV) cas. IOK not true")
@@ -59,7 +59,7 @@ static uint64_t plcb_sv_to_u64(SV *in)
 
 /*Extract a packed 8 byte blob from an SV into a CAS value*/
 
-static void plcb_cas_from_sv_real(SV *sv, uint64_t *cas_p)
+static void plcb_cas_from_sv(SV *sv, uint64_t *cas_p)
 {
     STRLEN len;
     *cas_p = *(uint64_t*)SvPV(sv, len);
@@ -73,9 +73,6 @@ static void plcb_cas_from_sv_real(SV *sv, uint64_t *cas_p)
         die("CAS Specified, but is NULL");
     }
 }
-
-#define plcb_cas_from_sv(sv, cas_p, lenvar) \
-    plcb_cas_from_sv_real(sv, cas_p)
 
     
 #endif /*PLCB_PERL64*/

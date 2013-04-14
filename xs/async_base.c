@@ -75,7 +75,7 @@ static void av2request(PLCBA_t *async,
     
     if( _fetch_nonull(PLCBA_REQIDX_CAS) ) {
         //warn("Have CAS. Setting..");
-        plcb_cas_from_sv(*tmpsv, dummy_cas, dummy);
+        plcb_cas_from_sv(*tmpsv, dummy_cas);
         request->cas = *dummy_cas;
     } else {
         request->cas = 0;

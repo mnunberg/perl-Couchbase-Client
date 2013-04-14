@@ -632,7 +632,7 @@ PLCB__cas(self, key, value, cas_sv, ...)
         return;
     }
 
-    plcb_cas_from_sv(cas_sv, cas_val, cas_len);
+    plcb_cas_from_sv(cas_sv, cas_val);
 
     set_plst_get_offset(5, exp_offset, "USAGE: cas(key,value,cas[,expiry])");
 
@@ -665,7 +665,7 @@ PLCB_remove(self, key, ...)
 
     } else {
         cas_sv = ST(2);
-        plcb_cas_from_sv(cas_sv, cas_ptr, cas_len);
+        plcb_cas_from_sv(cas_sv, cas_ptr);
         RETVAL = PLCB_remove(self, key, *cas_ptr);
     }
 
@@ -685,7 +685,7 @@ PLCB_observe(self, key, ...)
         RETVAL = PLCB_observe(self, key, 0);
     } else {
         cas_sv = ST(2);
-        plcb_cas_from_sv(cas_sv, cas_ptr, cas_len);
+        plcb_cas_from_sv(cas_sv, cas_ptr);
         RETVAL = PLCB_observe(self, key, *cas_ptr);
     }
 
