@@ -41,6 +41,7 @@ void plcb_multi_iterator_collect(PLCB_iter_t *iter,
     av_push(iter->buffer_av, blessed_rv);
 
     iter->remaining--;
+    plcb_evloop_wait_unref(iter->parent);
 }
 
 static void iter_get_callback(lcb_t instance,
