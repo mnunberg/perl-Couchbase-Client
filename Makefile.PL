@@ -108,6 +108,9 @@ if($ENV{PLCB_BUILD_AUTHOR}) {
     $MM_Options{OPTIMIZE} = '-Wdeclaration-after-statement -Werror -std=gnu89';
 }
 
+# Extra stuff - add compiler flags here
+# $MM_Options{OPTIMIZE} .= ' -Wall';
+
 ################################################################################
 ### Check for Java                                                           ###
 ################################################################################
