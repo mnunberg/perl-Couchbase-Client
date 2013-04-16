@@ -363,6 +363,10 @@ sub T10_locks :Test(no_plan) {
     $rv = $o->lock("foo", 10);
     ok($rv->is_ok, "Can lock again with valid CAS");
     $o->unlock("foo", $rv->cas);
+
+    $rv = $o->unlock("foo", $rv->cas);
+    is($rv->errnum, COUCHBASE_ETMPFAIL,
+       "Unlock on unlocked key fails with ETMPFAIL");
 }
 
 sub wait_for_exp {
