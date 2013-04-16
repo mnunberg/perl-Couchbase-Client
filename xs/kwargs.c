@@ -82,15 +82,12 @@ static int convert_valspec(plcb_argval_t *dst, SV *src)
 
     case PLCB_ARG_T_EXP:
     case PLCB_ARG_T_EXPTT: {
-        IV exp_iv = SvIV(src);
-        if (exp_iv < 0) {
-            die("Expiry cannot be negative");
-        }
+        UV exp_uv = plcb_exp_from_sv(src);
 
         if (dst->type == PLCB_ARG_T_EXP) {
-            *((UV*)dst->value) = exp_iv;
+            *((UV*)dst->value) = exp_uv;
         } else {
-            *(time_t*)dst->value = exp_iv;
+            *(time_t*)dst->value = exp_uv;
         }
 
         break;

@@ -358,4 +358,55 @@ sub T10_locks :Test(no_plan) {
     $o->unlock("foo", $rv->cas);
 }
 
+sub wait_for_exp {
+    my ($o,$k,$limit) = @_;
+    my $begin_time = time();
+
+    while (time() - $begin_time < $limit) {
+        sleep(1);
+        my $rv = $o->get($k);
+        if ($rv->errnum == COUCHBASE_KEY_ENOENT) {
+            return 1;
+        }
+        diag("Sleeping again..");
+    }
+    return 0;
+}
+
+sub T11_expiry :Test(no_plan) {
+    my $self = shift;
+    my $o = $self->cbo;
+    $self->set_ok(
+        "Setting with numeric expiry",
+        "key", "value", 1);
+
+    $self->set_ok(
+        "Setting with stringified expiry",
+        "key", "value", "1");
+
+
+    eval {
+        $o->set("key", "Value", "bad-expiry");
+    };
+    ok($@, "Got error for invalid expiry");
+
+    # Hrm, this is apparently slower than i'd like. Let's use
+    # a loop
+    ok(wait_for_exp($o, "key", 3), "Key expired");
+
+    # Try with multi
+    eval {
+        $o->set_multi(["key", "value", "blah"],
+                      ["foo", "bar"])
+    };
+    ok($@, "Got error for invalid expiry (multi-set)");
+
+    my $rvs = $o->set_multi(["key", "value", "1"],
+                            ["foo", "bar"]);
+    ok($rvs->{key}->is_ok, "Multi set with stringified expiry");
+    ok(wait_for_exp($o, "key", 3), "Multi: Key expired");
+
+}
+
+
 1;

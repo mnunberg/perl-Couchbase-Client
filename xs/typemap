@@ -5,6 +5,7 @@ PLCB_XS_STRING_t	T_PLCB_XS_STRING_T
 PLCB_couch_handle_t *	T_PLCB_COUCH_HANDLE_T 
 PLCB_jsondec_t*	T_PLCB_JSONDEC_T
 PLCB_iter_t *	T_PLCB_ITER_T 
+PLCB_exp_t		T_PLCB_EXP_T
 
 INPUT
 T_PLCB_XS_OBJPAIR_T
@@ -57,4 +58,5 @@ T_PLCB_ITER_T
 	
 	$var = NUM2PTR(PLCB_iter_t*, SvIV(SvRV($arg)));
 
-
+T_PLCB_EXP_T
+	$var = plcb_exp_from_sv($arg); 

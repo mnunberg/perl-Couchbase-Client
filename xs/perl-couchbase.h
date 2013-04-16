@@ -190,6 +190,8 @@ typedef enum {
 } plcb_conversion_spec_t;
 
 
+typedef time_t PLCB_exp_t;
+
 void plcb_callbacks_setup(PLCB_t *object);
 void plcb_callbacks_set_multi(PLCB_t *object);
 void plcb_callbacks_set_single(PLCB_t *object);

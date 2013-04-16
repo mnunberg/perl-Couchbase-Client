@@ -15,6 +15,13 @@ PLCB_MAYBE_ALLOC_GENFUNCS(syncs_maybe_alloc, PLCB_sync_t, 32, static);
 PLCB_STRUCT_MAYBE_ALLOC_SIZED(timet_maybe_alloc, time_t, MULTI_STACK_ELEM);
 PLCB_MAYBE_ALLOC_GENFUNCS(timet_maybe_alloc, time_t, MULTI_STACK_ELEM, static);
 
+
+#define CMD_MAYBE_ALLOC(base, sname) \
+    PLCB_STRUCT_MAYBE_ALLOC_SIZED(base##_maybe_alloc, sname, MULTI_STACK_ELEM); \
+    PLCB_STRUCT_MAYBE_ALLOC_SIZED(base##P_maybe_alloc, sname*, MULTI_STACK_ELEM); \
+    PLCB_MAYBE_ALLOC_GENFUNCS(base##_maybe_alloc, sname, MULTI_STACK_ELEM, static); \
+    PLCB_MAYBE_ALLOC_GENFUNCS(base##P_maybe_alloc, sname*, MULTI_STACK_ELEM, static);
+
 #ifndef mk_instance_vars
 #define mk_instance_vars(sv, inst_name, obj_name) \
     if (!SvROK(sv)) { \
@@ -41,7 +48,6 @@ PLCB_MAYBE_ALLOC_GENFUNCS(timet_maybe_alloc, time_t, MULTI_STACK_ELEM, static);
     ret = newHV(); \
     SAVEFREESV(ret); \
     now = time(NULL); \
-    object->npending += nreq; \
     av_clear(object->errors);
 
 #define _SYNC_RESULT_INIT(object, hv, sync) \
@@ -53,7 +59,7 @@ PLCB_MAYBE_ALLOC_GENFUNCS(timet_maybe_alloc, time_t, MULTI_STACK_ELEM, static);
 
 
 #define _exp_from_av(av, idx, nowvar, expvar, tmpsv) \
-    if ( (tmpsv = av_fetch(av, idx, 0)) && (expvar = SvUV(*tmpsv))) { \
+    if ( (tmpsv = av_fetch(av, idx, 0)) && (expvar = plcb_exp_from_sv(*tmpsv))) { \
         PLCB_UEXP2EXP(expvar, expvar, nowvar); \
     }
 
@@ -72,6 +78,7 @@ PLCB_MAYBE_ALLOC_GENFUNCS(timet_maybe_alloc, time_t, MULTI_STACK_ELEM, static);
 
 #define _MAYBE_WAIT(waitvar) \
     if (waitvar) { \
+        object->npending += waitvar; \
         plcb_evloop_start(object); \
     }
 
@@ -158,7 +165,7 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
             if (exps) {
                 _fetch_assert(tmpsv, argav, 1, "expiry");
 
-                if (! (exps[i] = SvUV(*tmpsv)) ) {
+                if (! (exps[i] = plcb_exp_from_sv(*tmpsv)) ) {
                     die("expiry of 0 passed. This is not what you want");
                 }
             }
@@ -201,6 +208,7 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
     }
     
     if (err == LCB_SUCCESS) {
+        object->npending += nreq;
         plcb_evloop_start(object);
 
     } else {
@@ -388,7 +396,7 @@ static SV* PLCB_multi_arithmetic_common(SV *self, AV *args, int cmd)
             do_create = 1;
         }
         
-        if ( (tmpsv = av_fetch(argav, 3, 0)) && (exp = SvUV(*tmpsv)) ) {
+        if ( (tmpsv = av_fetch(argav, 3, 0)) && (exp = plcb_exp_from_sv(*tmpsv)) ) {
             PLCB_UEXP2EXP(exp, exp, now);
         }
         

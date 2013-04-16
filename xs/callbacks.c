@@ -9,6 +9,7 @@
 
 void plcb_evloop_wait_unref(PLCB_t *object)
 {
+    assert(object->npending);
     object->npending--;
     if (!object->npending) {
         plcb_evloop_stop(object);
@@ -67,6 +68,8 @@ static void multi_keyop_common(lcb_t instance,
     AV *ret;
     HV *results;
 
+    plcb_evloop_wait_unref(syncp->parent);
+
     if (syncp->type != PLCB_SYNCTYPE_SINGLE) {
 
         plcb_multi_iterator_collect((PLCB_iter_t*) cookie,
@@ -95,8 +98,6 @@ static void multi_keyop_common(lcb_t instance,
         plcb_ret_set_strval(
             syncp->parent, ret, bytes, nbytes, flags, cas);
     }
-
-    plcb_evloop_wait_unref(syncp->parent);
 }
 
 

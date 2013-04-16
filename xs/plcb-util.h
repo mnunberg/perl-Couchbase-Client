@@ -111,6 +111,45 @@ static void plcb_cas_from_sv(SV *sv, uint64_t *cas_p)
         : 0)
 #endif
 
+/**
+ * Extract the expiry value from an SV
+ */
+
+static PERL_UNUSED_DECL UV plcb_exp_from_sv(SV *exp)
+{
+
+    UV ret = 0;
+
+    if (SvTYPE(exp) == SVt_NULL) {
+        return 0;
+    }
+
+    if (SvIOK(exp)) {
+        IV expiv = SvIVX(exp);
+        if (expiv < 0) {
+            die("Expiry cannot be negative");
+        }
+
+        ret = expiv;
+
+    } else if (SvPOK(exp)) {
+        UV exptype = grok_number(SvPVX(exp), SvCUR(exp), &ret);
+
+        if (!exptype) {
+            die("Bad expiry value");
+        }
+
+        if (exptype == IS_NUMBER_NEG) {
+            die("Expiry cannot be negative");
+        }
+
+    } else {
+        die("Bad type for expiry");
+    }
+
+    return ret;
+}
+
 
 /**
  * These utilities utilize perl's SAVE* functions to automatically do cleanup

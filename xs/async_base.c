@@ -20,10 +20,10 @@ static void av2request(PLCBA_t *async,
     
     #define _extract_exp() \
         request->exp = 0; \
-        if((_fetch_nonull(PLCBA_REQIDX_EXP)) && SvIOK(*tmpsv) \
-            && SvUV(*tmpsv) > 0) \
+        if ((_fetch_nonull(PLCBA_REQIDX_EXP)) && \
+                (request->exp = plcb_exp_from_sv(*tmpsv))) \
                 { \
-                    UV utmp = SvUV(*tmpsv); \
+                    UV utmp = request->exp; \
                     PLCB_UEXP2EXP((request->exp), utmp, 0); \
                 }
     

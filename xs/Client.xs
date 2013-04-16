@@ -364,7 +364,7 @@ static SV *PLCB_get_common(SV *self,
                 die("Argument %d should be expiry or options hash", exp_idx); \
             } \
         } else { \
-            exp_var = SvIV(args__tmpsv); \
+            exp_var = plcb_exp_from_sv(args__tmpsv); \
         } \
     }
 
@@ -619,7 +619,7 @@ SV *
 PLCB_touch(self, key, exp_offset, ...)
     SV *self
     SV *key
-    UV exp_offset;
+    PLCB_exp_t exp_offset;
 
     PREINIT:
     HV *params = NULL;
@@ -640,7 +640,7 @@ SV *
 PLCB_lock(self, key, exp_offset)
     SV *self
     SV *key
-    UV exp_offset
+    PLCB_exp_t exp_offset
 
     CODE:
     RETVAL = PLCB_get_common(self, key, NULL, exp_offset, 0, 1);
@@ -795,7 +795,7 @@ PLCB_arithmetic(self, key, delta_sv, initial, ...)
         if (SvROK(extra) && SvTYPE(SvRV(extra)) == SVt_PVHV) {
             plcb_extract_args((HV*)SvRV(extra), argspecs);
         } else {
-            exp = SvUV(extra);
+            exp = plcb_exp_from_sv(extra);
         }
     }
     delta = plcb_sv_to_64(delta_sv);
