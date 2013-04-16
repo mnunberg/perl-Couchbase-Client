@@ -592,6 +592,22 @@ If C<cas> is also specified, the deletion will only be performed if C<key> still
 maintains the same CAS value as C<cas>.
 
 
+=head3 lock(key, lock_time)
+
+Lock the key on the server for the given C<lock_time>. During this time, any
+attempts to lock the key again will fail with the error C<COUCHBASE_ETMPFAIL>.
+Attempts to modify the key via one of the mutation methods (e.g. L</set>) will
+fail with C<COUCHBASE_KEY_EEXISTS>.
+
+You may unlock the key by using L</unlock>
+
+=head3 unlock(key, cas)
+
+Unlock the key using the provided C<cas>. The CAS must be the one returned from
+the last L</lock> operation. Passing a stale CAS will fail with
+C<COUCHBASE_ETMPFAIL>; unlocking a non-locked key will also fail with
+C<COUCHBASE_ETMPFAIL>.
+
 =head2 MULTI METHODS
 
 These methods gain performance and save on network I/O by batch-enqueueing
@@ -804,7 +820,7 @@ L<http://www.couchbase.org> - Couchbase.
 
 =head1 AUTHOR & COPYRIGHT
 
-Copyright (C) 2012 M. Nunberg
+Copyright (C) 2012, 2013 M. Nunberg
 
 You may use and distributed this software under the same terms and conditions as
 Perl itself.
