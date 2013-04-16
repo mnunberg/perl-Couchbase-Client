@@ -28,6 +28,7 @@
 #endif
 
 #include "plcb-util.h"
+#include "plcb-kwargs.h"
 
 typedef struct PLCB_st PLCB_t;
 
@@ -260,5 +261,10 @@ void plcb_evloop_wait_unref(PLCB_t *obj);
 
 #define plcb_evloop_stop(obj) \
     (obj)->io_ops->v.v0.stop_event_loop(obj->io_ops)
+
+/**
+ * Extract a set of values from an options hash.
+ */
+int plcb_extract_args(HV *hash, plcb_argval_t *values);
 
 #endif /* PERL_COUCHBASE_H_ */

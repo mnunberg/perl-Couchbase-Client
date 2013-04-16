@@ -173,9 +173,11 @@ static int PLCB_connect(SV *self)
     syncp->ret = newAV();
 
 static SV *PLCB_set_common(SV *self,
-    SV *key, SV *value,
-    int cmd,
-    int exp_offset, uint64_t cas)
+                           SV *key,
+                           SV *value,
+                           int cmd,
+                           int exp_offset,
+                           uint64_t cas)
 {
     lcb_t instance;
     PLCB_t *object;
@@ -188,6 +190,9 @@ static SV *PLCB_set_common(SV *self,
     PLCB_sync_t *syncp;
     time_t exp;
     uint32_t store_flags = 0;
+
+    lcb_store_cmd_t scmd = { 0 };
+    const lcb_store_cmd_t *pcmd = &scmd;
 
     mk_instance_vars(self, instance, object);
 
@@ -213,16 +218,23 @@ static SV *PLCB_set_common(SV *self,
                          &store_flags,
                          conversion_spec);
 
-    err = libcouchbase_store(instance,
-                             syncp,
-                             storop,
-                             skey,
-                             klen,
-                             SvPVX(value),
-                             vlen,
-                             store_flags,
-                             exp,
-                             cas);
+
+    scmd.v.v0.key = skey;
+    scmd.v.v0.nkey = klen;
+
+    scmd.v.v0.bytes = SvPVX(value);
+    scmd.v.v0.nbytes = vlen;
+
+    scmd.v.v0.flags = store_flags;
+    scmd.v.v0.operation = storop;
+    scmd.v.v0.exptime = exp;
+
+    scmd.v.v0.cas = cas;
+
+    scmd.v.v0.hashkey = NULL;
+    scmd.v.v0.nhashkey = 0;
+
+    err = lcb_store(instance, syncp, 1, &pcmd);
 
     plcb_convert_storage_free(object, value, store_flags);
 
@@ -253,15 +265,24 @@ static SV *PLCB_arithmetic_common(SV *self,
 
     _sync_initialize_single(object, syncp);
 
-    err = libcouchbase_arithmetic(
-        instance, syncp, skey, nkey, delta,
-        exp, do_create, initial
-    );
+    err = libcouchbase_arithmetic(instance,
+                                  syncp,
+                                  skey,
+                                  nkey,
+                                  delta,
+                                  exp,
+                                  do_create,
+                                  initial);
 
     _sync_return_single(object, err, syncp);
 }
 
-static SV *PLCB_get_common(SV *self, SV *key, int exp_offset)
+static SV *PLCB_get_common(SV *self,
+                           SV *key,
+                           HV *params,
+                           int exp_offset,
+                           int touch_only,
+                           int lock)
 {
     lcb_t instance;
     PLCB_t *object;
@@ -270,8 +291,27 @@ static SV *PLCB_get_common(SV *self, SV *key, int exp_offset)
     STRLEN klen;
     char *skey;
 
+    union {
+        lcb_touch_cmd_t tcmd;
+        lcb_get_cmd_t gcmd;
+    } u_cmd;
+
+    union {
+        const lcb_touch_cmd_t *ptcmd;
+        const lcb_get_cmd_t *pgcmd;
+    } u_pcmd;
+
     time_t exp;
-    time_t *exp_arg;
+
+    plcb_argval_t argspecs[] = {
+        PLCB_KWARG(PLCB_ARG_K_EXPIRY, EXPTT, &exp),
+        PLCB_KWARG(PLCB_ARG_K_LOCK, INT, &lock),
+        { NULL }
+    };
+
+    if (params) {
+        plcb_extract_args(params, argspecs);
+    }
 
     mk_instance_vars(self, instance, object);
     plcb_get_str_or_die(key, skey, klen, "Key");
@@ -279,43 +319,63 @@ static SV *PLCB_get_common(SV *self, SV *key, int exp_offset)
 
     av_clear(object->errors);
     PLCB_UEXP2EXP(exp, exp_offset, 0);
-    exp_arg = (exp) ? &exp : NULL;
 
-    err = libcouchbase_mget(instance,
-                            syncp,
-                            1,
-                            (const void * const *) &skey,
-                            &klen,
-                            exp_arg);
+    memset(&u_cmd, 0, sizeof(u_cmd));
+    memset(&u_pcmd, 0, sizeof(u_pcmd));
+
+#define _set_fld_common(cmd) \
+        cmd.v.v0.key = skey; \
+        cmd.v.v0.nkey = klen; \
+        cmd.v.v0.exptime = exp; \
+        cmd.v.v0.hashkey = NULL; \
+        cmd.v.v0.nhashkey = 0; \
+        cmd.v.v0.lock = lock;
+
+    if (touch_only) {
+        _set_fld_common(u_cmd.tcmd);
+
+        u_pcmd.ptcmd = &u_cmd.tcmd;
+        err = lcb_touch(instance, syncp, 1, &u_pcmd.ptcmd);
+
+    } else {
+        _set_fld_common(u_cmd.gcmd);
+
+        u_pcmd.pgcmd = &u_cmd.gcmd;
+        err = lcb_get(instance, syncp, 1, &u_pcmd.pgcmd);
+    }
+
+#undef _set_fld_common
 
     _sync_return_single(object, err, syncp);
 }
 
-#define set_plst_get_offset(exp_idx, exp_var, diemsg) \
-    if (items == (exp_idx - 1)) { \
-        exp_var = 0; \
-     } else if (items == exp_idx) { \
-        if (!SvIOK(ST(exp_idx-1))) { \
-            sv_dump(ST(exp_idx-1)); \
-            die("Expected numeric argument"); \
+#define GET_EXTRA_ARGS(exp_idx, exp_var, argspecs) \
+    if (items == (exp_idx -1)) { \
+        ; \
+    } else if (items > (exp_idx - 1)) { \
+        SV *args__tmpsv = ST(exp_idx-1); \
+        if (SvROK(args__tmpsv)) { \
+            if (SvTYPE(SvRV(args__tmpsv)) == SVt_PVHV) { \
+                if (!argspecs) { \
+                    die("Option hash not supported for this function"); \
+                } \
+                plcb_extract_args((HV*)SvRV(args__tmpsv), argspecs); \
+            } else { \
+                die("Argument %d should be expiry or options hash", exp_idx); \
+            } \
+        } else { \
+            exp_var = SvIV(args__tmpsv); \
         } \
-        exp_var = SvIV(ST((exp_idx-1))); \
-    } else { \
-        die(diemsg); \
     }
+
+#define set_plst_get_offset(exp_idx, exp_var, diemsg) \
+    if (items > exp_idx) { \
+        die(diemsg); \
+    } \
+    GET_EXTRA_ARGS(exp_idx, exp_var, NULL);
 
 /*variable length ->get and ->cas are in the XS section*/
 
-
-SV *PLCB_get(SV *self, SV *key)
-{
-    return PLCB_get_common(self, key, 0);
-}
-
-SV *PLCB_touch(SV *self, SV *key, UV exp_offset)
-{
-    return PLCB_get_common(self, key, exp_offset);
-}
 
 SV *PLCB_remove(SV *self, SV *key, uint64_t cas)
 {
@@ -440,6 +500,43 @@ SV *PLCB_observe(SV *self, SV *key, uint64_t cas)
     _sync_return_single(object, err, &(obs.sync));
 }
 
+SV *PLCB_unlock(SV *self, SV *key, SV* cas_sv)
+{
+    PLCB_t *object;
+    PLCB_sync_t *syncp;
+
+    lcb_unlock_cmd_t cmd = { 0 };
+    const lcb_unlock_cmd_t *cmd_p = &cmd;
+    lcb_t instance;
+    lcb_error_t err;
+    char *skey;
+    STRLEN key_len;
+    uint64_t cas = 0, *cas_p = NULL;
+
+    plcb_cas_from_sv(cas_sv, cas_p);
+
+    if (cas_p) {
+        cas = *cas_p;
+    }
+
+    if (!cas) {
+        die("Must have valid CAS for unlock");
+    }
+
+    mk_instance_vars(self, instance, object);
+    plcb_get_str_or_die(key, skey, key_len, "Key");
+    av_clear(object->errors);
+
+    _sync_initialize_single(object, syncp);
+
+    cmd.v.v0.key = skey;
+    cmd.v.v0.nkey = key_len;
+    cmd.v.v0.cas = cas;
+    err = lcb_unlock(instance, syncp, 1, &cmd_p);
+
+    _sync_return_single(object, err, syncp);
+}
+
 static SV* return_empty(SV *self, int error, const char *errmsg)
 {
     lcb_t instance;
@@ -456,6 +553,8 @@ static SV* return_empty(SV *self, int error, const char *errmsg)
 
     plcb_ret_blessed_rv(object, ret_av);
     return &PL_sv_undef;
+
+    PERL_UNUSED_VAR(instance);
 }
 
 /*used for settings accessors*/
@@ -493,17 +592,66 @@ PLCB_DESTROY(self)
     plcb_cleanup(object);
     Safefree(object);
 
+    PERL_UNUSED_VAR(instance);
+
 SV *
-PLCB_get(self, key)
+PLCB_get(self, key, ...)
     SV *    self
     SV *    key
 
+    PREINIT:
+    HV *params = NULL;
+
+    CODE:
+    if (items == 3) {
+        SV *extra = ST(2);
+        if (!(SvROK(extra) && SvTYPE(SvRV(extra)) == SVt_PVHV)) {
+            die("Second option must be options hash");
+        }
+
+        params = (HV*)SvRV(extra);
+    }
+
+    RETVAL = PLCB_get_common(self, key, params, 0, 0, 0);
+    OUTPUT: RETVAL
 
 SV *
-PLCB_touch(self, key, exp_offset)
+PLCB_touch(self, key, exp_offset, ...)
     SV *self
     SV *key
     UV exp_offset;
+
+    PREINIT:
+    HV *params = NULL;
+
+    CODE:
+    if (items == 4) {
+        SV *extra = ST(3);
+        if (! (SvROK(extra) && SvTYPE(SvRV(extra)) == SVt_PVHV)) {
+            die("Third option must be options hash");
+        }
+        params = (HV*)SvRV(extra);
+    }
+
+    RETVAL = PLCB_get_common(self, key, params, exp_offset, 1, 0);
+    OUTPUT: RETVAL
+
+SV *
+PLCB_lock(self, key, exp_offset)
+    SV *self
+    SV *key
+    UV exp_offset
+
+    CODE:
+    RETVAL = PLCB_get_common(self, key, NULL, exp_offset, 0, 1);
+
+    OUTPUT: RETVAL
+
+SV *
+PLCB_unlock(self, key, cas)
+    SV *self
+    SV *key
+    SV *cas
 
 SV *
 PLCB__set(self, key, value, ...)
@@ -524,10 +672,18 @@ PLCB__set(self, key, value, ...)
 
     PREINIT:
     UV exp_offset = 0;
+    uint64_t cas = 0;
     int cmd_base;
 
+    plcb_argval_t kwspec[] = {
+        PLCB_KWARG(PLCB_ARG_K_EXPIRY, EXP, &exp_offset),
+        PLCB_KWARG(PLCB_ARG_K_CAS, CAS, &cas),
+        { NULL }
+    };
+
     CODE:
-    set_plst_get_offset(4, exp_offset, "USAGE: set(key, value [,expiry]");
+
+    GET_EXTRA_ARGS(4, exp_offset, kwspec);
     cmd_base = (ix & PLCB_COMMAND_MASK);
 
 
@@ -537,75 +693,115 @@ PLCB__set(self, key, value, ...)
     }
 
     RETVAL = PLCB_set_common(
-        self, key, value,
+        self,
+        key,
+        value,
         ix,
-        exp_offset, 0);
+        exp_offset,
+        cas);
 
-    OUTPUT:
-    RETVAL
-
+    OUTPUT: RETVAL
 
 SV *
-PLCB_arithmetic(self, key, ...)
+PLCB__incrdecr(self, key, ...)
     SV *self
     SV *key
 
     ALIAS:
-    incr        = 1
-    decr        = 2
+    incr = 1
+    decr = 2
 
     PREINIT:
-    int64_t delta;
-    UV exp_offset;
-    SV *initial;
-    SV *delta_sv;
-    int do_create;
-    uint64_t initial_i;
+    int64_t delta = 0;
+    uint64_t initial = 0;
+    UV exp = 0;
+    int do_create = 1;
+    HV *arghash = NULL;
+
+    plcb_argval_t argspecs[] = {
+        PLCB_KWARG(PLCB_ARG_K_ARITH_CREATE, BOOL, &do_create),
+        PLCB_KWARG(PLCB_ARG_K_ARITH_DELTA, I64, &delta),
+        PLCB_KWARG(PLCB_ARG_K_ARITH_INITIAL, U64, &initial),
+        PLCB_KWARG(PLCB_ARG_K_EXPIRY, EXP, &exp),
+        { NULL }
+    };
 
     CODE:
-    do_create     = 0;
-    exp_offset     = 0;
-    initial_i     = 0;
-    initial     = NULL;
-    delta_sv    = NULL;
-
-
-    if (items > 2) {
-        delta_sv = ST(2);
+    if (ix == 0) {
+        die("Please use the incr or decr aliases");
     }
 
-    if (ix == 0) {
-        if (items < 4 || items > 5) {
-            die("arithmetic(key, delta, initial [,expiry])");
-        }
-
-        if (SvTYPE( (initial=ST(3)) ) == SVt_NULL) {
-            do_create = 0;
-
+    if (items == 3) {
+        SV *extra = ST(2);
+        if (SvROK(extra) && SvTYPE(SvRV(extra)) == SVt_PVHV) {
+            arghash = (HV*)SvRV(extra);
         } else {
-            do_create = 1;
-            initial_i = plcb_sv_to_u64(initial);
+            delta = plcb_sv_to_64(extra);
         }
 
-        if (items == 5 && (exp_offset = SvUV( ST(4) )) == 0 ) {
-            die("Expiry offset cannot be 0");
-        }
-        delta = plcb_sv_to_64(delta_sv);
+    } else if (items == 2) {
+        delta = 1;
 
     } else {
-        if (items < 2 || items > 3) {
-            die("Usage: incr/decr(key [,delta])");
-        }
-        delta = (delta_sv) ? plcb_sv_to_64(delta_sv) : 1;
-        delta = (ix == 2) ? -delta : delta;
+        die("Usage: incr/decr(key, [,delta/options])");
     }
 
-    RETVAL = PLCB_arithmetic_common(
-        self, key, delta, do_create, initial_i, exp_offset);
+    if (arghash) {
+        plcb_extract_args(arghash, argspecs);
+    }
 
-    OUTPUT:
-    RETVAL
+    if (ix == 2 && delta > 0) {
+        /* decr */
+        delta = (-delta);
+    }
 
+    RETVAL = PLCB_arithmetic_common(self, key, delta, do_create, initial, exp);
+    OUTPUT: RETVAL
+
+
+SV *
+PLCB_arithmetic(self, key, delta_sv, initial, ...)
+    SV *self
+    SV *key
+    SV *delta_sv
+    SV *initial
+
+    PREINIT:
+    int64_t delta = 0;
+    UV exp = 0;
+    int do_create = 0;
+    uint64_t initial_i = 0;
+
+    plcb_argval_t argspecs[] = {
+            PLCB_KWARG(PLCB_ARG_K_EXPIRY, EXP, &exp),
+            { NULL }
+    };
+
+    CODE:
+    if (items > 5) {
+        die("arithmetic(key, delta, initial [,expiry])");
+    }
+
+    if (SvTYPE(initial) == SVt_NULL) {
+        do_create = 0;
+
+    } else {
+        do_create = 1;
+        initial_i = plcb_sv_to_u64(initial);
+    }
+
+    if (items == 5) {
+        SV *extra = ST(4);
+        if (SvROK(extra) && SvTYPE(SvRV(extra)) == SVt_PVHV) {
+            plcb_extract_args((HV*)SvRV(extra), argspecs);
+        } else {
+            exp = SvUV(extra);
+        }
+    }
+    delta = plcb_sv_to_64(delta_sv);
+
+    RETVAL = PLCB_arithmetic_common(self, key, delta, do_create, initial_i, exp);
+    OUTPUT: RETVAL
 
 SV *
 PLCB__cas(self, key, value, cas_sv, ...)
@@ -622,6 +818,10 @@ PLCB__cas(self, key, value, cas_sv, ...)
     UV exp_offset = 0;
     uint64_t *cas_val = NULL;
     int cmd;
+    plcb_argval_t argspecs[] = {
+        PLCB_KWARG(PLCB_ARG_K_EXPIRY, EXP, &exp_offset),
+        { NULL }
+    };
 
     CODE:
     if (SvTYPE(cas_sv) == SVt_NULL) {
@@ -633,8 +833,7 @@ PLCB__cas(self, key, value, cas_sv, ...)
     }
 
     plcb_cas_from_sv(cas_sv, cas_val);
-
-    set_plst_get_offset(5, exp_offset, "USAGE: cas(key,value,cas[,expiry])");
+    GET_EXTRA_ARGS(5, exp_offset, argspecs);
 
     cmd =  PLCB_CMD_SET | (ix & PLCB_COMMAND_EXTRA_MASK);
 
@@ -656,19 +855,36 @@ PLCB_remove(self, key, ...)
     delete = 1
 
     PREINIT:
-    uint64_t *cas_ptr = NULL;
-    SV *cas_sv;
+    uint64_t cas = 0;
+
+    plcb_argval_t argspecs[] = {
+        PLCB_KWARG(PLCB_ARG_K_CAS, CAS, &cas),
+        { NULL }
+    };
 
     CODE:
     if (items == 2) {
         RETVAL = PLCB_remove(self, key, 0);
 
     } else {
-        cas_sv = ST(2);
-        plcb_cas_from_sv(cas_sv, cas_ptr);
-        RETVAL = PLCB_remove(self, key, *cas_ptr);
-    }
+        SV *extra = ST(2);
 
+        if (SvROK(extra) && SvTYPE(SvRV(extra)) == SVt_PVHV) {
+            plcb_extract_args((HV*)SvRV(extra), argspecs);
+
+        } else {
+            uint64_t *cas_ptr = NULL;
+            SV *cas_sv = ST(2);
+            plcb_cas_from_sv(cas_sv, cas_ptr);
+            if (cas_ptr) {
+                cas = *cas_ptr;
+            }
+        }
+
+        RETVAL = PLCB_remove(self, key, cas);
+
+
+    }
     OUTPUT:
     RETVAL
 
@@ -702,6 +918,8 @@ PLCB_get_errors(self)
     CODE:
     mk_instance_vars(self, instance, object);
     RETVAL = newRV_inc((SV*)object->errors);
+
+    PERL_UNUSED_VAR(instance);
 
     OUTPUT:
     RETVAL
@@ -801,12 +1019,12 @@ PLCB__settings(self, ...)
     }
 
 
-
     RETVAL = plcb_convert_settings(object, flag, new_value);
     //warn("Report flag %d = %d", flag, RETVAL);
 
-    OUTPUT:
-    RETVAL
+    PERL_UNUSED_VAR(instance);
+
+    OUTPUT: RETVAL
 
 
 NV
@@ -866,6 +1084,7 @@ SPAGAIN;
         warn("Couchbase library version is (%s) %x",
              cbc_version_string, cbc_version);
         */
+        PERL_UNUSED_VAR(cbc_version_string);
     }
     /*Client_multi.xs*/
     PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__Client_multi);

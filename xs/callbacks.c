@@ -167,6 +167,22 @@ static void cb_touch_multi(lcb_t instance,
                        _R.cas);
 }
 
+static void cb_unlock(lcb_t instance,
+                      const void *cookie,
+                      lcb_error_t error,
+                      const lcb_unlock_resp_t *resp)
+{
+    single_keyop_common(instance,
+                        cookie,
+                        error,
+                        _R.key,
+                        _R.nkey,
+                        NULL,
+                        0,
+                        0,
+                        0);
+}
+
 static void cb_remove(lcb_t instance,
                       const void *cookie,
                       lcb_error_t error,
@@ -316,6 +332,7 @@ void plcb_callbacks_setup(PLCB_t *object)
     lcb_set_arithmetic_callback(instance, cb_arithmetic);
     lcb_set_stat_callback(instance, cb_stat);
     lcb_set_observe_callback(instance, cb_observe);
+    lcb_set_unlock_callback(instance, cb_unlock);
     
     lcb_set_cookie(instance, object);
 }
