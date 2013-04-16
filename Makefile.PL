@@ -165,24 +165,28 @@ WriteMakefile(
 
         #Need this to extract tarballs
         'Archive::Extract' => 0,
+        'Archive::Tar' => 0,
     },
 
     PREREQ_PM => {
         'Array::Assign'     => 0,
         'Class::XSAccessor' => 1.11,
-        'Test::More'        => 0,
 
+        'JSON'              => 2.53,
+        'JSON::SL'          => '1.0.1'
+    },
+
+    TEST_REQUIRES => {
         #These modules are needed for tests, but not strictly required for
         #functionality
 
+        'Test::More'        => 0,
         'Test::Class'       => 0.36,
 
         #these are needed for asynchronous tests and modules
         'POE::Sugar::Attributes' => 0.02,
         'POE'               => 1.312,
 
-        'JSON'              => 2.53,
-        'JSON::SL'          => '1.0.1'
     },
 
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
