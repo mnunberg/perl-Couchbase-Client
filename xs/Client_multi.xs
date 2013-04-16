@@ -466,19 +466,22 @@ PLCB_multi_remove(SV *self, AV *args)
     
 }
 
-#define _MAYBE_MULTI_ARG(array) \
-    if(items == 2) { \
+#define _MAYBE_MULTI_ARG2(array, always_wrap) \
+    if (items == 2 && always_wrap == 0) { \
         array = (AV*)ST(1); \
-        if ( (SvROK((SV*)array)) && (array = (AV*)SvRV((SV*)array))) { \
+        if ( SvROK((SV*)array) && (array = (AV*)SvRV((SV*)array))) { \
             if (SvTYPE(array) < SVt_PVAV) { \
                 die("Expected ARRAY reference for arguments"); \
             } \
         } \
-    } else if (items > 2) { \
-        array = (AV*)sv_2mortal((SV*)av_make(items - 1, (SP - items + 2))); \
+    } else if (items > 2 || items == 2 && always_wrap == 1) { \
+        array = (AV*)sv_2mortal((SV*)av_make(items-1, (SP - items + 2))); \
     } else { \
         die("Usage: %s(self, args)", GvNAME(GvCV(cv))); \
     }
+
+#define _MAYBE_MULTI_ARG(array) \
+    _MAYBE_MULTI_ARG2(array, 0);
 
 MODULE = Couchbase::Client_multi PACKAGE = Couchbase::Client    PREFIX = PLCB_
 
@@ -525,7 +528,7 @@ PLCB__set_multi(self, ...)
     AV *args = NULL;
     
     CODE:
-    _MAYBE_MULTI_ARG(args);
+    _MAYBE_MULTI_ARG2(args, 1);
     RETVAL = PLCB_multi_set_common(self, args, ix);
     
     OUTPUT:
