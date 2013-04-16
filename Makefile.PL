@@ -59,11 +59,19 @@ $MM_Options{CONFIGURE} = sub {
 ################################################################################
 {
     my @C_Modules = qw(
-        callbacks convert ctor async_base async_callbacks async_events
+        async_base
+        async_callbacks
+        async_events
+        callbacks
+        convert
+        ctor
+        couch_handle
         iterator
-        couch_handle observe);
+        kwargs
+        observe);
     my @XS_Modules = qw(
-        Client Client_multi
+        Client
+        Client_multi
         Iterator_get
         Couch_request_handle);
 
