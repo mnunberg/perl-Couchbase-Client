@@ -80,9 +80,9 @@ static void plcb_cas_from_sv(SV *sv, uint64_t *cas_p)
 /*assertively extract a non-null key from an SV, together with its length*/
 
 #define plcb_get_str_or_die(ksv, charvar, lenvar, diespec) \
-    ((charvar = SvPV(ksv, lenvar))) \
+    (void)(((charvar = SvPV(ksv, lenvar))) \
         ? ( (lenvar) ? charvar : (void*)die("Got zero-length %s", diespec) ) \
-        : (void*)die("Got NULL %s", diespec)
+        : (void*)die("Got NULL %s", diespec))
 
 
 #define PLCB_TIME_ABS_OFFSET
