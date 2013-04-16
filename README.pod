@@ -25,9 +25,9 @@ implementation).
 I Will be using L<Devel::REPL | http://search.cpan.org/dist/Devel-REPL/lib/Devel/REPL.pm>
 to emulate an interactive shell (the actual script to launch the shell is in
 C<eg/re.pl>), where necessary
-    
+
 =head3 Creating a new object
-    
+
     use Couchbase::Client;
     my $cbo = Couchbase::Client->new({ server => "localhost" });
 
@@ -51,31 +51,31 @@ You may inspect and access the object using its methods:
 
     $ret->is_ok
     #=> 1
-    
+
     $ret->cas
     # => 12952738923228168704
 
 =head3 Get a Value
 
 Now, get the key back again:
-    
+
     $ret = $cbo->get("a_key");
     $ret->value
     #=> "a_value"
-    
+
 =head3 Object References
 
 Transparently store references:
-    
+
     $cbo->set("an object", ["Hello", "World"]);
     $ret = $cbo->get("an object");
-    
+
 And get them back again..
 
     $cbo->get("an object")->value
     #=> [ "Hello", "World" ]
 
-    
+
 =head3 Arithmetic
 
 If the counter does not yet exist, we will need to create it
@@ -87,42 +87,64 @@ If the counter does not yet exist, we will need to create it
     )->value
     #=> 1
     # results are returned for arithmetic operations
-    
-    
+
+
 now, increment it by 1
 
     $cbo->incr("my counter")->value
     #=> 2
-    
+
 increment by 10
 
     $cbo->incr("my counter", 10)->value
     #=> 12
-    
+
 decrement by 1
-    
+
     $cbo->decr("my counter")->value
     #=> 11
-    
+
 =head3 Optimistic Locking
 
 Use CAS to sure your data is consistent:
 
     $ret = $cbo->get("a_key");
-    
+
     $ret->value #=> "a_value";
     $ret->cas #=> 7712708499878511104
-    
+
     $cbo->cas("a_key", "a different value", $ret->cas);
     #=> OK
-    
+
     $ret = $cbo->cas("a_key", "yet another value", $ret->cas);
     $ret->errstr #=> "Key exists (with a different CAS value)"
 
 
-    
+
 Try updating the key again, but using the CAS from the first operation:
-    
+
+
+
+=head3 Pessimistic Locking
+
+If you have keys that will likely be objects of contention, you can use
+pessimistic locking (i.e. mutual-exclusion) by using the C<lock> and C<unlock>
+methods
+
+
+    $lockret = $cbo->lock("foo", 10);
+    if ($lockret->errnum == COUCHBASE_ETMPFAIL) {
+        # something else is locking it.. maybe retry?
+    }
+    # lock() returns the value as well, just like get()
+
+    my $value = frob($lockret->value);
+    # Set the value. We must use the CAS from the lock operation.
+
+    my $rv = $cbo->set("foo", $value, { cas => $lockret->cas });
+    $cbo->unlock("foo", $rv->cas);
+
+
 =head2 Legacy Interface: Couchbase::Client::Compat
 
 Drop-in replacement for Cache::Memcached and Cache::Memcached::Fast.
@@ -186,6 +208,6 @@ doesn't, you may need to pass some extra arguments to C<Makefile.PL>. For exampl
 if your C<libcouchbase> is installed as C</sources/lcb/inst>, you'd do
 
     perl Makefile.PL --dynamic --incpath -I/sources/lcb/inst/include --libpath -L/sources/lcb/inst/lib
-    
+
 where the C<--incpath> and C<--libpath> parameters specify extra compiler/linker
 flags to use.
