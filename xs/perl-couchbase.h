@@ -267,4 +267,11 @@ void plcb_evloop_wait_unref(PLCB_t *obj);
  */
 int plcb_extract_args(HV *hash, plcb_argval_t *values);
 
+/**
+ * XS prototypes.
+ */
+XS(boot_Couchbase__Client_multi);
+XS(boot_Couchbase__Client_couch);
+XS(boot_Couchbase__Client_iterator);
+
 #endif /* PERL_COUCHBASE_H_ */
