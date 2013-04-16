@@ -86,11 +86,11 @@ static void multi_keyop_common(lcb_t instance,
     ret = newAV();
     results = (HV*)(syncp->ret);
     
-    hv_store(results,
-             key,
-             nkey,
-             plcb_ret_blessed_rv(syncp->parent, ret),
-             0);
+    (void) hv_store(results,
+            key,
+            nkey,
+            plcb_ret_blessed_rv(syncp->parent, ret),
+            0);
     
     plcb_ret_set_err(syncp->parent, ret, err);
     

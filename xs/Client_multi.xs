@@ -53,8 +53,8 @@ PLCB_MAYBE_ALLOC_GENFUNCS(timet_maybe_alloc, time_t, MULTI_STACK_ELEM, static);
 #define _SYNC_RESULT_INIT(object, hv, sync) \
     sync.ret = newAV(); \
     sync.type = PLCB_SYNCTYPE_SINGLE; \
-    hv_store(hv, sync.key, sync.nkey, \
-        plcb_ret_blessed_rv(object, sync.ret), 0); \
+    (void) hv_store(hv, sync.key, sync.nkey, \
+                    plcb_ret_blessed_rv(object, sync.ret), 0); \
     sync.parent = object;
 
 
@@ -215,11 +215,11 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
         for (i = 0; i < nreq; i++) {
             AV *errav = newAV();
             plcb_ret_set_err(object, errav, err);
-            hv_store(ret,
-                     keys[i],
-                     sizes[i],
-                     plcb_ret_blessed_rv(object, errav),
-                     0);
+            (void) hv_store(ret,
+                    keys[i],
+                    sizes[i],
+                    plcb_ret_blessed_rv(object, errav),
+                    0);
         }
     }
 

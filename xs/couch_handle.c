@@ -176,7 +176,7 @@ SV* plcb_couch_handle_new(HV *stash, SV *cbo_sv, PLCB_t *cbo)
     my_iv = newSViv(PTR2IV(newhandle));
     blessed_rv = newRV_noinc(my_iv);
     sv_bless(blessed_rv, stash);
-    SvREFCNT_inc(stash);
+    (void)SvREFCNT_inc(stash);
     newhandle->self_rv = newRV_inc(my_iv);
     sv_rvweaken(newhandle->self_rv);
     

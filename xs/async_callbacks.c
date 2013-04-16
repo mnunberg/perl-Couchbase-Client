@@ -10,11 +10,11 @@ static void tell_perl(PLCBA_cookie_t *cookie,
 {
     dSP;
     
-    hv_store(cookie->results,
-             key,
-             nkey,
-             plcb_ret_blessed_rv(&(cookie->parent->base), ret),
-             0);
+    (void) hv_store(cookie->results,
+            key,
+            nkey,
+            plcb_ret_blessed_rv(&(cookie->parent->base), ret),
+            0);
     
     cookie->remaining--;    
     

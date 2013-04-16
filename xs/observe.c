@@ -34,7 +34,7 @@ void plcb_observe_result(PLCB_obs_t *obs, const lcb_observe_resp_t *resp)
     if (resp->v.v0.status & LCB_OBSERVE_PERSISTED) {
         incr_key(PLCB_OBS_NPERSIST);
         if (resp->v.v0.from_master) {
-            hv_stores(res, PLCB_OBS_PERSIST_MASTER, &PL_sv_yes);
+            (void)hv_stores(res, PLCB_OBS_PERSIST_MASTER, &PL_sv_yes);
         } else {
             incr_key(PLCB_OBS_NREPLICATE);
         }

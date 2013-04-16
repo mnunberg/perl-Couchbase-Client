@@ -44,7 +44,7 @@ static SV * serialize_convert(SV *meth, SV *input, int direction)
         }
     }
     
-    SvREFCNT_inc(ret);
+    (void) SvREFCNT_inc(ret);
     
     FREETMPS;
     LEAVE;

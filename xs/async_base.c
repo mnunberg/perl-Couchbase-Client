@@ -169,8 +169,8 @@ void PLCBA_request(SV *self,
         nreq = 1;
     }
     
-    cookie->callcb = callcb; SvREFCNT_inc(callcb);
-    cookie->cbdata = cbdata; SvREFCNT_inc(cbdata);
+    cookie->callcb = callcb; (void)SvREFCNT_inc(callcb);
+    cookie->cbdata = cbdata; (void)SvREFCNT_inc(cbdata);
     cookie->cbtype = cbtype;
     cookie->results = newHV();
     cookie->parent = async;
@@ -349,7 +349,7 @@ static void extract_async_options(PLCBA_t *async, AV *options)
             || SvTYPE(*tmpsv) == SVt_NULL) { \
             die("Must have '%s' callback", diemsg); \
         } \
-        SvREFCNT_inc(*tmpsv); \
+        (void)SvREFCNT_inc(*tmpsv); \
         async->target = *tmpsv;
     
     SV **tmpsv;

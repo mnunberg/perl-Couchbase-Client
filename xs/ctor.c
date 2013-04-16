@@ -84,7 +84,7 @@ void plcb_ctor_conversion_opts(PLCB_t *object, AV *options)
         if (!SvROK(*tmpsv) || SvTYPE(SvRV(*tmpsv)) != SVt_PVCV) { \
             die("Expected a code reference for %s but found something else", name); \
         } \
-        SvREFCNT_inc(*tmpsv); \
+        (void)SvREFCNT_inc(*tmpsv); \
         object->target = *tmpsv; \
     }
 
