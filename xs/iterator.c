@@ -67,9 +67,7 @@ static void iter_get_callback(lcb_t instance,
 SV*
 plcb_multi_iterator_new(PLCB_t *obj,
                         SV *cbo_sv,
-                        const void * const *keys,
-                        size_t *sizes,
-                        time_t *exps,
+                        const lcb_get_cmd_t * const * cmds,
                         size_t nitems)
 {
     SV *my_iv, *ret_rv;
@@ -88,7 +86,7 @@ plcb_multi_iterator_new(PLCB_t *obj,
 
     sv_bless(ret_rv, obj->iter_stash);
 
-    err = libcouchbase_mget(obj->instance, iterobj, nitems, keys, sizes, exps);
+    err = lcb_get(obj->instance, iterobj, nitems, cmds);
 
     if (err != LIBCOUCHBASE_SUCCESS) {
         SV *tmprv;

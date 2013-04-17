@@ -258,6 +258,9 @@ static SV *PLCB_arithmetic_common(SV *self,
     time_t exp;
     lcb_error_t err;
 
+    lcb_arithmetic_cmd_t cmd = { 0 };
+    const lcb_arithmetic_cmd_t *cmdp = &cmd;
+
     mk_instance_vars(self, instance, object);
     PLCB_UEXP2EXP(exp, exp_offset, 0);
 
@@ -265,14 +268,14 @@ static SV *PLCB_arithmetic_common(SV *self,
 
     _sync_initialize_single(object, syncp);
 
-    err = libcouchbase_arithmetic(instance,
-                                  syncp,
-                                  skey,
-                                  nkey,
-                                  delta,
-                                  exp,
-                                  do_create,
-                                  initial);
+    cmd.v.v0.create = do_create;
+    cmd.v.v0.delta = delta;
+    cmd.v.v0.exptime = exp;
+    cmd.v.v0.initial = initial;
+    cmd.v.v0.key = skey;
+    cmd.v.v0.nkey = nkey;
+
+    err = lcb_arithmetic(instance, syncp, 1, &cmdp);
 
     _sync_return_single(object, err, syncp);
 }
@@ -387,6 +390,9 @@ SV *PLCB_remove(SV *self, SV *key, uint64_t cas)
     STRLEN key_len;
     PLCB_sync_t *syncp;
 
+    lcb_remove_cmd_t cmd = { 0 };
+    const lcb_remove_cmd_t *cmdp = &cmd;
+
     mk_instance_vars(self, instance, object);
 
     plcb_get_str_or_die(key, skey, key_len, "Key");
@@ -394,7 +400,12 @@ SV *PLCB_remove(SV *self, SV *key, uint64_t cas)
 
     _sync_initialize_single(object, syncp);
 
-    err = libcouchbase_remove(instance, syncp, skey, key_len, cas);
+    cmd.v.v0.cas = cas;
+    cmd.v.v0.key = skey;
+    cmd.v.v0.nkey = key_len;
+
+    err = lcb_remove(instance, syncp, 1, &cmdp);
+
     _sync_return_single(object, err, syncp);
 }
 

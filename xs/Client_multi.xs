@@ -3,24 +3,19 @@
 
 #define MULTI_STACK_ELEM 64
 
-PLCB_STRUCT_MAYBE_ALLOC_SIZED(pointer_maybe_alloc, void*, MULTI_STACK_ELEM);
-PLCB_MAYBE_ALLOC_GENFUNCS(pointer_maybe_alloc, void*, MULTI_STACK_ELEM, static);
-
-PLCB_STRUCT_MAYBE_ALLOC_SIZED(sizet_maybe_alloc, size_t, MULTI_STACK_ELEM);
-PLCB_MAYBE_ALLOC_GENFUNCS(sizet_maybe_alloc, size_t, MULTI_STACK_ELEM, static);
-
 PLCB_STRUCT_MAYBE_ALLOC_SIZED(syncs_maybe_alloc, PLCB_sync_t, 32);
 PLCB_MAYBE_ALLOC_GENFUNCS(syncs_maybe_alloc, PLCB_sync_t, 32, static);
-
-PLCB_STRUCT_MAYBE_ALLOC_SIZED(timet_maybe_alloc, time_t, MULTI_STACK_ELEM);
-PLCB_MAYBE_ALLOC_GENFUNCS(timet_maybe_alloc, time_t, MULTI_STACK_ELEM, static);
 
 
 #define CMD_MAYBE_ALLOC(base, sname) \
     PLCB_STRUCT_MAYBE_ALLOC_SIZED(base##_maybe_alloc, sname, MULTI_STACK_ELEM); \
-    PLCB_STRUCT_MAYBE_ALLOC_SIZED(base##P_maybe_alloc, sname*, MULTI_STACK_ELEM); \
+    PLCB_STRUCT_MAYBE_ALLOC_SIZED(base##P_maybe_alloc, const sname*, MULTI_STACK_ELEM); \
     PLCB_MAYBE_ALLOC_GENFUNCS(base##_maybe_alloc, sname, MULTI_STACK_ELEM, static); \
-    PLCB_MAYBE_ALLOC_GENFUNCS(base##P_maybe_alloc, sname*, MULTI_STACK_ELEM, static);
+    PLCB_MAYBE_ALLOC_GENFUNCS(base##P_maybe_alloc, const sname*, MULTI_STACK_ELEM, static);
+
+
+CMD_MAYBE_ALLOC(touchcmd, lcb_touch_cmd_t);
+CMD_MAYBE_ALLOC(getcmd, lcb_get_cmd_t);
 
 #ifndef mk_instance_vars
 #define mk_instance_vars(sv, inst_name, obj_name) \
@@ -109,9 +104,15 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
     PLCB_sync_t *syncp;
     int cmd_base;
     
-    struct pointer_maybe_alloc keys_buffer;
-    struct sizet_maybe_alloc sizes_buffer;
-    struct timet_maybe_alloc exps_buffer;
+    union {
+        struct getcmd_maybe_alloc get;
+        struct touchcmd_maybe_alloc touch;
+    } u_cmd;
+
+    union {
+        struct getcmdP_maybe_alloc get;
+        struct touchcmdP_maybe_alloc touch;
+    } u_pcmd;
 
     mk_instance_vars(self, instance, object);
     _MULTI_INIT_COMMON(object, ret, nreq, args, now);
@@ -120,39 +121,45 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
     syncp->parent = object;
     syncp->ret = (AV*)ret;
     
-    pointer_maybe_alloc_init(&keys_buffer, nreq);
-    sizet_maybe_alloc_init(&sizes_buffer, nreq);
     cmd_base = (PLCB_COMMAND_MASK & cmd);
 
+
     if (cmd_base == PLCB_CMD_GET) {
-        exps_buffer.allocated = 0;
-        exps_buffer.bufp = NULL;
+        getcmd_maybe_alloc_init(&u_cmd.get, nreq);
+        getcmdP_maybe_alloc_init(&u_pcmd.get, nreq);
+        memset(u_cmd.get.bufp, 0, sizeof(lcb_get_cmd_t) * nreq);
 
     } else {
-        timet_maybe_alloc_init(&exps_buffer, nreq);
+        touchcmd_maybe_alloc_init(&u_cmd.touch, nreq);
+        touchcmdP_maybe_alloc_init(&u_pcmd.touch, nreq);
+        memset(u_cmd.touch.bufp, 0, sizeof(lcb_touch_cmd_t) * nreq);
     }
     
 #define do_free_buffers() \
-    pointer_maybe_alloc_cleanup(&keys_buffer); \
-    sizet_maybe_alloc_cleanup(&sizes_buffer); \
-    timet_maybe_alloc_cleanup(&exps_buffer);
-
-    keys = keys_buffer.bufp;
-    sizes = sizes_buffer.bufp;
-    exps = exps_buffer.bufp;
+        if (cmd_base == PLCB_CMD_GET) { \
+            getcmd_maybe_alloc_cleanup(&u_cmd.get); \
+            getcmdP_maybe_alloc_cleanup(&u_pcmd.get); \
+        } else { \
+            touchcmd_maybe_alloc_cleanup(&u_cmd.touch); \
+            touchcmdP_maybe_alloc_cleanup(&u_pcmd.touch); \
+        }
 
     for (i = 0; i < nreq; i++) {
+        const char *curkey;
+        size_t curklen;
+        time_t curexp;
+
         _fetch_assert(tmpsv, args, i, "arguments");
-        
         if (SvTYPE(*tmpsv) <= SVt_PV) {
-            if (exps) {
+
+            if (cmd_base == PLCB_CMD_TOUCH) {
                 die("This command requires a valid expiry");
             }
-            plcb_get_str_or_die(*tmpsv, keys[i], sizes[i], "key");
+
+            plcb_get_str_or_die(*tmpsv, curkey, curklen, "key");
 
         } else {
             AV *argav = NULL;
-            
             if (SvROK(*tmpsv) == 0 ||
                     ( (argav = (AV*)SvRV(*tmpsv)) && SvTYPE(argav) != SVt_PVAV)) {
                 die("Expected an array reference");
@@ -160,15 +167,32 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
 
             _fetch_assert(tmpsv, argav, 0, "missing key");
             
-            plcb_get_str_or_die(*tmpsv, keys[i], sizes[i], "key");
+            plcb_get_str_or_die(*tmpsv, curkey, curklen, "key");
             
-            if (exps) {
-                _fetch_assert(tmpsv, argav, 1, "expiry");
 
-                if (! (exps[i] = plcb_exp_from_sv(*tmpsv)) ) {
+            if (cmd_base == PLCB_CMD_TOUCH) {
+                _fetch_assert(tmpsv, argav, 1, "expiry");
+                if (! (curexp = plcb_exp_from_sv(*tmpsv)) ) {
                     die("expiry of 0 passed. This is not what you want");
                 }
             }
+        }
+
+        if (cmd_base == PLCB_CMD_GET) {
+            lcb_get_cmd_t *curcmd = u_cmd.get.bufp + i;
+            curcmd->v.v0.key = curkey;
+            curcmd->v.v0.nkey = curklen;
+            curcmd->v.v0.exptime = curexp;
+
+            u_pcmd.get.bufp[i] = curcmd;
+
+        } else {
+            lcb_touch_cmd_t *curcmd = u_cmd.touch.bufp + i;
+            curcmd->v.v0.key = curkey;
+            curcmd->v.v0.nkey = curklen;
+            curcmd->v.v0.exptime = curexp;
+
+            u_pcmd.touch.bufp[i] = curcmd;
         }
     }
     
@@ -179,9 +203,7 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
 
         iter_ret = plcb_multi_iterator_new(object,
                                            self,
-                                           (const void * const *) keys,
-                                           sizes,
-                                           exps,
+                                           u_pcmd.get.bufp,
                                            nreq);
         do_free_buffers();
         return iter_ret;
@@ -191,20 +213,10 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
     SAVEDESTRUCTOR(restore_single_callbacks, object);
     
     if (cmd == PLCB_CMD_TOUCH) {
-        err = libcouchbase_mtouch(instance,
-                                  syncp,
-                                  nreq,
-                                  (const void* const *) keys,
-                                  sizes,
-                                  exps);
+        err = lcb_touch(instance, syncp, nreq, u_pcmd.touch.bufp);
 
     } else {
-        err = libcouchbase_mget(instance,
-                                syncp,
-                                nreq,
-                                (const void* const *) keys,
-                                sizes,
-                                NULL);
+        err = lcb_get(instance, syncp, nreq, u_pcmd.get.bufp);
     }
     
     if (err == LCB_SUCCESS) {
@@ -213,11 +225,20 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
 
     } else {
         for (i = 0; i < nreq; i++) {
+            const char *curkey;
+            size_t curlen;
+            if (cmd_base == PLCB_CMD_GET) {
+                curkey = u_cmd.get.bufp[i].v.v0.key;
+                curlen = u_cmd.get.bufp[i].v.v0.nkey;
+            } else {
+                curkey = u_cmd.touch.bufp[i].v.v0.key;
+                curlen = u_cmd.touch.bufp[i].v.v0.nkey;
+            }
+
             AV *errav = newAV();
             plcb_ret_set_err(object, errav, err);
             (void) hv_store(ret,
-                    keys[i],
-                    sizes[i],
+                    curkey, curlen,
                     plcb_ret_blessed_rv(object, errav),
                     0);
         }
@@ -264,6 +285,9 @@ PLCB_multi_set_common(SV *self, AV *args, int cmd)
         uint64_t cas = 0;
         time_t exp = 0;
         
+        lcb_store_cmd_t cmd = { 0 };
+        const lcb_store_cmd_t *cmdp = &cmd;
+
         _fetch_assert(tmpsv, args, i, "empty argument in spec");
         
         if (SvROK(*tmpsv) == 0 ||
@@ -306,16 +330,16 @@ PLCB_multi_set_common(SV *self, AV *args, int cmd)
                              &store_flags,
                              conversion_spec);
         
-        err = libcouchbase_store(instance,
-                                 &syncs[i],
-                                 storop,
-                                 syncs[i].key,
-                                 syncs[i].nkey,
-                                 SvPVX(value_sv),
-                                 nvalue,
-                                 store_flags,
-                                 exp,
-                                 cas);
+        cmd.v.v0.key = syncs[i].key;
+        cmd.v.v0.nkey = syncs[i].nkey;
+        cmd.v.v0.bytes = SvPVX(value_sv);
+        cmd.v.v0.nbytes = nvalue;
+        cmd.v.v0.flags = store_flags;
+        cmd.v.v0.exptime = exp;
+        cmd.v.v0.cas = cas;
+        cmd.v.v0.operation = storop;
+
+        err = lcb_store(instance, syncs + i, 1, &cmdp);
         
         plcb_convert_storage_free(object, value_sv, store_flags);
         
@@ -351,6 +375,9 @@ static SV* PLCB_multi_arithmetic_common(SV *self, AV *args, int cmd)
         uint64_t initial = 0;
         int do_create = 0;
         
+        lcb_arithmetic_cmd_t acmd = { 0 };
+        const lcb_arithmetic_cmd_t *cmdp = &acmd;
+
         #define _do_arith_simple(only_sv) \
             plcb_get_str_or_die(only_sv, syncs[i].key, syncs[i].nkey, "key"); \
             delta = (cmd == PLCB_CMD_DECR) ? (-delta) : delta; \
@@ -403,9 +430,16 @@ static SV* PLCB_multi_arithmetic_common(SV *self, AV *args, int cmd)
         GT_CBC_CMD:
         
         _SYNC_RESULT_INIT(object, ret, syncs[i]);
-        err = libcouchbase_arithmetic(instance, &syncs[i], syncs[i].key,
-                                      syncs[i].nkey,
-                                      delta, exp, do_create, initial);
+
+        acmd.v.v0.key = syncs[i].key;
+        acmd.v.v0.nkey = syncs[i].nkey;
+        acmd.v.v0.delta = delta;
+        acmd.v.v0.exptime = exp;
+        acmd.v.v0.create = do_create;
+        acmd.v.v0.initial = initial;
+
+        err = lcb_arithmetic(instance, syncs + i, 1, &cmdp);
+
         _MAYBE_SET_IMMEDIATE_ERROR(err, syncs[i].ret, nwait);
         
     }
@@ -423,7 +457,7 @@ PLCB_multi_remove(SV *self, AV *args)
     struct syncs_maybe_alloc syncs_buf;
     
     int nwait = 0;
-    
+
     mk_instance_vars(self, instance, object);
     _MULTI_INIT_COMMON(object, ret, nreq, args, now);
     
@@ -434,6 +468,9 @@ PLCB_multi_remove(SV *self, AV *args)
         AV *argav = NULL;
         SV **tmpsv;
         uint64_t cas = 0;
+        lcb_remove_cmd_t cmd = { 0 };
+        const lcb_remove_cmd_t *cmdp = &cmd;
+
         
         _fetch_assert(tmpsv, args, i, "empty arguments in spec");
 
@@ -452,11 +489,11 @@ PLCB_multi_remove(SV *self, AV *args)
         
         _SYNC_RESULT_INIT(object, ret, syncs[i]);
         
-        err = libcouchbase_remove(instance,
-                                  &syncs[i],
-                                  syncs[i].key,
-                                  syncs[i].nkey,
-                                  cas);
+        cmd.v.v0.key = syncs[i].key;
+        cmd.v.v0.nkey = syncs[i].nkey;
+        cmd.v.v0.cas = cas;
+
+        err = lcb_remove(instance, syncs + i, 1, &cmdp);
 
         _MAYBE_SET_IMMEDIATE_ERROR(err, syncs[i].ret, nwait);
     }

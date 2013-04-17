@@ -234,9 +234,7 @@ int plcb_convert_settings(PLCB_t *object, int flag, int new_value);
  */
 SV* plcb_multi_iterator_new(PLCB_t *obj,
                             SV *cbo_sv,
-                            const void * const *keys,
-                            size_t *sizes,
-                            time_t *exps,
+                            const lcb_get_cmd_t * const * cmds,
                             size_t nitems);
 
 void plcb_multi_iterator_next(PLCB_iter_t *iter, SV **keyp, SV **retp);
