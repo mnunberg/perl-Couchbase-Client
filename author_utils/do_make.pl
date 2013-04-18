@@ -22,7 +22,7 @@ if ($CC) {
 }
 
 if ($WALL) {
-    $cmd .= "OPTIMIZE=-Wall";
+    $cmd .= "OPTIMIZE='-Wall -ggdb3'";
 }
 
 system($cmd);
