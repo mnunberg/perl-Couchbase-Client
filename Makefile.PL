@@ -59,6 +59,7 @@ $MM_Options{CONFIGURE} = sub {
 ################################################################################
 {
     my @C_Modules = qw(
+        args
         async_base
         async_callbacks
         async_events

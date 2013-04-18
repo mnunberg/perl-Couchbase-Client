@@ -52,17 +52,6 @@ CMD_MAYBE_ALLOC(getcmd, lcb_get_cmd_t);
                     plcb_ret_blessed_rv(object, sync.ret), 0); \
     sync.parent = object;
 
-
-#define _exp_from_av(av, idx, nowvar, expvar, tmpsv) \
-    if ( (tmpsv = av_fetch(av, idx, 0)) && (expvar = plcb_exp_from_sv(*tmpsv))) { \
-        PLCB_UEXP2EXP(expvar, expvar, nowvar); \
-    }
-
-#define _cas_from_av(av, idx, casvar, tmpsv) \
-    if ( (tmpsv = av_fetch(av, idx, 0)) && SvTRUE(*tmpsv) ) { \
-        casvar = plcb_sv_to_u64(*tmpsv); \
-    }
-
 #define _MAYBE_SET_IMMEDIATE_ERROR(err, retav, waitvar) \
     if (err == LCB_SUCCESS) { \
         waitvar++; \
@@ -93,16 +82,14 @@ restore_single_callbacks(void *arg)
 }
 
 static SV*
-PLCB_multi_get_common(SV *self, AV *args, int cmd)
+PLCB_multi_get_common(SV *self, AV *speclist, int cmd)
 {
     _dMULTI_VARS
     
-    void **keys;
-    size_t *sizes;
-    time_t *exps;
     SV **tmpsv;
     PLCB_sync_t *syncp;
     int cmd_base;
+    PLCB_argopts_t ao = { 0 };
     
     union {
         struct getcmd_maybe_alloc get;
@@ -115,14 +102,16 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
     } u_pcmd;
 
     mk_instance_vars(self, instance, object);
-    _MULTI_INIT_COMMON(object, ret, nreq, args, now);
+    _MULTI_INIT_COMMON(object, ret, nreq, speclist, now);
     
     syncp = &object->sync;
     syncp->parent = object;
     syncp->ret = (AV*)ret;
-    
+
     cmd_base = (PLCB_COMMAND_MASK & cmd);
 
+    ao.autodie = 1;
+    ao.now = now;
 
     if (cmd_base == PLCB_CMD_GET) {
         getcmd_maybe_alloc_init(&u_cmd.get, nreq);
@@ -145,57 +134,74 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
         }
 
     for (i = 0; i < nreq; i++) {
-        const char *curkey;
-        size_t curklen;
-        time_t curexp;
+        AV *curspec = NULL;
+        SV *args[PLCB_ARGS_MAX];
+        int speclen;
 
-        _fetch_assert(tmpsv, args, i, "arguments");
+        _fetch_assert(tmpsv, speclist, i, "arguments");
         if (SvTYPE(*tmpsv) <= SVt_PV) {
+            lcb_get_cmd_t *gcmd = u_cmd.get.bufp + i;
 
-            if (cmd_base == PLCB_CMD_TOUCH) {
-                die("This command requires a valid expiry");
+            if (cmd_base != PLCB_CMD_GET) {
+                die("Bare-keys only work with get()");
             }
-
-            plcb_get_str_or_die(*tmpsv, curkey, curklen, "key");
-
-        } else {
-            AV *argav = NULL;
-            if (SvROK(*tmpsv) == 0 ||
-                    ( (argav = (AV*)SvRV(*tmpsv)) && SvTYPE(argav) != SVt_PVAV)) {
-                die("Expected an array reference");
-            }
-
-            _fetch_assert(tmpsv, argav, 0, "missing key");
             
-            plcb_get_str_or_die(*tmpsv, curkey, curklen, "key");
-            
-
-            if (cmd_base == PLCB_CMD_TOUCH) {
-                _fetch_assert(tmpsv, argav, 1, "expiry");
-                if (! (curexp = plcb_exp_from_sv(*tmpsv)) ) {
-                    die("expiry of 0 passed. This is not what you want");
-                }
-            }
+            plcb_get_str_or_die(*tmpsv,
+                                gcmd->v.v0.key,
+                                gcmd->v.v0.nkey,
+                                "key");
+            continue;
         }
 
-        if (cmd_base == PLCB_CMD_GET) {
-            lcb_get_cmd_t *curcmd = u_cmd.get.bufp + i;
-            curcmd->v.v0.key = curkey;
-            curcmd->v.v0.nkey = curklen;
-            curcmd->v.v0.exptime = curexp;
+        /**
+         * Alright, we have an array
+         */
+        if (SvROK(*tmpsv) == 0 ||
+                ( (curspec = (AV*)SvRV(*tmpsv)) && SvTYPE(curspec) != SVt_PVAV)) {
+            die("Expected an array reference");
+        }
 
-            u_pcmd.get.bufp[i] = curcmd;
+        plcb_makeargs_av(args, curspec, &speclen);
 
-        } else {
-            lcb_touch_cmd_t *curcmd = u_cmd.touch.bufp + i;
-            curcmd->v.v0.key = curkey;
-            curcmd->v.v0.nkey = curklen;
-            curcmd->v.v0.exptime = curexp;
+        switch (cmd_base) {
+        case PLCB_CMD_GET:
+            PLCB_args_get(object,
+                          args,
+                          speclen,
+                          u_cmd.get.bufp + i,
+                          &ao);
+            break;
 
-            u_pcmd.touch.bufp[i] = curcmd;
+        case PLCB_CMD_TOUCH:
+            PLCB_args_touch(object,
+                            args,
+                            speclen,
+                            u_cmd.touch.bufp + i,
+                            &ao);
+            break;
+
+        case PLCB_CMD_LOCK:
+            PLCB_args_lock(object,
+                           args,
+                           speclen,
+                           u_cmd.get.bufp + i,
+                           &ao);
+            break;
+
+        default:
+            die("Got unknown cmd_base=%d", cmd_base);
+            break;
         }
     }
     
+    for (i = 0; i < nreq; i++) {
+        if (cmd_base == PLCB_CMD_TOUCH) {
+            u_pcmd.touch.bufp[i] = u_cmd.touch.bufp + i;
+        } else {
+            u_pcmd.get.bufp[i] = u_cmd.get.bufp + i;
+        }
+    }
+
     /* Figure out if we're using an iterator or not */
     if (cmd & PLCB_COMMANDf_ITER) {
         SV *iter_ret;
@@ -250,78 +256,69 @@ PLCB_multi_get_common(SV *self, AV *args, int cmd)
 }
 
 static SV*
-PLCB_multi_set_common(SV *self, AV *args, int cmd)
+PLCB_multi_set_common(SV *self, AV *speclist, int cmd)
 {
     _dMULTI_VARS
     PLCB_sync_t *syncs = NULL;
     struct syncs_maybe_alloc syncs_buf;
     lcb_storage_t storop;
     plcb_conversion_spec_t conversion_spec = PLCB_CONVERT_SPEC_NONE;
+    PLCB_argopts_t ao = { 0 };
     
     int nwait;
     int cmd_base;
     
     mk_instance_vars(self, instance, object);
     
-    _MULTI_INIT_COMMON(object, ret, nreq, args, now);
+    _MULTI_INIT_COMMON(object, ret, nreq, speclist, now);
     syncs_maybe_alloc_init(&syncs_buf, nreq);
     syncs = syncs_buf.bufp;
     
     cmd_base = cmd & PLCB_COMMAND_MASK;
     nwait = 0;
     storop = plcb_command_to_storop(cmd);
+    ao.autodie = 1;
+    ao.now = now;
     
     if (cmd & PLCB_COMMANDf_COUCH) {
         conversion_spec = PLCB_CONVERT_SPEC_JSON;
     }
     
     for (i = 0; i < nreq; i++) {
-        AV *argav = NULL;
+        AV *curspec = NULL;
+        SV *args[PLCB_ARGS_MAX];
+        int speclen;
         SV **tmpsv;
         char *value;
         STRLEN nvalue;
         SV *value_sv = NULL;
         uint32_t store_flags = 0;
-        uint64_t cas = 0;
-        time_t exp = 0;
         
         lcb_store_cmd_t cmd = { 0 };
         const lcb_store_cmd_t *cmdp = &cmd;
 
-        _fetch_assert(tmpsv, args, i, "empty argument in spec");
+        _fetch_assert(tmpsv, speclist, i, "empty argument in spec");
         
         if (SvROK(*tmpsv) == 0 ||
-                ( ((argav = (AV*)SvRV(*tmpsv)) && SvTYPE(argav) != SVt_PVAV))) {
+                ( ((curspec = (AV*)SvRV(*tmpsv)) && SvTYPE(curspec) != SVt_PVAV))) {
             die("Expected array reference");
         }
         
-        _fetch_assert(tmpsv, argav, 0, "expected key");
-        plcb_get_str_or_die(*tmpsv, syncs[i].key, syncs[i].nkey, "key");
-        _fetch_assert(tmpsv, argav, 1, "expected_value");
-        plcb_get_str_or_die(*tmpsv, value, nvalue, "value");
-        value_sv = *tmpsv;
+        plcb_makeargs_av(args, curspec, &speclen);
+        value_sv = args[1];
+        plcb_get_str_or_die(value_sv, value, nvalue, "value");
         
-        switch(cmd_base) {
+        if (cmd_base == PLCB_CMD_CAS) {
+            PLCB_args_cas(object, args, speclen, &cmd, &ao);
 
-        case PLCB_CMD_SET:
-        case PLCB_CMD_ADD:
-        case PLCB_CMD_REPLACE:
-        case PLCB_CMD_APPEND:
-        case PLCB_CMD_PREPEND:
-            _exp_from_av(argav, 2, now, exp, tmpsv);
-            _cas_from_av(argav, 3, cas, tmpsv);
-            break;
-
-        case PLCB_CMD_CAS:
-            _fetch_assert(tmpsv, argav, 2, "Expected cas");
-            _cas_from_av(argav, 2, cas, tmpsv);
-            _exp_from_av(argav, 3, now, exp, tmpsv);
-            break;
-
-        default:
-            die("Unhandled command %d", cmd);
+        } else {
+            PLCB_APPEND_SANITY(cmd_base, value_sv);
+            PLCB_args_set(object, args, speclen, &cmd, &ao);
         }
         
+        syncs[i].key = cmd.v.v0.key;
+        syncs[i].nkey = cmd.v.v0.nkey;
+
         _SYNC_RESULT_INIT(object, ret, syncs[i]);
 
         plcb_convert_storage(object,
@@ -330,13 +327,9 @@ PLCB_multi_set_common(SV *self, AV *args, int cmd)
                              &store_flags,
                              conversion_spec);
         
-        cmd.v.v0.key = syncs[i].key;
-        cmd.v.v0.nkey = syncs[i].nkey;
         cmd.v.v0.bytes = SvPVX(value_sv);
         cmd.v.v0.nbytes = nvalue;
         cmd.v.v0.flags = store_flags;
-        cmd.v.v0.exptime = exp;
-        cmd.v.v0.cas = cas;
         cmd.v.v0.operation = storop;
 
         err = lcb_store(instance, syncs + i, 1, &cmdp);
@@ -353,37 +346,33 @@ PLCB_multi_set_common(SV *self, AV *args, int cmd)
     return newRV_inc( (SV*)ret);
 }
 
-static SV* PLCB_multi_arithmetic_common(SV *self, AV *args, int cmd)
+static SV* PLCB_multi_arithmetic_common(SV *self, AV *speclist, int cmd)
 {
     _dMULTI_VARS
     
     PLCB_sync_t *syncs;
     struct syncs_maybe_alloc syncs_buf;
     int nwait = 0;
-    
+    PLCB_argopts_t ao = { 0 };
     mk_instance_vars(self, instance, object);
-    _MULTI_INIT_COMMON(object, ret, nreq, args, now);
+    _MULTI_INIT_COMMON(object, ret, nreq, speclist, now);
     
     syncs_maybe_alloc_init(&syncs_buf, nreq);
     syncs = syncs_buf.bufp;
 
+    ao.autodie = 1;
+    ao.now = now;
+
     for (i = 0; i < nreq; i++) {
-        AV *argav = NULL;
+        AV *curspec = NULL;
         SV **tmpsv;
-        time_t exp = 0;
-        int64_t delta = 1;
-        uint64_t initial = 0;
-        int do_create = 0;
+        SV *args[PLCB_ARGS_MAX];
+        int speclen;
         
         lcb_arithmetic_cmd_t acmd = { 0 };
         const lcb_arithmetic_cmd_t *cmdp = &acmd;
-
-        #define _do_arith_simple(only_sv) \
-            plcb_get_str_or_die(only_sv, syncs[i].key, syncs[i].nkey, "key"); \
-            delta = (cmd == PLCB_CMD_DECR) ? (-delta) : delta; \
-            goto GT_CBC_CMD;
         
-        _fetch_assert(tmpsv, args, i, "empty argument in spec");
+        _fetch_assert(tmpsv, speclist, i, "empty argument in spec");
         
         
         if (SvTYPE(*tmpsv) == SVt_PV) {
@@ -391,53 +380,31 @@ static SV* PLCB_multi_arithmetic_common(SV *self, AV *args, int cmd)
             if (cmd == PLCB_CMD_ARITHMETIC) {
                 die("Expected array reference!");
             }
-            _do_arith_simple(*tmpsv);
 
+            args[0] = *tmpsv;
+            speclen = 1;
         } else {
             if (SvROK(*tmpsv) == 0 ||
-                    ( (argav = (AV*)SvRV(*tmpsv)) && SvTYPE(argav) != SVt_PVAV)) {
+                    ( (curspec = (AV*)SvRV(*tmpsv)) && SvTYPE(curspec) != SVt_PVAV)) {
                 die("Expected ARRAY reference");
+            }
+            plcb_makeargs_av(args, curspec, &speclen);
+        }
+        
+        if (cmd == PLCB_CMD_ARITHMETIC) {
+            PLCB_args_arithmetic(object, args, speclen, &acmd, &ao);
+
+        } else {
+            PLCB_args_incrdecr(object, args, speclen, &acmd, &ao);
+            if (cmd == PLCB_CMD_DECR) {
+                acmd.v.v0.delta = (-acmd.v.v0.delta);
             }
         }
         
-        _fetch_assert(tmpsv, argav, 0, "expected key");
-        
-        if (av_len(argav) == 0) {
-            _do_arith_simple(*tmpsv);
-
-        } else {
-            plcb_get_str_or_die(*tmpsv, syncs[i].key, syncs[i].nkey, "key");
-        }
-        
-        _fetch_assert(tmpsv, argav, 1, "expected delta");
-        delta = SvIV(*tmpsv);
-        delta = (cmd == PLCB_CMD_DECR) ? (-delta) : delta;
-        
-        if (cmd != PLCB_CMD_ARITHMETIC) {
-            goto GT_CBC_CMD;
-        }
-        
-        /*fetch initial value here*/
-        if ( (tmpsv = av_fetch(argav, 2, 0)) && SvTYPE(*tmpsv) != SVt_NULL ) {
-            initial = SvUV(*tmpsv);
-            do_create = 1;
-        }
-        
-        if ( (tmpsv = av_fetch(argav, 3, 0)) && (exp = plcb_exp_from_sv(*tmpsv)) ) {
-            PLCB_UEXP2EXP(exp, exp, now);
-        }
-        
-        GT_CBC_CMD:
+        syncs[i].key = acmd.v.v0.key;
+        syncs[i].nkey = acmd.v.v0.nkey;
         
         _SYNC_RESULT_INIT(object, ret, syncs[i]);
-
-        acmd.v.v0.key = syncs[i].key;
-        acmd.v.v0.nkey = syncs[i].nkey;
-        acmd.v.v0.delta = delta;
-        acmd.v.v0.exptime = exp;
-        acmd.v.v0.create = do_create;
-        acmd.v.v0.initial = initial;
-
         err = lcb_arithmetic(instance, syncs + i, 1, &cmdp);
 
         _MAYBE_SET_IMMEDIATE_ERROR(err, syncs[i].ret, nwait);
@@ -450,49 +417,49 @@ static SV* PLCB_multi_arithmetic_common(SV *self, AV *args, int cmd)
 }
 
 static SV*
-PLCB_multi_remove(SV *self, AV *args)
+PLCB_multi_remove(SV *self, AV *speclist)
 {
     _dMULTI_VARS
     PLCB_sync_t *syncs = NULL;
     struct syncs_maybe_alloc syncs_buf;
-    
+    PLCB_argopts_t ao = { 0 };
     int nwait = 0;
 
     mk_instance_vars(self, instance, object);
-    _MULTI_INIT_COMMON(object, ret, nreq, args, now);
+    _MULTI_INIT_COMMON(object, ret, nreq, speclist, now);
     
     syncs_maybe_alloc_init(&syncs_buf, nreq);
     syncs = syncs_buf.bufp;
     
     for (i = 0; i < nreq; i++) {
-        AV *argav = NULL;
+        AV *curspec = NULL;
         SV **tmpsv;
-        uint64_t cas = 0;
+        SV *args[PLCB_ARGS_MAX];
+        int speclen;
         lcb_remove_cmd_t cmd = { 0 };
         const lcb_remove_cmd_t *cmdp = &cmd;
 
         
-        _fetch_assert(tmpsv, args, i, "empty arguments in spec");
+        _fetch_assert(tmpsv, speclist, i, "empty arguments in spec");
 
         if (SvTYPE(*tmpsv) == SVt_PV) {
-            plcb_get_str_or_die(*tmpsv, syncs[i].key, syncs[i].nkey, "key");
+            args[0] = *tmpsv;
+            speclen = 1;
 
         } else {
             if(SvROK(*tmpsv) == 0 ||
-                    ( (argav = (AV*)SvRV(*tmpsv)) && SvTYPE(argav) != SVt_PVAV)) {
+                    ( (curspec = (AV*)SvRV(*tmpsv)) && SvTYPE(curspec) != SVt_PVAV)) {
                 die("Expected ARRAY reference");
             }
-            _fetch_assert(tmpsv, argav, 0, "key");
-            plcb_get_str_or_die(*tmpsv, syncs[i].key, syncs[i].nkey, "key");
-            _cas_from_av(argav, 1, cas, tmpsv);
+            plcb_makeargs_av(args, curspec, &speclen);
         }
         
+        PLCB_args_remove(object, args, speclen, &cmd, &ao);
+        syncs[i].key = cmd.v.v0.key;
+        syncs[i].nkey = cmd.v.v0.nkey;
+
         _SYNC_RESULT_INIT(object, ret, syncs[i]);
         
-        cmd.v.v0.key = syncs[i].key;
-        cmd.v.v0.nkey = syncs[i].nkey;
-        cmd.v.v0.cas = cas;
-
         err = lcb_remove(instance, syncs + i, 1, &cmdp);
 
         _MAYBE_SET_IMMEDIATE_ERROR(err, syncs[i].ret, nwait);
