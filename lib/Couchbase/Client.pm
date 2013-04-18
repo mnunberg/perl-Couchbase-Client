@@ -780,6 +780,9 @@ The return format is as so:
     }
 
 
+=head2 VIEW QUERY METHODS
+
+
 =head3 couch_design_put($json)
 
 =head3 couch_design_get($name)
