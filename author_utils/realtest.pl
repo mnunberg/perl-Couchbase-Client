@@ -20,7 +20,7 @@ $ENV{PLCB_TEST_REAL_SERVER} = $confstr;
 my @execline = ($^X, "./author_utils/testone.pl", @ARGV);
 
 if ($ENV{VALGRIND}) {
-    unshift @execline, $ENV{VALGRIND};
+    unshift @execline, split(' ', $ENV{VALGRIND});
 }
 
 exec @execline;
