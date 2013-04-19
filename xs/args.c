@@ -170,7 +170,7 @@ int PLCB_args_arithmetic(PLCB_t *object,
     return 0;
 }
 
-int PLCB_args_incrdecr(PLCB_t *object,
+int PLCB_args_incr(PLCB_t *object,
                        SV **args,
                        int nargs,
                        lcb_arithmetic_cmd_t *acmd,
@@ -217,6 +217,19 @@ int PLCB_args_incrdecr(PLCB_t *object,
         acmd->v.v0.delta = 1;
     }
     return 0;
+}
+
+int PLCB_args_decr(PLCB_t *object,
+                   SV **args,
+                   int nargs,
+                   lcb_arithmetic_cmd_t *acmd,
+                   PLCB_argopts_t *ao)
+{
+    int ret = PLCB_args_incr(object, args, nargs, acmd, ao);
+    if (ret != -1) {
+        acmd->v.v0.delta = (-acmd->v.v0.delta);
+    }
+    return ret;
 }
 
 int PLCB_args_unlock(PLCB_t *object,

@@ -260,11 +260,11 @@ static SV *PLCB_arithmetic_common(SV *self, int plcmd, SV **args, int nargs)
         break;
 
     case PLCB_CMD_INCR:
+        PLCB_args_incr(object, args, nargs, &cmd, &ao);
+        break;
+
     case PLCB_CMD_DECR:
-        PLCB_args_incrdecr(object, args, nargs, &cmd, &ao);
-        if (plcmd == PLCB_CMD_DECR) {
-            cmd.v.v0.delta = (-cmd.v.v0.delta);
-        }
+        PLCB_args_decr(object, args, nargs, &cmd, &ao);
         break;
     }
 

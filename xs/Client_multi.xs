@@ -394,11 +394,11 @@ static SV* PLCB_multi_arithmetic_common(SV *self, AV *speclist, int cmd)
         if (cmd == PLCB_CMD_ARITHMETIC) {
             PLCB_args_arithmetic(object, args, speclen, &acmd, &ao);
 
+        } else if (cmd == PLCB_CMD_INCR) {
+            PLCB_args_incr(object, args, speclen, &acmd, &ao);
+
         } else {
-            PLCB_args_incrdecr(object, args, speclen, &acmd, &ao);
-            if (cmd == PLCB_CMD_DECR) {
-                acmd.v.v0.delta = (-acmd.v.v0.delta);
-            }
+            PLCB_args_decr(object, args, speclen, &acmd, &ao);
         }
         
         syncs[i].key = acmd.v.v0.key;

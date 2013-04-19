@@ -309,11 +309,18 @@ int PLCB_args_arithmetic(PLCB_t *object,
                          lcb_arithmetic_cmd_t *acmd,
                          PLCB_argopts_t *ao);
 
-int PLCB_args_incrdecr(PLCB_t *object,
-                       SV **args,
-                       int nargs,
-                       lcb_arithmetic_cmd_t *acmd,
-                       PLCB_argopts_t *ao);
+int PLCB_args_incr(PLCB_t *object,
+                   SV **args,
+                   int nargs,
+                   lcb_arithmetic_cmd_t *acmd,
+                   PLCB_argopts_t *ao);
+
+int PLCB_args_decr(PLCB_t *object,
+                   SV **args,
+                   int nargs,
+                   lcb_arithmetic_cmd_t *acmd,
+                   PLCB_argopts_t *ao);
+
 
 int PLCB_args_unlock(PLCB_t *object,
                      SV **args,
