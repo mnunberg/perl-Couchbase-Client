@@ -605,7 +605,7 @@ PLCB__incrdecr(self, key, ...)
     decr = 2
 
     PREINIT:
-    int cmd;
+    int cmd = -1;
     SV *args[PLCB_ARGS_MAX];
     (void)key;
 

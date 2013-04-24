@@ -450,7 +450,7 @@ int PLCB_args_cas(PLCB_t *object,
                   PLCB_argopts_t *ao)
 {
     UV exp = 0;
-    uint64_t *cas_p;
+    uint64_t *cas_p = NULL;
 
     plcb_argval_t kwspec[] = {
         PLCB_KWARG(PLCB_ARG_K_EXPIRY, EXP, &exp),

@@ -120,7 +120,7 @@ PLCB_multi_get_common(SV *self, AV *speclist, int cmd, PLCBA_cookie_t *async_coo
     int nreq;
     int i;
     time_t now;
-    HV *ret;
+    HV *ret = NULL;
     SV **tmpsv;
     void *our_cookie;
     PLCB_sync_t *syncp;
