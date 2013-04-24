@@ -105,6 +105,11 @@ my @async_commands = qw(
     ARITHMETIC
     STATS
     FLUSH
+    LOCK
+    UNLOCK
+    CAS
+    INCR
+    DECR
 );
 constant("PLCB_CMD_$_", name => "PLCBA_CMD_$_") for (@async_commands);
 

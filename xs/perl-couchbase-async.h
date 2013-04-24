@@ -183,17 +183,6 @@ typedef enum {
     
 } PLCBA_ctoridx_t;
 
-/*Types of commands we currently handle*/
-
-#define plcba_cmd_needs_key(cmd) \
-    (cmd & PLCB_COMMANDf_NEEDSKEY)
-
-#define plcba_cmd_needs_conversion(cmd) \
-    ( (cmd & (PLCB_COMMANDf_MUTATE_CLEAN)) == PLCB_COMMANDf_MUTATE_CLEAN)
-
-#define plcba_cmd_needs_strval(cmd) \
-    ( (cmd & (PLCB_COMMANDf_NEEDSTRVAL)) )
-
 /*Fields for the 'request' object*/
 typedef enum {
     PLCBA_REQIDX_KEY,
@@ -247,6 +236,9 @@ SV *PLCBA_construct(const char*, AV*);
 void PLCBA_connect(SV*);
 void PLCBA_HaveEvent(const char*, short, SV*);
 void PLCBA_request(SV *, int, int, SV*, SV*, int, AV*);
+
+void
+PLCBA_request2(SV *self, int cmd, SV *cmdargs, HV *cbargs);
 
 
 #endif /* PERL_COUCHBASE_ASYNC_H_ */

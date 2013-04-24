@@ -72,7 +72,7 @@ sub _startstop_events {
 sub update_event :Event {
     my ($evdata,$action,$flags) = @_[ARG0..ARG2];
     my $dupfh = $evdata->[EVIDX_DUPFH];
-    
+
     if($action == EVACTION_WATCH) {
         if(!$dupfh) {
             open $dupfh, ">&", $evdata->[EVIDX_FD];
@@ -108,7 +108,7 @@ sub update_timer :Event {
     my ($evdata,$action,$usecs) = @_[ARG0..ARG2];
     my $timer_id = $evdata->[EVIDX_PLDATA];
     my $seconds;
-    
+
     if($usecs) {
         $seconds = ($usecs / (1000*1000));
     }
@@ -163,20 +163,20 @@ sub spawn {
     my $cb_ready = delete $options{on_ready}
         or die ("Must have on_ready callback");
     my $user_error_callback = delete $options{on_error};
-    
+
     my $async = Couchbase::Client::Async->new({
         %options,
         cb_error =>
             sub { $poe_kernel->post($session_name, "got_error", @_) },
         cb_update_event =>
             sub { $poe_kernel->call($session_name, "update_event", @_) },
-            
+
         cb_waitdone => $cb_ready,
-        
+
         cb_update_timer =>
             sub { $poe_kernel->call($session_name, "update_timer", @_) }
     });
-    
+
     my $o = __PACKAGE__->new(alias => $session_name, object => $async,
                              on_error => $user_error_callback);
     POE::Session->create(
@@ -192,7 +192,7 @@ sub _single_dispatch_common {
     my ($result,$arg) = @_;
     my ($key) = keys %$result;
     my ($ret) = values %$result;
-        
+
     if($arg->{callback}) {
         $arg->{callback}->($key, $ret, $arg->{arg});
     } else {
@@ -201,134 +201,52 @@ sub _single_dispatch_common {
     }
 }
 
-sub _strop_common {
-    my ($self,$command,$key,
-        $value,$expiry,$cas,$cbparams) = @_;
-    my @arry;
-    
-    if( $cbparams->{state} && (!$cbparams->{session}) ) {
-        $cbparams->{session} = $_[SENDER];
+my %STR2CMD = (
+    set => PLCBA_CMD_SET,
+    cas => PLCBA_CMD_CAS,
+    add => PLCBA_CMD_ADD,
+    replace => PLCBA_CMD_REPLACE,
+    append => PLCBA_CMD_APPEND,
+    prepend => PLCBA_CMD_PREPEND,
+    get => PLCBA_CMD_GET,
+    lock => PLCBA_CMD_LOCK,
+    touch => PLCBA_CMD_TOUCH,
+    remove => PLCBA_CMD_REMOVE,
+    arithmetic => PLCBA_CMD_ARITHMETIC,
+    incr => PLCBA_CMD_INCR,
+    decr => PLCBA_CMD_DECR
+);
+
+sub _catchall :Event(set, get, cas, add, replace, remove, arithmetic, incr, decr, replace, append, prepend)
+{
+    my ($op_params, $cb_params) = @_[ARG0, ARG1];
+    if (!exists $STR2CMD{$_[STATE]}) {
+        die("Unknown command: ".$_[STATE]);
     }
-    
-    unless($cbparams->{state} || $cbparams->{callback}) {
+
+    if( $cb_params->{state} && (!$cb_params->{session}) ) {
+        $cb_params->{session} = $_[SENDER];
+    }
+
+    unless($cb_params->{state} || $cb_params->{callback}) {
         die("Must have either target state or CODE reference for notification");
     }
-    
-    if($cbparams->{callback}) {
-        unless(ref $cbparams->{callback} eq 'CODE') {
+
+    if($cb_params->{callback}) {
+        unless(ref $cb_params->{callback} eq 'CODE') {
             die("Callback must be a CODE reference");
         }
     }
-    
-    arry_assign_i(@arry,
-        REQIDX_KEY, $key,
-        REQIDX_VALUE, $value,
-        REQIDX_EXP, $expiry,
-        REQIDX_CAS, $cas);
-    
-    $self->object->request(
-        $command, REQTYPE_SINGLE,
-        \&_single_dispatch_common, $cbparams, CBTYPE_COMPLETION,
-        \@arry
-    );
-}
 
-
-sub _numop_common {
-    my ($self,$key,$delta,$initial,$expiry,$cbparams) = @_;
-    my @arry;
-    arry_assign_i(@arry,
-        REQIDX_KEY, $key,
-        REQIDX_ARITH_DELTA, $delta,
-        REQIDX_ARITH_INITIAL, $initial,
-        REQIDX_EXP, $expiry);
-    $self->object->request(
-        PLCBA_CMD_ARITHMETIC, REQTYPE_SINGLE,
-        \&_single_dispatch_common, $cbparams, CBTYPE_COMPLETION,
-        \@arry
-    );
-}
-
-my %_state_map = (
-    add         => PLCBA_CMD_ADD,
-    replace     => PLCBA_CMD_REPLACE,
-    append      => PLCBA_CMD_APPEND,
-    prepend     => PLCBA_CMD_PREPEND,
-    set         => PLCBA_CMD_SET
-);
-
-sub _set_common :Event(add, replace, append, prepend, set)
-{
-    my ($op_params,$cb_params) = @_[ARG0,ARG1];
-    my ($key,$value,$expiry,$cas);
-    my $command;
-    
-    if($_[STATE] eq 'cas') {
-        $command = PLCBA_CMD_SET;
-        ($key,$value,$cas,$expiry) = @$op_params;
-    } else {
-        $command = $_state_map{$_[STATE]};
-        ($key,$value,$expiry) = @$op_params;
-    }
-    
-    $_[HEAP]->_strop_common($command,
-                            $key, $value, $expiry, $cas,
-                            $cb_params);
-}
-
-sub get :Event {
-    my ($key,$cbparams) = @_[ARG0,ARG1];
-    if(ref $key) {
-        $key = $key->[0];
-    }
-    $_[HEAP]->_strop_common(
-        PLCBA_CMD_GET, $key, undef, undef, undef, $cbparams);
-}
-
-sub arithmetic :Event {
-    my ($op_params,$cb_params) = @_[ARG0, ARG1];
-    my ($key,$delta,$initial,$expiry) = @$op_params;
-    $_[HEAP]->_numop_common($key, $delta, $initial, $expiry, $cb_params);
-}
-
-sub _arith_basic :Event(incr, decr) {
-    my ($op_params,$cb_params) = @_[ARG0..ARG1];
-    my ($key,$delta,$expiry);
-    if(!ref $op_params) {
-        $delta = 1;
-        $key = $op_params;
-    } else {
-        ($key,$delta,$expiry) = @$op_params;
-    }
-    if($_[STATE] eq 'decr') {
-        $delta = (-$delta);
-    }
-    $_[HEAP]->_numop_common($key, $delta, undef, $expiry, $cb_params);
-}
-
-sub _keyop :Event(touch, remove)
-{
-    my ($op_params, $cb_params) = @_[ARG0,ARG1];
-    my ($key,$expiry,$cas);
-    my $command;
-    
-    if($_[STATE] eq 'touch') {
-        ($key,$expiry) = @$op_params;
-        $command = PLCBA_CMD_TOUCH;
-    } else {
-        ($key,$cas) = @$op_params;
-        $command = PLCBA_CMD_REMOVE;
-    }
-    
-    my @arry;
-    arry_assign_i(@arry,
-        REQIDX_KEY, $key,
-        REQIDX_EXP, $expiry,
-        REQIDX_CAS, $cas);
-    $_[HEAP]->object->request(
-        $command, REQTYPE_SINGLE,
-        \&_single_dispatch_common, $cb_params, CBTYPE_COMPLETION,
-        \@arry
+    my $cmdi = $STR2CMD{$_[STATE]};
+    $_[HEAP]->object->command(
+        $cmdi,
+        $op_params,
+        {
+            callback => \&_single_dispatch_common,
+            data => $cb_params,
+            type => CBTYPE_COMPLETION
+        }
     );
 }
 

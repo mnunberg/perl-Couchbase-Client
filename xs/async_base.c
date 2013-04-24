@@ -1,5 +1,6 @@
 #include "perl-couchbase-async.h"
 #include "plcb-util.h"
+#include "plcb-multi.h"
 
 #define _mk_common_vars(selfsv, v_instance, v_base, v_async) \
     if( (!SvROK(selfsv)) || (!SvIOK(SvRV(selfsv))) ) \
@@ -8,339 +9,149 @@
     v_base = &(v_async->base); \
     v_instance = v_base->instance;
 
-static void av2request(PLCBA_t *async,
-                       int cmd,
-                       AV *reqav,
-                       struct PLCBA_request_st *request)
+
+static void init_async_cookie(PLCBA_t *async,
+                              PLCBA_cookie_t **cookiep,
+                              HV *cbparams)
 {
-    #define _fetch_nonull(idx) \
-        ((tmpsv = av_fetch(reqav, idx, 0)) && SvTYPE(*tmpsv) != SVt_NULL)
-    #define _fetch_assert(idx, diemsg) \
-        if((tmpsv = av_fetch(reqav, idx, 0)) == NULL) { die(diemsg); }
-    
-    #define _extract_exp() \
-        request->exp = 0; \
-        if ((_fetch_nonull(PLCBA_REQIDX_EXP)) && \
-                (request->exp = plcb_exp_from_sv(*tmpsv))) \
-                { \
-                    UV utmp = request->exp; \
-                    PLCB_UEXP2EXP((request->exp), utmp, 0); \
-                }
-    
-    SV **tmpsv;
-    uint64_t *dummy_cas = NULL;
-    plcb_conversion_spec_t conversion_spec = PLCB_CONVERT_SPEC_NONE;
-    
-    if(plcba_cmd_needs_key(cmd)) {
-        _fetch_assert(PLCBA_REQIDX_KEY, "Expected key but none passed");
-        plcb_get_str_or_die(*tmpsv, request->key, request->nkey, "key");
-    }
-
-    _extract_exp();
-    
-    if(plcba_cmd_needs_strval(cmd)) {
-        _fetch_assert(PLCBA_REQIDX_VALUE, "Expected value but none passed");
-        request->value = *tmpsv;
-        request->nvalue = SvCUR(*tmpsv);
-        
-        if(!request->nvalue) {
-            die("Got zero-length value");
-        }
-        
-        
-        if(plcba_cmd_needs_conversion(cmd)) {
-            if (cmd & PLCB_COMMANDf_COUCH) {
-                conversion_spec = PLCB_CONVERT_SPEC_JSON;
-            }
-            
-            request->has_conversion = 1;
-            plcb_convert_storage(&(async->base),
-                                 &(request->value), &(request->nvalue),
-                                 &(request->store_flags),
-                                 conversion_spec);
-        }
-    } else if(cmd == PLCB_CMD_ARITHMETIC) {
-        if( (tmpsv = av_fetch(reqav, PLCBA_REQIDX_ARITH_DELTA, 0)) == NULL) {
-            die("Arithmetic operation requested but no value specified");
-        }
-        request->arithmetic.delta = plcb_sv_to_64(*tmpsv);
-        
-        if( _fetch_nonull(PLCBA_REQIDX_ARITH_INITIAL) ) {
-            request->arithmetic.initial = plcb_sv_to_u64(*tmpsv);
-            request->arithmetic.create = 1;
-        } else {
-            request->arithmetic.create = 0;
-        }
-    }
-    
-    if( _fetch_nonull(PLCBA_REQIDX_CAS) ) {
-        //warn("Have CAS. Setting..");
-        plcb_cas_from_sv(*tmpsv, dummy_cas);
-        request->cas = *dummy_cas;
-    } else {
-        request->cas = 0;
-    }
-#undef _fetch_nonull
-#undef _fetch_assert
-#undef _extract_exp
-}
-
-/*single error for single operation on a cookie*/
-#define error_single plcba_callback_notify_err
-
-/*single error for multiple operations on a cookie*/
-static void error_true_multi(PLCBA_t *async,
-                             PLCBA_cookie_t *cookie,
-                             size_t num_keys,
-                             const char **keys,
-                             size_t *nkey,
-                             lcb_error_t err)
-{
-    int i;
-    for(i = 0; i < num_keys; i++) {
-        error_single(async, cookie, keys[i], nkey[i], err);
-    }
-}
-
-/*multiple errors for multiple operations on a cookie*/
-static void error_pseudo_multi(PLCBA_t *async,
-                               PLCBA_cookie_t *cookie,
-                               AV *reqlist,
-                               lcb_error_t *errors)
-{
-    int i, idx_max;
-    AV *reqav;
-    SV **tmpsv;
-    
-    idx_max = av_len(reqlist);
-    for(i = 0; i <= idx_max; i++) {
-        if(errors[i] == LCB_SUCCESS) {
-            continue;
-        }
-        reqav = (AV*)*(av_fetch(reqlist, i, 0));
-        tmpsv = av_fetch(reqav, PLCBA_REQIDX_KEY, 0);
-        error_single(async, cookie, SvPVX_const(*tmpsv), SvLEN(*tmpsv),
-                     errors[i]);
-    }
-}
-
-void PLCBA_request(SV *self,
-                   int cmd,
-                   int reqtype,
-                   SV *callcb,
-                   SV *cbdata,
-                   int cbtype,
-                   AV *params)
-{
-    struct PLCBA_request_st r;
-    
-    PLCBA_t *async;
-    lcb_t instance;
-    PLCB_t *base;
-    
+    SV **cv;
+    SV **data;
+    SV **cbtype;
     PLCBA_cookie_t *cookie;
-    int nreq, i;
-    lcb_error_t *errors;
-    int errcount;
-    int has_conversion;
-    
-    SV **tmpsv;
-    
-    time_t *multi_exp;
-    void **multi_key;
-    size_t *multi_nkey;
-    
-    lcb_error_t err;
-    lcb_storage_t storop;
-    
-    _mk_common_vars(self, instance, base, async);
-    
+
+    cv = hv_fetchs(cbparams, "callback", 0);
+    data = hv_fetchs(cbparams, "data", 0);
+    cbtype = hv_fetchs(cbparams, "type", 0);
+
+    if (!cv || SvTYPE(*cv) == SVt_NULL) {
+        die("Must have callback");
+    }
+
     Newxz(cookie, 1, PLCBA_cookie_t);
-    if(SvTYPE(callcb) == SVt_NULL) {
-        die("Must have callback for asynchronous request");
-    }
-    
-    if(reqtype == PLCBA_REQTYPE_MULTI) {
-        nreq = av_len(params) + 1;
-        if(!nreq) {
-            die("No requests specified");
-        }
-    } else {
-        nreq = 1;
-    }
-    
-    cookie->callcb = callcb; (void)SvREFCNT_inc(callcb);
-    cookie->cbdata = cbdata; (void)SvREFCNT_inc(cbdata);
-    cookie->cbtype = cbtype;
-    cookie->results = newHV();
+    *cookiep = cookie;
+
     cookie->parent = async;
-    cookie->remaining = nreq;
-    
-    /*pseudo-multi system:
-     
-     Most commands do not have a libcouchbase-level 'multi' implementation, but
-     nevertheless it's more efficient to allow a 'multi' option from Perl because
-     sub and xsub overhead is very expensive.
-     
-     Each operation defines a macro '_do_cbop' which does the following:
-        1) call the libcouchbase api function appropriate for that operation
-        2) set the function variable 'err' to the error which ocurred.
-        
-    the predefined pseudo_perform macro does the rest by doing the following:
-        1) check to see if the request is multiple or single
-        in the case of multiple requests, it:
-            I) fetches the current request AV
-            II) ensures the request is valid and defined
-            III) extracts the information from the request into our request_st
-                structure named 'r'
-            IV) calls the locally-defined _do_cbop (which sets the error)
-            V) checks the current value of 'err', if it is not a success, the
-                error counter is incremented
-            VI) when the loop has terminated, the error counter is checked again,
-                and if it is greater than zero, the error dispatcher is called
-        in the case of a single request, it:
-            I) treats 'params' as the request AV
-            II) passes the AV to av2request,
-            III) calls _do_cbop once, and checks for errors
-            IV) if there is an erorr, the dispatcher is called     
-    */
-    
-    #define _fetch_assert(idx) \
-        if((tmpsv = av_fetch(params, idx, 0)) == NULL) { \
-            die("Null request found in request list"); \
-        } \
-        if(!SvROK(*tmpsv)) { \
-            die("Expected reference type in parameter list."); \
-        } \
-        av2request(async, cmd, (AV*)(SvRV(*tmpsv)), &r);
-        
-    #define pseudo_multi_begin \
-        Newxz(errors, nreq, lcb_error_t); \
-        errcount = 0;
-    #define pseudo_multi_maybe_add \
-        if( (errors[i] = err) != LCB_SUCCESS ) \
-            errcount++;
-    #define pseudo_multi_end \
-        if(errcount) \
-            error_pseudo_multi(async, params, errors, cookie); \
-        Safefree(errors);
-    
-    #define pseudo_perform \
-        if(reqtype == PLCBA_REQTYPE_MULTI) { \
-            pseudo_multi_begin; \
-            for(i = 0; i < nreq; i++) { \
-                _fetch_assert(i); \
-                _do_cbop(); \
-                pseudo_multi_maybe_add; \
-            } \
-            if(errcount < nreq) { \
-                lcb_wait(instance); \
-            } \
-        } else { \
-            av2request(async, cmd, params, &r); \
-            _do_cbop(); \
-            if(err != LCB_SUCCESS) { \
-                warn("Key %s did not return OK (%d)", r.key, err); \
-                error_single(async, cookie, r.key, r.nkey, err); \
-            } else { \
-                lcb_wait(instance); \
-            } \
-        } \
-    
-    switch(cmd) {
-        
+    cookie->results = newHV();
+    SAVEFREESV(cookie->results);
+
+    cookie->callcb = *cv;
+    (void) SvREFCNT_inc(cookie->callcb);
+
+    if (data) {
+        cookie->cbdata = *data;
+        (void) SvREFCNT_inc(cookie->cbdata);
+    }
+
+    if (cbtype && SvTYPE(*cbtype) != SVt_NULL) {
+        cookie->cbtype = SvIV(*cbtype);
+        if (cookie->cbtype != PLCBA_CBTYPE_COMPLETION
+                && cookie->cbtype != PLCBA_CBTYPE_INCREMENTAL) {
+            die("Unrecognized callback type");
+        }
+    }
+
+    (void) SvREFCNT_inc_NN(cookie->results);
+}
+
+AV *get_speclist(int cmd, SV *cmdargs)
+{
+    int cmd_base = cmd & PLCB_COMMAND_MASK;
+    int is_multi = cmd & PLCB_COMMANDf_MULTI;
+    AV *ret = NULL;
+
+    /**
+     * If argument is a simple scalar, wrap it inside an array for those commands
+     * which permit it. Otherwise, just die.
+     */
+    if (SvROK(cmdargs) == 0 && SvPOK(cmdargs)) {
+        switch (cmd_base) {
+        case PLCB_CMD_GET:
+        case PLCB_CMD_REMOVE:
+        case PLCB_CMD_INCR:
+        case PLCB_CMD_DECR: {
+            ret = newAV();
+            SAVEFREESV(ret);
+            (void) SvREFCNT_inc(cmdargs);
+            av_push(ret, cmdargs);
+            return (AV*)ret;
+        }
+
+        default:
+            die("Cannot use simple scalars for commands "
+                    "that need > 1 argument. Command was %d", cmd_base);
+            return NULL; /* not reached */
+        }
+    }
+
+    if (SvROK(cmdargs) == 0 || SvTYPE(SvRV(cmdargs)) != SVt_PVAV) {
+        die("Command arguments is a reference, but not of ARRAY. CMD=%d", cmd_base);
+    }
+
+    if (!is_multi) {
+        ret = newAV();
+        SAVEFREESV(ret);
+        (void) SvREFCNT_inc(cmdargs);
+        av_push(ret, cmdargs);
+
+    } else {
+        ret = (AV*)SvRV(cmdargs);
+    }
+
+    return ret;
+}
+
+void
+PLCBA_request2(SV *self, int cmd, SV *cmdargs, HV *cbargs)
+{
+    PLCBA_t *async;
+    PLCBA_cookie_t *cookie;
+    AV *speclist;
+
+    int cmd_base = cmd & PLCB_COMMAND_MASK;
+
+    if( (!SvROK(self)) || (!SvIOK(SvRV(self))) ) {
+        die("Passed a bad object!");
+    }
+
+    async = NUM2PTR(PLCBA_t*, SvIV(SvRV(self)));
+    speclist = get_speclist(cmd, cmdargs);
+    init_async_cookie(async, &cookie, cbargs);
+    cookie->remaining = av_len(speclist) + 1;
+
+
+    switch (cmd_base) {
+
     case PLCB_CMD_GET:
     case PLCB_CMD_TOUCH:
-        #define _do_cbop(klist, szlist, explist) \
-        if(cmd == PLCB_CMD_GET) { \
-            err = libcouchbase_mget(instance, cookie, nreq, \
-                                    (const void* const*)klist, \
-                                    (szlist), explist); \
-        } else { \
-            err = libcouchbase_mtouch(instance, cookie, nreq, \
-                                    (const void* const*)klist, \
-                                    szlist, explist); \
-        }
-        
-        if(reqtype == PLCBA_REQTYPE_MULTI) {
-            Newx(multi_key, nreq, void*);
-            Newx(multi_nkey, nreq, size_t);
-            Newx(multi_exp, nreq, time_t);
-            for(i = 0; i < nreq; i++) {
-                _fetch_assert(i);
-                multi_key[i] = r.key;
-                multi_nkey[i] = r.nkey;
-                multi_exp[i] = r.exp;
-            }
-
-            _do_cbop(multi_key, multi_nkey, multi_exp);
-            if(err != LCB_SUCCESS) {
-                error_true_multi(
-                    async, cookie, nreq, (const char**)multi_key, multi_nkey, err);
-            } else {
-                lcb_wait(instance);
-            }
-            Safefree(multi_key);
-            Safefree(multi_nkey);
-            Safefree(multi_exp);
-        } else {
-            av2request(async, cmd, params, &r);
-            _do_cbop(&(r.key), &(r.nkey), &(r.exp));
-            if(err != LCB_SUCCESS) {
-                error_single(async, cookie, r.key, r.nkey, err);
-            } else {
-                lcb_wait(instance);
-            }
-        }
+    case PLCB_CMD_LOCK:
+        PLCB_multi_get_common(NULL, speclist, cmd, cookie);
         break;
-        #undef _do_cbop
 
     case PLCB_CMD_SET:
     case PLCB_CMD_ADD:
     case PLCB_CMD_REPLACE:
     case PLCB_CMD_APPEND:
     case PLCB_CMD_PREPEND:
-        storop = plcb_command_to_storop(cmd);
-        //warn("Storop is %x (cmd=%x)", storop, cmd);
-        has_conversion = plcba_cmd_needs_conversion(cmd);
-        #define _do_cbop() \
-            err = libcouchbase_store(instance, cookie, storop, r.key, r.nkey, \
-                                    SvPVX(r.value), r.nvalue, r.store_flags, \
-                                    r.exp, r.cas); \
-            if(has_conversion) { \
-                plcb_convert_storage_free(base, r.value, r.store_flags); \
-            }
-        
-        pseudo_perform;
+    case PLCB_CMD_CAS:
+        PLCB_multi_set_common(NULL, speclist, cmd, cookie);
         break;
-        #undef _do_cbop
-    
+
     case PLCB_CMD_ARITHMETIC:
-        #define _do_cbop() \
-            err = libcouchbase_arithmetic(instance, cookie, r.key, r.nkey, \
-                                r.arithmetic.delta, r.exp, \
-                                r.arithmetic.create, r.arithmetic.initial);
-        pseudo_perform;
+    case PLCB_CMD_INCR:
+    case PLCB_CMD_DECR:
+        PLCB_multi_arithmetic_common(NULL, speclist, cmd, cookie);
         break;
-        #undef _do_cbop
+
     case PLCB_CMD_REMOVE:
-        #define _do_cbop() \
-            err = libcouchbase_remove(instance, cookie, r.key, r.nkey, r.cas);
-        pseudo_perform;
+        PLCB_multi_remove(NULL, speclist, cookie);
         break;
-        #undef _do_cbop
 
     default:
-        die("Unimplemented!");
-    }
-    
-    #undef _fetch_assert
-    #undef pseudo_multi_begin
-    #undef pseduo_multi_maybe_add
-    #undef pseudo_multi_end
-    #undef pseudo_perform
-}
+        die("This command (%d) not implemented yet", cmd_base);
+        break;
 
+    }
+}
 
 static void extract_async_options(PLCBA_t *async, AV *options)
 {
@@ -372,8 +183,9 @@ SV* PLCBA_construct(const char *pkg, AV *options)
 {
     PLCBA_t *async;
     char *host, *username, *password, *bucket;
-    lcb_t instance;
+    lcb_t instance = NULL;
     SV *blessed_obj;
+    struct lcb_create_st cr_opts = { 0 };
     
     Newxz(async, 1, PLCBA_t);
     
@@ -382,9 +194,15 @@ SV* PLCBA_construct(const char *pkg, AV *options)
     plcb_ctor_conversion_opts(&async->base, options);
     
     plcb_ctor_cbc_opts(options, &host, &username, &password, &bucket);
-    instance = libcouchbase_create(host, username, password, bucket,
-                                   plcba_make_io_opts(async));
-    
+
+    cr_opts.v.v0.bucket = bucket;
+    cr_opts.v.v0.host = host;
+    cr_opts.v.v0.user = username;
+    cr_opts.v.v0.passwd = password;
+    cr_opts.v.v0.io = plcba_make_io_opts(async);
+
+    lcb_create(&instance, &cr_opts);
+
     if(!instance) {
         die("Couldn't create instance!");
     }
@@ -435,6 +253,8 @@ void PLCBA_DESTROY(SV *self)
     lcb_t instance;
     PLCB_t *base;
     _mk_common_vars(self, instance, base, async);
+
+    (void)instance;
 
     #define _DEC_AND_NULLIFY(fld) \
         if(async->fld) { SvREFCNT_dec(async->fld); async->fld = NULL; }

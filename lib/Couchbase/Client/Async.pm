@@ -332,97 +332,123 @@ C data structure. RTFSC if you really wish to know what's inside there.
 
 =head1 COUCHBASE COMMANDS AND RESULTS
 
-This contains the higher level inteface for issuing commands, and asynchronously
-awaiting for their results to trickle in.
 
-The asynchronous interface to this is a bit ugly, and is intended to be wrapped
-according to the style you prefer.
+=head2 command($type, $cmdargs, $cbparams)
 
-There is only one function with which to issue commands:
+Issue a command asynchronously.
 
-=head2 C<request>
-
-Issue couchbase command(s).
-
-    $async->request(
-        PLCBA_CMD_*, REQTYPE_*,
-        sub {
-            my ($results,$arg) = @_;
-            print "i am a result callback.\n";
-            printf("I have results for these keys: %s\n",
-                join(",", keys %$results));
-            printf("My request argument was $arg\n");
-        },
-        "arg",
-        CBTYPE_*,
-        [....],
-    );
-
-Pretty complicated, eh?
-
-It was the only sane way to have a single request function without limiting the
-featureset or duplicating code an insane amount of times.
-
-The arguments are as follows:
+The type is one of the C<PLCBA_CMD_*> constants:
 
 =over
 
-=item 0
+=item PLCBA_CMD_GET
 
-The command. This is one of the C<PLCBA_CMD_*> macros, and are present in
-L<Couchbase::Client::IDXConst>.
+=item PLCBA_CMD_TOUCH
 
-=item 1
+=item PLCBA_CMD_LOCK
 
-Request type. This is one of C<REQTYPE_SINGLE> or C<REQTYPE_MULTI>. If the former
-is specified, then only one set of parameters for the command will be passed;
-if the latter, then this will be a single command which will operate on a multitude
-of keys.
+=item PLCBA_CMD_REPLACE
 
-=item 2
+=item PLCBA_CMD_ADD
 
-Callback.
+=item PLCBA_CMD_APPEND
 
-This is the callback which will be invoked when the command receives results. It
-is called with two arguments. The first argument is a hash reference with the
-command key(s) as its keys, and L<Couchbase::Client::Return> objects as its
-values, which contain information about the response and status of the command.
+=item PLCBA_CMD_PREPEND
 
-The second argument is a user defined 'arg' defined next.
+=item PLCBA_CMD_SET
 
-=item 3
+=item PLCBA_CMD_ARITHMETIC
 
-Argument
+=item PLCBA_CMD_INCR
 
-This is a dummy argument passed to the callback, and can be whatever you want.
+=item PLCBA_CMD_DECR
 
-=item 4
+=item PLCBA_CMD_REMOVE
 
-Callback type.
-
-This is one of C<CBTYPE_COMPLETION> and C<CBTYPE_INCREMENTAL>.
-
-In the case of the former, the callback will only be invoked once, when all
-the results for all the keys have been gathered. In the case of the latter, the
-callback will be invoked for each new result received.
-
-Note that the contents of the callback result hash is not automatically reset
-in between calls, so it is advisable to clear the hash (or delete relevant keys)
-if C<CBTYPE_INCREMENTAL> is used.
-
-=item 5
-
-Command arguments.
-
-Either a L<Couchbase::Client::Async::Request> object, or an arrayref of such
-objects; depending on whether C<REQTYPE_SINGLE> or C<REQTYPE_MULTI> was specifed,
-respectively.
-
-The L<Couchbase::Client::Async::Request> is a simple array, and it is not
-strictly required to bless into this object. See its documentation for which
-fields are provided, and which commands they apply to.
-
-It may help to use my L<Array::Assign> module to deal with the fields in the
-array.
+=item PLCBA_CMD_UNLOCK
 
 =back
+
+The constants hopefully should be self-explanatory.
+
+The second parameter, the C<$cmdargs>, is an array reference of arguments to
+pass to the commands. These follow the same semantics as in the C<*_multi>
+variants (in fact, internally they mostly follow the same code path).
+
+Finally, the C<$cbparams> parameter is a hashref containing the following keys:
+
+=over
+
+=item C<callback>
+
+Mandatory. A CODE reference or name of a function to be invoked when the
+response arrives.
+
+=item C<data>
+
+Optional. A scalar which is passed to the callback as its second argument
+
+=item C<type>
+
+The type, or 'mode' of callback to use. Options are C<CBTYPE_INCREMENTAL>
+and C<CBTYPE_COMPLETION>. The C<INCREMENTAL> type is useful if performing a
+large get operation, where you wish to perform an action on each key as it arrives.
+
+Otherwise, the default (C<CBTYPE_COMPLETION>) will only be invoked once the entire
+set of commands have been completed.
+
+
+=back
+
+The callback is always invoked with two arguments; the first is a hashref
+of keys and L<Couchbase::Client::Return> object values; the second is the
+C<data> parameter (if passed).
+
+A callback may thus look like this
+
+    $async->command(PLCBA_CMD_GET, [ "key" ], {
+        data => "hello there",
+        callback => sub {
+            my ($results, $data) = @_;
+            my $single_result = $results->{key};
+            $single_result->value;
+            $single_result->is_ok; #etc..
+            print "$data\n"; # hello there
+    });
+
+
+There are several convenience functions available as well:
+
+=head2 get([$key], $cbparams)
+
+=head2 get($key, $cbparams)
+
+=head2 set($setparams, $cbparams)
+
+=head2 add($addparams, $cbparams)
+
+=head2 replace($replaceparams, $cbparams)
+
+=head2 append($appendparams, $cbparams)
+
+=head2 prepend($prependparams, $cbparams)
+
+=head2 cas($casparams, $cbparams)
+
+=head2 remove($rmparams, $cbparams)
+
+=head2 get_multi(...)
+
+=head2 set_multi(...)
+
+=head2 add_multi(...)
+
+=head2 replace_multi(...)
+
+=head2 append_multi(...)
+
+=head2 prepend_multi(...)
+
+=head2 cas_multi(...)
+
+=head2 remove_multi(...)

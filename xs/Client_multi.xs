@@ -1,5 +1,6 @@
 #include "perl-couchbase.h"
 #include "plcb-commands.h"
+#include "perl-couchbase-async.h"
 
 #define MULTI_STACK_ELEM 64
 
@@ -35,16 +36,6 @@ CMD_MAYBE_ALLOC(getcmd, lcb_get_cmd_t);
         die("%s (expected something at %d)", diemsg, idx); \
     }
 
-
-#define _MULTI_INIT_COMMON(object, ret, nreq, args, now) \
-    if ( (nreq = av_len(args) + 1) == 0 ) { \
-        die("Need at least one spec"); \
-    } \
-    ret = newHV(); \
-    SAVEFREESV(ret); \
-    now = time(NULL); \
-    av_clear(object->errors);
-
 #define _SYNC_RESULT_INIT(object, hv, sync) \
     sync.ret = newAV(); \
     sync.type = PLCB_SYNCTYPE_SINGLE; \
@@ -52,27 +43,32 @@ CMD_MAYBE_ALLOC(getcmd, lcb_get_cmd_t);
                     plcb_ret_blessed_rv(object, sync.ret), 0); \
     sync.parent = object;
 
-#define _MAYBE_SET_IMMEDIATE_ERROR(err, retav, waitvar) \
-    if (err == LCB_SUCCESS) { \
-        waitvar++; \
-    } \
-    else { \
-        plcb_ret_set_err(object, retav, err); \
-    }
-
 #define _MAYBE_WAIT(waitvar) \
     if (waitvar) { \
-        object->npending += waitvar; \
-        plcb_evloop_start(object); \
+        assert(mi.object->npending == 0); \
+        mi.object->npending += waitvar; \
+        plcb_evloop_start(mi.object); \
     }
 
-#define _dMULTI_VARS \
-    PLCB_t *object; \
-    lcb_t instance; \
-    lcb_error_t err; \
-    int nreq, i; \
-    time_t now; \
+
+#define RETURN_COMMON(mi, ac, nwait) \
+    if (ac) { \
+        lcb_wait((mi)->instance); \
+        return NULL; \
+    } \
+    _MAYBE_WAIT(nwait); \
+    syncs_maybe_alloc_cleanup(&(mi)->syncs_buf); \
+    return newRV_inc( (SV*)(mi)->ret );
+
+typedef struct {
+    PLCB_t *object;
+    lcb_t instance;
+    int nreq;
+    time_t now;
     HV *ret;
+    struct syncs_maybe_alloc syncs_buf;
+    PLCB_sync_t *syncs;
+} multi_info;
 
 static void
 restore_single_callbacks(void *arg)
@@ -81,16 +77,56 @@ restore_single_callbacks(void *arg)
     plcb_callbacks_set_single(obj);
 }
 
-static SV*
-PLCB_multi_get_common(SV *self, AV *speclist, int cmd)
+
+static void init_mi(SV *self,
+                    PLCBA_cookie_t *async_cookie,
+                    AV *speclist,
+                    multi_info *mi)
 {
-    _dMULTI_VARS
-    
+    mi->nreq = av_len(speclist) + 1;
+    if (!mi->nreq) {
+        die("Need at least one spec in list");
+    }
+
+    if (!async_cookie) {
+        mk_instance_vars(self, mi->instance, mi->object);
+        av_clear(mi->object->errors);
+        mi->ret = newHV();
+        SAVEFREESV(mi->ret);
+        syncs_maybe_alloc_init(&mi->syncs_buf, mi->nreq);
+        mi->syncs = mi->syncs_buf.bufp;
+
+    } else {
+        async_cookie->remaining = mi->nreq;
+        mi->object = &async_cookie->parent->base;
+        mi->instance = mi->object->instance;
+    }
+
+    mi->now = time(NULL);
+
+}
+
+/**
+ * Get/Touch is a special case since we gain efficiency by batching commands
+ * and terminating them with a no-op. For all other commands, we still gain
+ * a lot of efficiency, but scheduling is a bit more complex.
+ */
+SV*
+PLCB_multi_get_common(SV *self, AV *speclist, int cmd, PLCBA_cookie_t *async_cookie)
+{
+    PLCB_t *object;
+    lcb_t instance;
+    lcb_error_t err;
+    int nreq;
+    int i;
+    time_t now;
+    HV *ret;
     SV **tmpsv;
+    void *our_cookie;
     PLCB_sync_t *syncp;
     int cmd_base;
     PLCB_argopts_t ao = { 0 };
-    
+
     union {
         struct getcmd_maybe_alloc get;
         struct touchcmd_maybe_alloc touch;
@@ -101,12 +137,27 @@ PLCB_multi_get_common(SV *self, AV *speclist, int cmd)
         struct touchcmdP_maybe_alloc touch;
     } u_pcmd;
 
-    mk_instance_vars(self, instance, object);
-    _MULTI_INIT_COMMON(object, ret, nreq, speclist, now);
-    
-    syncp = &object->sync;
-    syncp->parent = object;
-    syncp->ret = (AV*)ret;
+    nreq = av_len(speclist) + 1;
+    now = time(NULL);
+
+    if (!async_cookie) {
+        mk_instance_vars(self, instance, object);
+
+        av_clear(object->errors);
+        ret = newHV();
+        SAVEFREESV(ret);
+
+        syncp = &object->sync;
+        syncp->parent = object;
+        syncp->ret = (AV*)ret;
+        our_cookie = syncp;
+
+    } else {
+        our_cookie = async_cookie;
+        async_cookie->remaining = nreq;
+        object = &async_cookie->parent->base;
+        instance = object->instance;
+    }
 
     cmd_base = (PLCB_COMMAND_MASK & cmd);
 
@@ -123,7 +174,7 @@ PLCB_multi_get_common(SV *self, AV *speclist, int cmd)
         touchcmdP_maybe_alloc_init(&u_pcmd.touch, nreq);
         memset(u_cmd.touch.bufp, 0, sizeof(lcb_touch_cmd_t) * nreq);
     }
-    
+
 #define do_free_buffers() \
         if (cmd_base == PLCB_CMD_GET) { \
             getcmd_maybe_alloc_cleanup(&u_cmd.get); \
@@ -139,17 +190,19 @@ PLCB_multi_get_common(SV *self, AV *speclist, int cmd)
         int speclen;
 
         _fetch_assert(tmpsv, speclist, i, "arguments");
-        if (SvTYPE(*tmpsv) <= SVt_PV) {
+
+        if (!SvROK(*tmpsv)) {
             lcb_get_cmd_t *gcmd = u_cmd.get.bufp + i;
 
             if (cmd_base != PLCB_CMD_GET) {
                 die("Bare-keys only work with get()");
             }
-            
+
             plcb_get_str_or_die(*tmpsv,
                                 gcmd->v.v0.key,
                                 gcmd->v.v0.nkey,
                                 "key");
+
             continue;
         }
 
@@ -193,7 +246,7 @@ PLCB_multi_get_common(SV *self, AV *speclist, int cmd)
             break;
         }
     }
-    
+
     for (i = 0; i < nreq; i++) {
         if (cmd_base == PLCB_CMD_TOUCH) {
             u_pcmd.touch.bufp[i] = u_cmd.touch.bufp + i;
@@ -215,19 +268,25 @@ PLCB_multi_get_common(SV *self, AV *speclist, int cmd)
         return iter_ret;
     }
 
-    plcb_callbacks_set_multi(object);
-    SAVEDESTRUCTOR(restore_single_callbacks, object);
-    
+    if (!async_cookie) {
+        plcb_callbacks_set_multi(object);
+        SAVEDESTRUCTOR(restore_single_callbacks, object);
+    }
+
     if (cmd == PLCB_CMD_TOUCH) {
-        err = lcb_touch(instance, syncp, nreq, u_pcmd.touch.bufp);
+        err = lcb_touch(instance, our_cookie, nreq, u_pcmd.touch.bufp);
 
     } else {
-        err = lcb_get(instance, syncp, nreq, u_pcmd.get.bufp);
+        err = lcb_get(instance, our_cookie, nreq, u_pcmd.get.bufp);
     }
-    
+
     if (err == LCB_SUCCESS) {
-        object->npending += nreq;
-        plcb_evloop_start(object);
+        if (!async_cookie) {
+            object->npending += nreq;
+            plcb_evloop_start(object);
+        } else {
+            lcb_wait(instance);
+        }
 
     } else {
         for (i = 0; i < nreq; i++) {
@@ -241,50 +300,57 @@ PLCB_multi_get_common(SV *self, AV *speclist, int cmd)
                 curlen = u_cmd.touch.bufp[i].v.v0.nkey;
             }
 
-            AV *errav = newAV();
-            plcb_ret_set_err(object, errav, err);
-            (void) hv_store(ret,
-                    curkey, curlen,
-                    plcb_ret_blessed_rv(object, errav),
-                    0);
+            if (!async_cookie) {
+                AV *errav = newAV();
+                plcb_ret_set_err(object, errav, err);
+                (void) hv_store(ret,
+                        curkey, curlen,
+                        plcb_ret_blessed_rv(object, errav),
+                        0);
+
+            } else {
+                plcba_callback_notify_err(async_cookie->parent,
+                                          async_cookie,
+                                          curkey,
+                                          curlen,
+                                          err);
+            }
         }
     }
 
     do_free_buffers();
 
-    return newRV_inc( (SV*)ret);
+
+    if (!async_cookie) {
+        return newRV_inc( (SV*)ret);
+    }
+
+    return NULL;
 }
 
-static SV*
-PLCB_multi_set_common(SV *self, AV *speclist, int cmd)
+SV*
+PLCB_multi_set_common(SV *self, AV *speclist, int cmd, PLCBA_cookie_t *async_cookie)
 {
-    _dMULTI_VARS
-    PLCB_sync_t *syncs = NULL;
-    struct syncs_maybe_alloc syncs_buf;
     lcb_storage_t storop;
     plcb_conversion_spec_t conversion_spec = PLCB_CONVERT_SPEC_NONE;
     PLCB_argopts_t ao = { 0 };
-    
-    int nwait;
+    multi_info mi = { 0 };
+    int nwait = 0;
     int cmd_base;
+    int ii;
     
-    mk_instance_vars(self, instance, object);
-    
-    _MULTI_INIT_COMMON(object, ret, nreq, speclist, now);
-    syncs_maybe_alloc_init(&syncs_buf, nreq);
-    syncs = syncs_buf.bufp;
-    
+    init_mi(self, async_cookie, speclist, &mi);
+
     cmd_base = cmd & PLCB_COMMAND_MASK;
-    nwait = 0;
     storop = plcb_command_to_storop(cmd);
     ao.autodie = 1;
-    ao.now = now;
+    ao.now = mi.now;
     
     if (cmd & PLCB_COMMANDf_COUCH) {
         conversion_spec = PLCB_CONVERT_SPEC_JSON;
     }
     
-    for (i = 0; i < nreq; i++) {
+    for (ii = 0; ii < mi.nreq; ii++) {
         AV *curspec = NULL;
         SV *args[PLCB_ARGS_MAX];
         int speclen;
@@ -293,11 +359,12 @@ PLCB_multi_set_common(SV *self, AV *speclist, int cmd)
         STRLEN nvalue;
         SV *value_sv = NULL;
         uint32_t store_flags = 0;
+        lcb_error_t err;
         
         lcb_store_cmd_t cmd = { 0 };
         const lcb_store_cmd_t *cmdp = &cmd;
 
-        _fetch_assert(tmpsv, speclist, i, "empty argument in spec");
+        _fetch_assert(tmpsv, speclist, ii, "empty argument in spec");
         
         if (SvROK(*tmpsv) == 0 ||
                 ( ((curspec = (AV*)SvRV(*tmpsv)) && SvTYPE(curspec) != SVt_PVAV))) {
@@ -309,19 +376,14 @@ PLCB_multi_set_common(SV *self, AV *speclist, int cmd)
         plcb_get_str_or_die(value_sv, value, nvalue, "value");
         
         if (cmd_base == PLCB_CMD_CAS) {
-            PLCB_args_cas(object, args, speclen, &cmd, &ao);
+            PLCB_args_cas(mi.object, args, speclen, &cmd, &ao);
 
         } else {
             PLCB_APPEND_SANITY(cmd_base, value_sv);
-            PLCB_args_set(object, args, speclen, &cmd, &ao);
+            PLCB_args_set(mi.object, args, speclen, &cmd, &ao);
         }
         
-        syncs[i].key = cmd.v.v0.key;
-        syncs[i].nkey = cmd.v.v0.nkey;
-
-        _SYNC_RESULT_INIT(object, ret, syncs[i]);
-
-        plcb_convert_storage(object,
+        plcb_convert_storage(mi.object,
                              &value_sv,
                              &nvalue,
                              &store_flags,
@@ -332,47 +394,61 @@ PLCB_multi_set_common(SV *self, AV *speclist, int cmd)
         cmd.v.v0.flags = store_flags;
         cmd.v.v0.operation = storop;
 
-        err = lcb_store(instance, syncs + i, 1, &cmdp);
-        
-        plcb_convert_storage_free(object, value_sv, store_flags);
-        
-        _MAYBE_SET_IMMEDIATE_ERROR(err, syncs[i].ret, nwait);
-        
+        if (async_cookie == NULL) {
+            mi.syncs[ii].key = cmd.v.v0.key;
+            mi.syncs[ii].nkey = cmd.v.v0.nkey;
+            _SYNC_RESULT_INIT(mi.object, mi.ret, mi.syncs[ii]);
+            err = lcb_store(mi.instance, mi.syncs + ii, 1, &cmdp);
+
+            if (err == LCB_SUCCESS) {
+                nwait++;
+            } else {
+                plcb_ret_set_err(mi.object, mi.syncs[ii].ret, err);
+            }
+
+        } else {
+            err = lcb_store(mi.instance, async_cookie, 1, &cmdp);
+            if (err != LCB_SUCCESS) {
+                plcba_callback_notify_err(async_cookie->parent,
+                                          async_cookie,
+                                          cmd.v.v0.key,
+                                          cmd.v.v0.nkey,
+                                          err);
+            }
+        }
+
+        plcb_convert_storage_free(mi.object, value_sv, store_flags);
     }
 
-    _MAYBE_WAIT(nwait);
-
-    syncs_maybe_alloc_cleanup(&syncs_buf);
-    return newRV_inc( (SV*)ret);
+    RETURN_COMMON(&mi, async_cookie, nwait);
 }
 
-static SV* PLCB_multi_arithmetic_common(SV *self, AV *speclist, int cmd)
+SV*
+PLCB_multi_arithmetic_common(SV *self,
+                             AV *speclist,
+                             int cmd,
+                             PLCBA_cookie_t *async_cookie)
 {
-    _dMULTI_VARS
-    
-    PLCB_sync_t *syncs;
-    struct syncs_maybe_alloc syncs_buf;
+    int ii;
     int nwait = 0;
     PLCB_argopts_t ao = { 0 };
-    mk_instance_vars(self, instance, object);
-    _MULTI_INIT_COMMON(object, ret, nreq, speclist, now);
+    multi_info mi = { 0 };
+    init_mi(self, async_cookie, speclist, &mi);
     
-    syncs_maybe_alloc_init(&syncs_buf, nreq);
-    syncs = syncs_buf.bufp;
-
     ao.autodie = 1;
-    ao.now = now;
+    ao.now = mi.now;
 
-    for (i = 0; i < nreq; i++) {
+    for (ii = 0; ii < mi.nreq; ii++) {
         AV *curspec = NULL;
         SV **tmpsv;
         SV *args[PLCB_ARGS_MAX];
         int speclen;
+        lcb_error_t err;
         
         lcb_arithmetic_cmd_t acmd = { 0 };
         const lcb_arithmetic_cmd_t *cmdp = &acmd;
         
-        _fetch_assert(tmpsv, speclist, i, "empty argument in spec");
+        _fetch_assert(tmpsv, speclist, ii, "empty argument in spec");
         
         
         if (SvTYPE(*tmpsv) == SVt_PV) {
@@ -392,55 +468,65 @@ static SV* PLCB_multi_arithmetic_common(SV *self, AV *speclist, int cmd)
         }
         
         if (cmd == PLCB_CMD_ARITHMETIC) {
-            PLCB_args_arithmetic(object, args, speclen, &acmd, &ao);
+            PLCB_args_arithmetic(mi.object, args, speclen, &acmd, &ao);
 
         } else if (cmd == PLCB_CMD_INCR) {
-            PLCB_args_incr(object, args, speclen, &acmd, &ao);
+            PLCB_args_incr(mi.object, args, speclen, &acmd, &ao);
 
         } else {
-            PLCB_args_decr(object, args, speclen, &acmd, &ao);
+            PLCB_args_decr(mi.object, args, speclen, &acmd, &ao);
         }
         
-        syncs[i].key = acmd.v.v0.key;
-        syncs[i].nkey = acmd.v.v0.nkey;
-        
-        _SYNC_RESULT_INIT(object, ret, syncs[i]);
-        err = lcb_arithmetic(instance, syncs + i, 1, &cmdp);
+        if (!async_cookie) {
+            mi.syncs[ii].key = acmd.v.v0.key;
+            mi.syncs[ii].nkey = acmd.v.v0.nkey;
+            _SYNC_RESULT_INIT(mi.object, mi.ret, mi.syncs[ii]);
+            err = lcb_arithmetic(mi.instance, mi.syncs + ii, 1, &cmdp);
 
-        _MAYBE_SET_IMMEDIATE_ERROR(err, syncs[i].ret, nwait);
-        
+            if (err != LCB_SUCCESS) {
+                plcb_ret_set_err(mi.object, mi.syncs[ii].ret, err);
+
+            } else {
+                nwait++;
+            }
+
+        } else {
+            err = lcb_arithmetic(mi.instance, async_cookie, 1, &cmdp);
+
+            if (err != LCB_SUCCESS) {
+                plcba_callback_notify_err(async_cookie->parent,
+                                          async_cookie,
+                                          acmd.v.v0.key,
+                                          acmd.v.v0.nkey,
+                                          err);
+            }
+        }
     }
     
-    _MAYBE_WAIT(nwait);
-    syncs_maybe_alloc_cleanup(&syncs_buf);
-    return newRV_inc( (SV*)ret);
+    RETURN_COMMON(&mi, async_cookie, nwait);
 }
 
-static SV*
-PLCB_multi_remove(SV *self, AV *speclist)
+SV*
+PLCB_multi_remove(SV *self, AV *speclist, PLCBA_cookie_t *async_cookie)
 {
-    _dMULTI_VARS
-    PLCB_sync_t *syncs = NULL;
-    struct syncs_maybe_alloc syncs_buf;
+    multi_info mi = { 0 };
     PLCB_argopts_t ao = { 0 };
     int nwait = 0;
-
-    mk_instance_vars(self, instance, object);
-    _MULTI_INIT_COMMON(object, ret, nreq, speclist, now);
+    int ii;
     
-    syncs_maybe_alloc_init(&syncs_buf, nreq);
-    syncs = syncs_buf.bufp;
+    init_mi(self, async_cookie, speclist, &mi);
     
-    for (i = 0; i < nreq; i++) {
+    for (ii = 0; ii < mi.nreq; ii++) {
         AV *curspec = NULL;
         SV **tmpsv;
         SV *args[PLCB_ARGS_MAX];
         int speclen;
         lcb_remove_cmd_t cmd = { 0 };
         const lcb_remove_cmd_t *cmdp = &cmd;
+        lcb_error_t err;
 
         
-        _fetch_assert(tmpsv, speclist, i, "empty arguments in spec");
+        _fetch_assert(tmpsv, speclist, ii, "empty arguments in spec");
 
         if (SvTYPE(*tmpsv) == SVt_PV) {
             args[0] = *tmpsv;
@@ -454,20 +540,32 @@ PLCB_multi_remove(SV *self, AV *speclist)
             plcb_makeargs_av(args, curspec, &speclen);
         }
         
-        PLCB_args_remove(object, args, speclen, &cmd, &ao);
-        syncs[i].key = cmd.v.v0.key;
-        syncs[i].nkey = cmd.v.v0.nkey;
-
-        _SYNC_RESULT_INIT(object, ret, syncs[i]);
+        PLCB_args_remove(mi.object, args, speclen, &cmd, &ao);
         
-        err = lcb_remove(instance, syncs + i, 1, &cmdp);
-
-        _MAYBE_SET_IMMEDIATE_ERROR(err, syncs[i].ret, nwait);
+        if (!async_cookie) {
+            mi.syncs[ii].key = cmd.v.v0.key;
+            mi.syncs[ii].nkey = cmd.v.v0.nkey;
+            _SYNC_RESULT_INIT(mi.object, mi.ret, mi.syncs[ii]);
+            err = lcb_remove(mi.instance, mi.syncs + ii, 1, &cmdp);
+            if (err == LCB_SUCCESS) {
+                nwait++;
+                continue;
+            } else {
+                plcb_ret_set_err(mi.object, mi.syncs[ii].ret, err);
+            }
+        } else {
+            err = lcb_remove(mi.instance, async_cookie, 1, &cmdp);
+            if (err != LCB_SUCCESS) {
+                plcba_callback_notify_err(async_cookie->parent,
+                                          async_cookie,
+                                          cmd.v.v0.key,
+                                          cmd.v.v0.nkey,
+                                          err);
+            }
+        }
     }
-    _MAYBE_WAIT(nwait);
-    syncs_maybe_alloc_cleanup(&syncs_buf);
-    return newRV_inc( (SV*)ret );
     
+    RETURN_COMMON(&mi, async_cookie, nwait);
 }
 
 #define _MAYBE_MULTI_ARG2(array, always_wrap) \
@@ -478,7 +576,7 @@ PLCB_multi_remove(SV *self, AV *speclist)
                 die("Expected ARRAY reference for arguments"); \
             } \
         } \
-    } else if (items > 2 || items == 2 && always_wrap == 1) { \
+    } else if (items > 2 || (items == 2 && always_wrap == 1)) { \
         array = (AV*)sv_2mortal((SV*)av_make(items-1, (SP - items + 2))); \
     } else { \
         die("Usage: %s(self, args)", GvNAME(GvCV(cv))); \
@@ -506,7 +604,7 @@ SV* PLCB__get_multi(self, ...)
     CODE:
     _MAYBE_MULTI_ARG(args);
     
-    RETVAL = PLCB_multi_get_common(self, args, ix);
+    RETVAL = PLCB_multi_get_common(self, args, ix, NULL);
     
     OUTPUT:
     RETVAL
@@ -533,7 +631,7 @@ PLCB__set_multi(self, ...)
     
     CODE:
     _MAYBE_MULTI_ARG2(args, 1);
-    RETVAL = PLCB_multi_set_common(self, args, ix);
+    RETVAL = PLCB_multi_set_common(self, args, ix, NULL);
     
     OUTPUT:
     RETVAL
@@ -552,7 +650,7 @@ PLCB__arithmetic_multi(self, ...)
     
     CODE:
     _MAYBE_MULTI_ARG(args);
-    RETVAL = PLCB_multi_arithmetic_common(self, args, ix);
+    RETVAL = PLCB_multi_arithmetic_common(self, args, ix, NULL);
     
     OUTPUT:
     RETVAL
@@ -569,7 +667,7 @@ PLCB_remove_multi(self, ...)
     
     CODE:
     _MAYBE_MULTI_ARG(args);
-    RETVAL = PLCB_multi_remove(self, args);
+    RETVAL = PLCB_multi_remove(self, args, NULL);
     
     OUTPUT:
     RETVAL

@@ -33,11 +33,45 @@ PLCBA_HaveEvent(pkg, flags, opaque)
     SV *opaque
     
 void
-PLCBA_request(self, cmd, reqtype, callcb, cbdata, cbtype, params)
+PLCBA__request2(self, cmdargs, cbargs)
+    SV *self
+    SV *cmdargs
+    HV *cbargs
+
+    ALIAS:
+    get = PLCB_CMD_GET
+    touch = PLCB_CMD_TOUCH
+    lock = PLCB_CMD_LOCK
+    set = PLCB_CMD_SET
+    add = PLCB_CMD_ADD
+    replace = PLCB_CMD_REPLACE
+    append = PLCB_CMD_APPEND
+    prepend = PLCB_CMD_PREPEND
+    cas = PLCB_CMD_CAS
+    remove = PLCB_CMD_REMOVE
+    unlock = PLCB_CMD_UNLOCK
+
+    get_multi = PLCB_CMD_MULTI_GET
+    touch_multi = PLCB_CMD_MULTI_TOUCH
+    lock_multi = PLCB_CMD_MULTI_LOCK
+    set_multi = PLCB_CMD_MULTI_SET
+    add_multi = PLCB_CMD_MULTI_ADD
+    replace_multi = PLCB_CMD_MULTI_REPLACE
+    append_multi = PLCB_CMD_MULTI_APPEND
+    prepend_multi = PLCB_CMD_MULTI_PREPEND
+    cas_multi = PLCB_CMD_MULTI_CAS
+    remove_multi = PLCB_CMD_MULTI_REMOVE
+    unlock_multi = PLCB_CMD_MULTI_UNLOCK
+
+    CODE:
+    PLCBA_request2(self, ix, cmdargs, cbargs);
+
+void
+PLCBA_command(self, cmd, cmdargs, cbargs)
     SV *self
     int cmd
-    int reqtype
-    SV *callcb
-    SV *cbdata
-    int cbtype
-    AV *params
+    SV *cmdargs
+    HV *cbargs
+
+    CODE:
+    PLCBA_request2(self, cmd, cmdargs, cbargs);

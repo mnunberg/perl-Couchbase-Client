@@ -63,6 +63,7 @@ xs/plcb-util.h
 xs/plcb-return.h
 xs/plcb-convert.h
 xs/plcb-commands.h
+xs/plcb-multi.h
 xs/typemap
 xs/lcb_10_compat.h
 

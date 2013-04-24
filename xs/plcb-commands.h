@@ -14,49 +14,39 @@
 #endif
 
 
-#define PLCB_COMMANDf_MULTI 0x80
-#define PLCB_COMMANDf_COUCH 0x100
-#define PLCB_COMMANDf_ITER 0x200
-
-#define PLCB_COMMANDf_NEEDSKEY 0x20
-#define PLCB_COMMANDf_NEEDSTRVAL 0x40
-#define PLCB_COMMANDf_MUTATE_CLEAN (0x80|0x40)
+#define PLCB_COMMANDf_MULTI 0x100
+#define PLCB_COMMANDf_COUCH 0x200
+#define PLCB_COMMANDf_ITER 0x400
+#define PLCB_COMMANDf_SINGLE 0x800
 
 /* Mask for only the command itself */
 #define PLCB_COMMAND_MASK 0xff
 #define PLCB_COMMAND_MASK_STRIP 0x1f
 
-
-#define PLCB_COMMAND_PROPMASK \
-    (PLCB_COMMANDf_NEEDSKEY| \
-    PLCB_COMMANDf_NEEDSTRVAL |\
-    PLCB_COMMANDf_MUTATE_CLEAN)
-
 #define PLCB_COMMAND_EXTRA_MASK \
-    (PLCB_COMMANDf_MULTI|\
-    PLCB_COMMANDf_COUCH| \
-    PLCB_COMMANDf_ITER)
+    (PLCB_COMMANDf_MULTI|PLCB_COMMANDf_COUCH|PLCB_COMMANDf_ITER)
 
 
 #define X_STORAGE \
-    X(SET, PLCB_COMMANDf_NEEDSKEY|PLCB_COMMANDf_MUTATE_CLEAN) \
-    X(ADD, PLCB_COMMANDf_NEEDSKEY|PLCB_COMMANDf_MUTATE_CLEAN) \
-    X(REPLACE, PLCB_COMMANDf_NEEDSKEY|PLCB_COMMANDf_MUTATE_CLEAN) \
+    X(SET, 0) \
+    X(ADD, 0) \
+    X(REPLACE, 0) \
     \
-    X(APPEND, PLCB_COMMANDf_NEEDSKEY|PLCB_COMMANDf_NEEDSTRVAL) \
-    X(PREPEND, PLCB_COMMANDf_NEEDSKEY|PLCB_COMMANDf_NEEDSTRVAL)
+    X(APPEND, 0) \
+    X(PREPEND, 0)
 
 #define X_MISC \
-    X(REMOVE, PLCB_COMMANDf_NEEDSKEY) \
-    X(GET, PLCB_COMMANDf_NEEDSKEY) \
-    X(LOCK, PLCB_COMMANDf_NEEDSKEY) \
-    X(TOUCH, PLCB_COMMANDf_NEEDSKEY) \
-    X(INCR, PLCB_COMMANDf_NEEDSKEY) \
-    X(DECR, PLCB_COMMANDf_NEEDSKEY) \
-    X(ARITHMETIC, PLCB_COMMANDf_NEEDSKEY) \
-    X(GAT, PLCB_COMMANDf_NEEDSKEY) \
+    X(REMOVE, 0) \
+    X(GET, 0) \
+    X(LOCK, 0) \
+    X(UNLOCK, 0) \
+    X(TOUCH, 0) \
+    X(INCR, 0) \
+    X(DECR, 0) \
+    X(ARITHMETIC, 0) \
+    X(GAT, 0) \
     \
-    X(CAS, PLCB_COMMANDf_NEEDSKEY|PLCB_COMMANDf_MUTATE_CLEAN) \
+    X(CAS, 0) \
     \
     X(STATS, 0) \
     X(FLUSH, 0) \
@@ -64,14 +54,14 @@
 
 
 #define X_ALL \
+    X(NULL, 0) \
     X_STORAGE \
     X_MISC
 
 
 /* Set up a basic incremental enumeration */
 enum {
-    #define X(v, prop) \
-        PLCB__CMDPRIV_ ## v,
+    #define X(v, prop) PLCB__CMDPRIV_ ## v,
     X_ALL
     #undef X
 };
@@ -90,8 +80,6 @@ enum {
     X_ALL
     #undef X
 };
-
-#define plcb_command_needs_key(cmd) ( (cmd) & PLCB_COMMANDf_NEEDSKEY )
 
 static lcb_storage_t PLCB__StorageMap[] = {
     #define X(v, prop) \
