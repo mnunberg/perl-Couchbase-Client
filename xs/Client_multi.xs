@@ -674,6 +674,7 @@ SV* PLCB__get_multi(self, arg1, ...)
     AV *args = NULL;
     
     CODE:
+    (void) arg1;
     WRAP_ARGS(args);
     
     RETVAL = PLCB_multi_get_common(self, args, ix, NULL);
@@ -713,6 +714,8 @@ PLCB__set_multi(self, arg1, ...)
     AV *args = NULL;
     
     CODE:
+    (void) arg1;
+
     WRAP_ARGS(args);
     RETVAL = PLCB_multi_set_common(self, args, ix, NULL);
     
@@ -739,6 +742,7 @@ PLCB__arithmetic_multi(self, arg1, ...)
     AV *args = NULL;
     
     CODE:
+    (void) arg1;
     WRAP_ARGS(args);
     RETVAL = PLCB_multi_arithmetic_common(self, args, ix, NULL);
     
@@ -757,6 +761,7 @@ PLCB_remove_multi(self, arg1, ...)
     AV *args = NULL;
     
     CODE:
+    (void) arg1;
     if (ix == 0) {
         ix = PLCB_CMD_REMOVE;
     }
@@ -779,6 +784,8 @@ PLCB_unlock_multi(self, arg1, ...)
     AV *args;
 
     CODE:
+    (void) arg1;
+
     if (ix == 0) {
         ix = PLCB_CMD_UNLOCK;
     }

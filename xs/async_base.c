@@ -182,7 +182,6 @@ static void extract_async_options(PLCBA_t *async, AV *options)
 SV* PLCBA_construct(const char *pkg, AV *options)
 {
     PLCBA_t *async;
-    char *host, *username, *password, *bucket;
     lcb_t instance = NULL;
     SV *blessed_obj;
     struct lcb_create_st cr_opts = { 0 };
@@ -193,12 +192,7 @@ SV* PLCBA_construct(const char *pkg, AV *options)
     
     plcb_ctor_conversion_opts(&async->base, options);
     
-    plcb_ctor_cbc_opts(options, &host, &username, &password, &bucket);
-
-    cr_opts.v.v0.bucket = bucket;
-    cr_opts.v.v0.host = host;
-    cr_opts.v.v0.user = username;
-    cr_opts.v.v0.passwd = password;
+    plcb_ctor_cbc_opts(options, &cr_opts);
     cr_opts.v.v0.io = plcba_make_io_opts(async);
 
     lcb_create(&instance, &cr_opts);

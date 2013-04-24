@@ -79,8 +79,7 @@ xs/Client.xs
 xs/Client_multi.xs
 xs/Iterator_get.xs
 xs/observe.c
-xs/kwargs.c
-xs/plcb-kwargs.h
+xs/plcb-args.h
 
 ################################################################################
 ### Async C Support                                                          ###

@@ -203,6 +203,41 @@ name ## _cleanup(struct name* buf) { \
 
 #define plcb_is_arrayref(sv) (SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVAV)
 
+/**
+ * Make args from an xsub
+ */
+#define PLCB_MAKEARGS_XS(args) \
+{ \
+    int plcb__args_ii; \
+    if (items > PLCB_ARGS_MAX) { \
+        die("Too many arguments"); \
+    } \
+    for (plcb__args_ii = 1; plcb__args_ii < items; plcb__args_ii++) { \
+        args[plcb__args_ii - 1] = ST(plcb__args_ii); \
+    } \
+}
+
+#define plcb_makeargs_av(args, av, lenp) \
+{ \
+    int plcb__args_ii; \
+    int plcb__args_max = av_len((av)) + 1; \
+    if (plcb__args_max > PLCB_ARGS_MAX) { \
+        die("Too many arguments"); \
+    } \
+    for (plcb__args_ii = 0; plcb__args_ii < plcb__args_max; plcb__args_ii++) { \
+        (args)[plcb__args_ii] = *av_fetch((av), plcb__args_ii, 0); \
+    } \
+    *(lenp) = plcb__args_max; \
+}
+
+
+#define PLCB_APPEND_SANITY(cmd, sv) \
+        if (SvROK((sv)) && SvTYPE(SvRV((sv))) != SVt_PVHV && \
+                (cmd == PLCB_CMD_APPEND || cmd == PLCB_CMD_PREPEND)) { \
+            die("Cannot append/prepend a reference"); \
+        }
+
+
 /* Handy types for XS */
 /* for easy passing */
 typedef struct {

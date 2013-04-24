@@ -63,13 +63,7 @@ SV *PLCB_construct(const char *pkg, AV *options)
     SV *blessed_obj;
     PLCB_t *object;
 
-    char *host = NULL, *username = NULL, *password = NULL, *bucket = NULL;
-
-    plcb_ctor_cbc_opts(options,
-                       &host,
-                       &username,
-                       &password,
-                       &bucket);
+    plcb_ctor_cbc_opts(options, &cr_opts);
 
     io_options.v.v0.type = LCB_IO_OPS_DEFAULT;
     err = lcb_create_io_ops(&io_ops, &io_options);
@@ -78,12 +72,7 @@ SV *PLCB_construct(const char *pkg, AV *options)
         die("Couldn't create new IO operations: %d", err);
     }
 
-
-    cr_opts.v.v0.bucket = bucket;
-    cr_opts.v.v0.host = host;
     cr_opts.v.v0.io = io_ops;
-    cr_opts.v.v0.user = username;
-    cr_opts.v.v0.passwd = password;
 
     lcb_create(&instance, &cr_opts);
 

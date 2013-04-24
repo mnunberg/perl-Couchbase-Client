@@ -1,25 +1,21 @@
 #include "perl-couchbase.h"
 
-void plcb_ctor_cbc_opts(AV *options,
-                        char **hostp,
-                        char **userp,
-                        char **passp,
-                        char **bucketp)
+void plcb_ctor_cbc_opts(AV *options, struct lcb_create_st *cropts)
 {
     
 #define _assign_options(dst, opt_idx, defl) \
     if ( (tmp = av_fetch(options, opt_idx, 0)) && SvTRUE(*tmp) ) { \
-        *dst = SvPV_nolen(*tmp); \
+        dst = SvPV_nolen(*tmp); \
     } else { \
-        *dst = defl; \
+        dst = defl; \
     }
 
     SV **tmp;
     
-    _assign_options(hostp, PLCB_CTORIDX_SERVERS, "127.0.0.1:8091");
-    _assign_options(userp, PLCB_CTORIDX_USERNAME, NULL);
-    _assign_options(passp, PLCB_CTORIDX_PASSWORD, NULL);
-    _assign_options(bucketp, PLCB_CTORIDX_BUCKET, "default");
+    _assign_options(cropts->v.v0.host, PLCB_CTORIDX_SERVERS, "127.0.0.1:8091");
+    _assign_options(cropts->v.v0.user, PLCB_CTORIDX_USERNAME, NULL);
+    _assign_options(cropts->v.v0.passwd, PLCB_CTORIDX_PASSWORD, NULL);
+    _assign_options(cropts->v.v0.bucket, PLCB_CTORIDX_BUCKET, "default");
 
 #undef _assign_options
 }

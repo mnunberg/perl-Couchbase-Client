@@ -235,10 +235,7 @@ void plcba_callback_notify_err(PLCBA_t *async,
 SV *PLCBA_construct(const char*, AV*);
 void PLCBA_connect(SV*);
 void PLCBA_HaveEvent(const char*, short, SV*);
-void PLCBA_request(SV *, int, int, SV*, SV*, int, AV*);
-
-void
-PLCBA_request2(SV *self, int cmd, SV *cmdargs, HV *cbargs);
+void PLCBA_request2(SV *self, int cmd, SV *cmdargs, HV *cbargs);
 
 
 #endif /* PERL_COUCHBASE_ASYNC_H_ */

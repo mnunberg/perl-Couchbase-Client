@@ -68,7 +68,6 @@ $MM_Options{CONFIGURE} = sub {
         ctor
         couch_handle
         iterator
-        kwargs
         observe);
     my @XS_Modules = qw(
         Client
