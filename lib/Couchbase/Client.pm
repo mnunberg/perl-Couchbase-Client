@@ -2,7 +2,7 @@ package Couchbase::Client;
 
 BEGIN {
     require XSLoader;
-    our $VERSION = '2.0.0_0';
+    our $VERSION = '2.0.0_1';
     XSLoader::load(__PACKAGE__, $VERSION);
 }
 
@@ -23,6 +23,10 @@ use Array::Assign;
     no warnings 'once';
     *gets = \&get;
     *gets_multi = \&get_multi;
+    *gets_multi_A = \&get_multi_A;
+
+    *delete_multi = \&remove_multi;
+    *delete_multi_A = \&remove_multi_A;
 }
 
 # Get the CouchDB (2.0) API
@@ -483,11 +487,17 @@ object.
 If the key is not found on the server, the returned object's C<errnum> field
 will be set to C<COUCHBASE_KEY_ENOENT>
 
-=head3 append
+=head3 append(key, value_to_append, [ , expiry] )
 
-=head3 prepend
+=head3 append(key, value_to_append, { cas => $cas, exp => $expiry })
+
+=head3 prepend(key, value_to_prepend, [ , expiry ])
+
+=head3 prepend(key, value_to_prepend, { cas => $cas, exp => $expiry })
 
 =head3 set(key, value [,expiry])
+
+=head3 set(key, value, { cas => $cas, exp => $expiry })
 
 Attempts to set, prepend, or append the value of the key C<key> to C<value>,
 optionally setting an expiration time of C<expiry> seconds in the future.
@@ -495,6 +505,8 @@ optionally setting an expiration time of C<expiry> seconds in the future.
 Returns an L<Couchbase::Client::Return> object.
 
 =head3 add(key, value [,expiry])
+
+=head3 add(key, value, { exp => $expiry })
 
 Store the value on the server, but only if the key does not already exist.
 
@@ -505,10 +517,13 @@ See L</set> for explanation of arguments.
 
 =head3 replace(key, value [,expiry])
 
+=head3 replace(key, value, { cas => $cas, exp => $expiry })
+
 Replace the value stored under C<key> with C<value>, but only
 if the key does already exist on the server.
 
 See L</get> for possible errors, and L</set> for argument description.
+
 
 
 =head3 gets(key)
@@ -516,6 +531,8 @@ See L</get> for possible errors, and L</set> for argument description.
 This is an alias to L</get>. The CAS value is returned on any C<get> operation.
 
 =head3 cas(key, value, cas, [,expiry])
+
+=head3 cas(key, value, cas, { exp => $expiry })
 
 Tries to set the value of C<key> to C<value> but only if the opaque C<cas> is
 equal to the CAS value on the server.
@@ -533,6 +550,8 @@ Modifies the expiration time of C<key> without fetching or setting it.
 
 =head3 arithmetic(key, delta, initial [,expiry])
 
+=head3 arithmetic(key, delta, { exp => $expiry })
+
 Performs an arithmetic operation on the B<numeric> value stored in C<key>.
 
 The value will be added to C<delta> (which may be a negative number, in which
@@ -543,18 +562,27 @@ if it does not yet exist.
 
 =head3 incr(key [,delta])
 
+=head3 incr(key, { delta => $delta, initial => $initial, exp => $expiry })
+
 =head3 decr(key [,delta])
+
+=head3 decr(key, { delta => $delta, initial => $initial, exp => $expiry })
 
 Increments or decrements the numeric value stored under C<key>, if it exists.
 
 If delta is specified, it is the B<absolute> value to be added to or subtracted
 from the value. C<delta> defaults to 1.
 
+If C<initial> is specified, it will be initialized to this value if the key does
+not exist (and C<delta> is ignored).
+
 These two functions are equivalent to doing:
 
     $delta ||= 1;
     $delta = -$delta if $decr;
     $o->arithmetic($key, $delta, undef);
+
+If C<initial> is used
 
 =head4 NOTE ABOUT 32 BIT PERLS
 
@@ -569,6 +597,8 @@ deal with 64 bit integers.
 =head3 delete(key [,cas])
 
 =head3 remove(key [,cas])
+
+=head3 remove(key, { cas => $cas })
 
 These two functions are identical. They will delete C<key> on the server.
 
@@ -637,16 +667,49 @@ itself:
     $o->set(map{ [$h->{key}, $h->{value}] });
 
 
+As a convenience, if your argument list is in the form of an arrayref, rather
+than a simple array, you can use the more efficient C<*_multi_A> calls. These
+calls work just like the C<*_multi> variants, except that they only accept a
+single argument which is an arrayref of "argument -ntuples".
+
+Therefore, suppose you have a data structure which looks like this
+
+    my $set_args = [ ["key1", "value1"], ["key2", "value2"] ]
+
+You can now do
+
+    my $rvs = $o->set_multi_A($set_args);
+
+rather than
+
+    my $rvs = $o->set_multi(@$set_args);
+
+This is more efficient as the argument list is wrapped internally into an array
+reference anyway.
+
+
+For functions which only require a key, you may pass a list of keys to the
+function, thus not requiring each key to be a single-element array ref. Likewise,
+the C<*_multi_A> variant can accept an array ref of keys.
+
 
 =head3 get_multi(@keys)
 
-=head3 get_multi(\@keys)
+=head3 get_multi([$key1], [$key2])
+
+=head3 get_multi_A([[$key1], [$key2]])
 
 =head3 gets_multi
 
 alias to L</get_multi>
 
 =head3 get_iterator(@keys)
+
+=head3 get_iterator([$key1], [$key2])
+
+=head3 get_iterator_A(\@keys)
+
+=head3 get_iterator_A([[$key1], [$key2]])
 
 Takes the same form of arguments as C<get_multi>, but returns a
 L<Couchbase::Client::Iterator> object instead of a result set. This allows you
@@ -655,9 +718,12 @@ the performance benefits of the multi protocol
 
 =head3 touch_multi([key, exp]..)
 
+=head3 touch_multi_A([[key, exp], ...])
+
 
 =head3 set_multi([key => value, ...], [key => value, ...])
 
+=head3 set_multi_A([[key => value], ...])
 
 Performs multiple set operations on a multitude of keys. Input parameters are
 array references. The contents of these array references follow the same
@@ -670,19 +736,61 @@ future. C<bar> is set to C<bar_value>, without any expiry.
 
 =head3 cas_multi([key => value, $cas, ...])
 
+=head3 cas_multi_A([[key => value, $cas], ...])
+
 Multi version of L</cas>
 
 =head3 arithmetic_multi([key => $delta, ...])
+
+=head3 arithmetic_multi_A([[key => $delta, ...], ...])
 
 Multi version of L</arithmetic>
 
 =head3 incr_multi(@keys)
 
+=head3 incr_multi([$key, $options], ...)
+
+=head3 incr_multi_A(\@keys)
+
+=head3 incr_multi_A([[$key, $options], ...])
+
+Multi version of L</incr>
+
+
 =head3 decr_multi(@keys)
 
-=head3 incr_multi( [key, amount], ... )
+=head3 decr_multi([$key, $options], ...)
 
-=head3 decr_multi( [key, amount], ... )
+=head3 decr_multi_A(\@keys)
+
+=head3 decr_multi_A([[$key, $options], ...])
+
+Multi version of L</decr>
+
+
+=head3 remove_multi(@keys)
+
+=head3 remove_multi([$key, $options], ...)
+
+=head3 remove_multi_A(\@keys)
+
+=head3 remove_multi_A([[$key, $options], ...])
+
+Multi version of L</remove>
+
+
+=head3 unlock_multi([$key, $cas], ...)
+
+=head3 unlock_multi_A([[$key, $cas]])
+
+Multi version of L</unlock>
+
+
+=head3 lock_multi([$key, $timeout], ...)
+
+=head3 lock_multi_A([[$key, $timeout, ...]])
+
+Multi version of L</lock>
 
 
 =head2 RUNTIME SETTINGS

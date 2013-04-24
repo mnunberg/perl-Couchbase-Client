@@ -189,6 +189,19 @@ sub _multi_check_ret {
 
 }
 
+sub multi_ok {
+    my ($rv, $msg, $expect) = @_;
+    my @errs;
+
+    if ($expect) {
+        @errs = grep {$_->errnum != $expect} values %$rv;
+    } else {
+        @errs = grep { !$_->is_ok } values %$rv;
+    }
+
+    ok(!@errs, $msg);
+}
+
 sub T06_multi :Test(no_plan) {
     my $self = shift;
     my $o = $self->cbo;
@@ -266,6 +279,68 @@ sub T06_multi_GH4 :Test(no_plan) {
     ok($rv->{"single_key"}->is_ok, "Single arrayref on setmulti does not fail");
 }
 
+sub T06_multi_PLCBC_1 :Test(no_plan) {
+    my $self = shift;
+    my $o = $self->cbo;
+    $o->set_multi(["key", "value"]);
+    my $rv = $o->get_multi("single_key");
+    ok($rv->{"single_key"}->is_ok, "Does not crash");
+}
+
+sub T06_multi_argtypes :Test(no_plan)
+{
+    my $self = shift;
+    my $o = $self->cbo;
+    my @keys = qw(foo bar baz);
+    my @set_args = map { [$_, $_ ] } @keys;
+    my $k1 = $keys[0];
+
+    multi_ok($o->set_multi(@set_args), "set_multi - multiple argrefs");
+    multi_ok($o->set_multi([$k1, $k1]), "set_multi - single argref");
+    multi_ok($o->set_multi_A([[$k1, $k1]]), "set_multi_A");
+
+    multi_ok($o->get_multi([$k1]), "get_multi. single arg ref");
+    multi_ok($o->get_multi($k1), "get_multi. single key");
+    multi_ok($o->get_multi(@keys), "get_multi, key list");
+    multi_ok($o->get_multi(map { [$_] } @keys), "get_multi, key arrayrefs");
+
+    multi_ok($o->get_multi_A([$k1]), "get_multi_A, single arrayref");
+    multi_ok($o->get_multi_A([[$k1]]), "get_mutli_A - nested arrayref");
+    multi_ok($o->get_multi_A(\@keys), "get_multi, arrayrefs of keys");
+
+    if ( !($self->mock && $self->mock->nodes) ) {
+        my $lock_rvs = $o->lock_multi(map {[$_, 10]} @keys);
+        multi_ok($lock_rvs, "lock_multi");
+
+        my $unlock_rvs = $o->unlock_multi(
+            map { [ $_, $lock_rvs->{$_}->cas ] } keys %$lock_rvs
+        );
+
+        multi_ok($unlock_rvs, "unlock_multi");
+
+    } else {
+        diag "Skipping lock tests on mock";
+    }
+
+    $o->remove_multi(@keys);
+
+    @set_args = map { [$_, { initial => 1 }] } @keys;
+    multi_ok($o->incr_multi(@set_args), "incr_multi, key list with options");
+    multi_ok($o->incr_multi(@keys), "incr_multi, key list");
+    multi_ok($o->incr_multi($k1), "incr_multi. single key");
+    multi_ok($o->incr_multi([$k1]), "incr_multi. single arrayref");
+    multi_ok($o->incr_multi([$k1, { delta => 10 }]),
+             "incr_multi. single arrayref with options");
+
+    multi_ok($o->incr_multi_A(\@keys), "incr_multi_A - arrayref of keys");
+    multi_ok($o->incr_multi_A([$k1]), "incr_multi_A, - single arrayref");
+    multi_ok($o->incr_multi_A([[$k1]]), "incr_multi_A - single nested arrayref");
+
+    multi_ok($o->remove_multi(@keys), "remove_multi - list of keys");
+    multi_ok($o->remove_multi(@keys), "remove_multi - ENOENT", COUCHBASE_KEY_ENOENT);
+    multi_ok($o->remove_multi_A(\@keys), "remove_multi_A", COUCHBASE_KEY_ENOENT);
+}
+
 sub T07_stats :Test(no_plan) {
     my $self = shift;
     my $o = $self->cbo;
@@ -285,7 +360,7 @@ sub T08_iterator :Test(no_plan) {
     my $self = shift;
     my $o = $self->cbo;
     my @keys = map { "T08_NonExistent_$_" } (1..200);
-    my $iterator = $o->get_iterator(\@keys);
+    my $iterator = $o->get_iterator_A(\@keys);
     ok(!$iterator->error, "Got no errors for creating iterator");
 
     my $rescount = 0;

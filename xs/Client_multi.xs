@@ -37,11 +37,11 @@ CMD_MAYBE_ALLOC(getcmd, lcb_get_cmd_t);
     }
 
 #define _SYNC_RESULT_INIT(object, hv, sync) \
-    sync.ret = newAV(); \
-    sync.type = PLCB_SYNCTYPE_SINGLE; \
-    (void) hv_store(hv, sync.key, sync.nkey, \
-                    plcb_ret_blessed_rv(object, sync.ret), 0); \
-    sync.parent = object;
+    (sync).ret = newAV(); \
+    (sync).type = PLCB_SYNCTYPE_SINGLE; \
+    (void) hv_store(hv, (sync).key, (sync).nkey, \
+                    plcb_ret_blessed_rv(object, (sync).ret), 0); \
+    (sync).parent = object;
 
 #define _MAYBE_WAIT(waitvar) \
     if (waitvar) { \
@@ -568,41 +568,113 @@ PLCB_multi_remove(SV *self, AV *speclist, PLCBA_cookie_t *async_cookie)
     RETURN_COMMON(&mi, async_cookie, nwait);
 }
 
-#define _MAYBE_MULTI_ARG2(array, always_wrap) \
-    if (items == 2 && always_wrap == 0) { \
-        array = (AV*)ST(1); \
-        if ( SvROK((SV*)array) && (array = (AV*)SvRV((SV*)array))) { \
-            if (SvTYPE(array) < SVt_PVAV) { \
-                die("Expected ARRAY reference for arguments"); \
-            } \
-        } \
-    } else if (items > 2 || (items == 2 && always_wrap == 1)) { \
-        array = (AV*)sv_2mortal((SV*)av_make(items-1, (SP - items + 2))); \
-    } else { \
-        die("Usage: %s(self, args)", GvNAME(GvCV(cv))); \
+SV*
+PLCB_multi_unlock(SV *self, AV* speclist, PLCBA_cookie_t *async_cookie)
+{
+    multi_info mi = { 0 };
+    PLCB_argopts_t ao = { 0 };
+    int nwait = 0;
+    int ii;
+
+    init_mi(self, async_cookie, speclist, &mi);
+
+    ao.autodie = 1;
+    ao.now = mi.now;
+
+    for (ii = 0; ii < mi.nreq; ii++) {
+        AV *curspec = NULL;
+        SV **tmpsv;
+        SV *args[PLCB_ARGS_MAX];
+        int speclen;
+        lcb_unlock_cmd_t cmd = { 0 };
+        const lcb_unlock_cmd_t *cmdp = &cmd;
+        lcb_error_t err;
+
+        _fetch_assert(tmpsv, speclist, ii, "empty arguments in spec");
+        if (SvROK(*tmpsv) == 0 || SvTYPE(SvRV(*tmpsv)) != SVt_PVAV) {
+            die("Expected array reference");
+        }
+
+        curspec = (AV*)SvRV(*tmpsv);
+        plcb_makeargs_av(args, curspec, &speclen);
+
+        PLCB_args_unlock(mi.object, args, speclen, &cmd, &ao);
+
+        if (!async_cookie) {
+            PLCB_sync_t *syncp = mi.syncs + ii;
+            syncp->key = cmd.v.v0.key;
+            syncp->nkey = cmd.v.v0.nkey;
+            _SYNC_RESULT_INIT(mi.object, mi.ret, *syncp);
+            err = lcb_unlock(mi.instance, syncp, 1, &cmdp);
+            if (err == LCB_SUCCESS) {
+                nwait++;
+                continue;
+            } else {
+                plcb_ret_set_err(mi.object, syncp->ret, err);
+            }
+        } else {
+            err = lcb_unlock(mi.instance, async_cookie, 1, &cmdp);
+            if (err != LCB_SUCCESS) {
+                plcba_callback_notify_err(async_cookie->parent,
+                                          async_cookie,
+                                          cmd.v.v0.key,
+                                          cmd.v.v0.nkey,
+                                          err);
+            }
+        }
     }
 
-#define _MAYBE_MULTI_ARG(array) \
-    _MAYBE_MULTI_ARG2(array, 0);
+    RETURN_COMMON(&mi, async_cookie, nwait);
+}
+
+
+#define WRAP_ARGS(array) \
+    if (ix & PLCB_COMMANDf_ARRAY) { \
+        if (!plcb_is_arrayref(ST(1)) || items > 2) { \
+            die("Expected array reference as only argument"); \
+        } \
+        array = (AV*)SvRV(ST(1)); \
+    } else { \
+        array = (AV*)sv_2mortal((SV*)av_make(items-1, (SP-items+2))); \
+    }
+
+
+enum {
+    CMD_NONE,
+#define X(b, whatever) \
+        CMD_##b##_A = PLCB_CMD_##b | PLCB_COMMANDf_ARRAY,
+    X_ALL
+#undef X
+CMD_END
+};
+#define CMD_ITER_GET_A PLCB_CMD_ITER_GET | PLCB_COMMANDf_ARRAY
 
 MODULE = Couchbase::Client_multi PACKAGE = Couchbase::Client    PREFIX = PLCB_
 
 PROTOTYPES: DISABLE
 
-SV* PLCB__get_multi(self, ...)
+SV* PLCB__get_multi(self, arg1, ...)
     SV *self
+    SV *arg1
     
     ALIAS:
     touch_multi = PLCB_CMD_TOUCH
-    gat_multi = PLCB_CMD_GAT
+    touch_multi_A = CMD_TOUCH_A
+
     get_multi = PLCB_CMD_GET
+    get_multi_A = CMD_GET_A
+
+    lock_multi = PLCB_CMD_LOCK
+    lock_multi_A = CMD_LOCK_A
+
     get_iterator = PLCB_CMD_ITER_GET
+    get_iterator_A = CMD_ITER_GET_A
     
     PREINIT:
     AV *args = NULL;
     
     CODE:
-    _MAYBE_MULTI_ARG(args);
+    WRAP_ARGS(args);
     
     RETVAL = PLCB_multi_get_common(self, args, ix, NULL);
     
@@ -610,65 +682,108 @@ SV* PLCB__get_multi(self, ...)
     RETVAL
     
 SV*
-PLCB__set_multi(self, ...)
+PLCB__set_multi(self, arg1, ...)
     SV *self
+    SV *arg1
     
     ALIAS:
     set_multi           = PLCB_CMD_SET
+    set_multi_A         = CMD_SET_A
+
     add_multi           = PLCB_CMD_ADD
+    add_multi_A         = CMD_ADD_A
+
     replace_multi       = PLCB_CMD_REPLACE
+    replace_multi_A     = CMD_REPLACE_A
+
     append_multi        = PLCB_CMD_APPEND
+    append_multi_A      = CMD_APPEND_A
+
     prepend_multi       = PLCB_CMD_PREPEND
+    prepend_multi_A     = CMD_PREPEND_A
+
     cas_multi           = PLCB_CMD_CAS
+    cas_multi_A         = CMD_CAS_A
     
     couch_add_multi     = PLCB_CMD_COUCH_ADD
     couch_set_multi     = PLCB_CMD_COUCH_SET
     couch_cas_multi     = PLCB_CMD_COUCH_CAS
     
-    
     PREINIT:
     AV *args = NULL;
     
     CODE:
-    _MAYBE_MULTI_ARG2(args, 1);
+    WRAP_ARGS(args);
     RETVAL = PLCB_multi_set_common(self, args, ix, NULL);
     
     OUTPUT:
     RETVAL
     
 SV*
-PLCB__arithmetic_multi(self, ...)
+PLCB__arithmetic_multi(self, arg1, ...)
     SV *self
+    SV *arg1
     
     ALIAS:
     arithmetic_multi= PLCB_CMD_ARITHMETIC
+    arithmetic_multi_A = CMD_ARITHMETIC_A
+
     incr_multi      = PLCB_CMD_INCR
+    incr_multi_A    = CMD_INCR_A
+
     decr_multi      = PLCB_CMD_DECR
+    decr_multi_A    = CMD_DECR_A
+
     
     PREINIT:
     AV *args = NULL;
     
     CODE:
-    _MAYBE_MULTI_ARG(args);
+    WRAP_ARGS(args);
     RETVAL = PLCB_multi_arithmetic_common(self, args, ix, NULL);
     
     OUTPUT:
     RETVAL
 
 SV*
-PLCB_remove_multi(self, ...)
+PLCB_remove_multi(self, arg1, ...)
     SV *self
+    SV *arg1
     
     ALIAS:
-    delete_multi = 1
+    remove_multi_A = CMD_REMOVE_A
     
     PREINIT:
     AV *args = NULL;
     
     CODE:
-    _MAYBE_MULTI_ARG(args);
+    if (ix == 0) {
+        ix = PLCB_CMD_REMOVE;
+    }
+
+    WRAP_ARGS(args);
     RETVAL = PLCB_multi_remove(self, args, NULL);
     
     OUTPUT:
     RETVAL
-    
+
+SV *
+PLCB_unlock_multi(self, arg1, ...)
+    SV *self
+    SV *arg1
+
+    ALIAS:
+    unlock_multi_A = CMD_UNLOCK_A
+
+    PREINIT:
+    AV *args;
+
+    CODE:
+    if (ix == 0) {
+        ix = PLCB_CMD_UNLOCK;
+    }
+
+    WRAP_ARGS(args);
+    RETVAL = PLCB_multi_unlock(self, args, NULL);
+
+    OUTPUT: RETVAL

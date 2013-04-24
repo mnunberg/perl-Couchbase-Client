@@ -18,6 +18,7 @@
 #define PLCB_COMMANDf_COUCH 0x200
 #define PLCB_COMMANDf_ITER 0x400
 #define PLCB_COMMANDf_SINGLE 0x800
+#define PLCB_COMMANDf_ARRAY 0x1000
 
 /* Mask for only the command itself */
 #define PLCB_COMMAND_MASK 0xff

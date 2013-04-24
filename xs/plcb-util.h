@@ -201,6 +201,8 @@ name ## _cleanup(struct name* buf) { \
     *buf->backref = NULL; \
 }
 
+#define plcb_is_arrayref(sv) (SvROK(sv) && SvTYPE(SvRV(sv)) == SVt_PVAV)
+
 /* Handy types for XS */
 /* for easy passing */
 typedef struct {
