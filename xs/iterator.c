@@ -31,7 +31,7 @@ void plcb_multi_iterator_collect(PLCB_iter_t *iter,
     /* Simply set the return value, and stop the event loop */
     plcb_ret_set_err(iter->parent, cur_ret, err);
 
-    if (err == LIBCOUCHBASE_SUCCESS) {
+    if (err == LCB_SUCCESS) {
         plcb_ret_set_strval(iter->parent, cur_ret, value, nvalue, flags, cas);
     }
 
@@ -88,7 +88,7 @@ plcb_multi_iterator_new(PLCB_t *obj,
 
     err = lcb_get(obj->instance, iterobj, nitems, cmds);
 
-    if (err != LIBCOUCHBASE_SUCCESS) {
+    if (err != LCB_SUCCESS) {
         SV *tmprv;
         iterobj->error_av = newAV();
         tmprv = newRV_inc((SV*)iterobj->error_av);

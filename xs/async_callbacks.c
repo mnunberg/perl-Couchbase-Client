@@ -78,7 +78,7 @@ static void get_callback(lcb_t instance,
 {
     _CB_INIT;
     //warn("Get callback");
-    if (err == LIBCOUCHBASE_SUCCESS) {
+    if (err == LCB_SUCCESS) {
         //warn("Got value of %d bytes", nbytes);
         plcb_ret_set_strval(object, ret, _R.bytes, _R.nbytes, _R.flags, _R.cas);
     }
@@ -105,7 +105,7 @@ static void arithmetic_callback(lcb_t instance,
                                 const lcb_arithmetic_resp_t *resp)
 {
     _CB_INIT;
-    if (err == LIBCOUCHBASE_SUCCESS) {
+    if (err == LCB_SUCCESS) {
         plcb_ret_set_numval(object, ret, _R.value, _R.cas);
     }
     tell_perl(cookie, ret, _R.key, _R.nkey);
