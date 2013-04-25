@@ -16,7 +16,7 @@ my $params = {
                             'CouchbaseMock-0.5-20120726.220757-19.jar',
 
     #version numbers for libcouchbase and libvbucket
-    LIBCOUCHBASE_RELEASE => '2.0.5_2_gacffe1a',
+    LIBCOUCHBASE_RELEASE => '2.0.5_3_gedcb7f1',
 
     LIBEVENT_RELEASE    => '2.0.17-stable',
 };
