@@ -63,7 +63,7 @@ AV *get_speclist(int cmd, SV *cmdargs)
      * If argument is a simple scalar, wrap it inside an array for those commands
      * which permit it. Otherwise, just die.
      */
-    if (SvROK(cmdargs) == 0 && SvPOK(cmdargs)) {
+    if (plcb_is_simple_string(cmdargs)) {
         switch (cmd_base) {
         case PLCB_CMD_GET:
         case PLCB_CMD_REMOVE:

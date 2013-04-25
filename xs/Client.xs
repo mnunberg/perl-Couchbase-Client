@@ -192,12 +192,9 @@ static SV *PLCB_set_common(SV *self, int cmd, SV **args, int nargs)
     }
 
     value = args[1];
-    plcb_get_str_or_die(value, sval, vlen, "Value");
 
-    if (SvROK(value) && SvTYPE(SvRV(value)) != SVt_PV
-            && (cmdbase == PLCB_CMD_APPEND || cmdbase == PLCB_CMD_PREPEND)) {
-        die("Cannot append/prepend a reference");
-    }
+    plcb_get_str_or_die(value, sval, vlen, "Value");
+    PLCB_APPEND_SANITY(cmdbase, value);
 
     storop = plcb_command_to_storop(cmdbase);
 

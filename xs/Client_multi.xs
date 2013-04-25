@@ -451,7 +451,7 @@ PLCB_multi_arithmetic_common(SV *self,
         _fetch_assert(tmpsv, speclist, ii, "empty argument in spec");
         
         
-        if (SvTYPE(*tmpsv) == SVt_PV) {
+        if (plcb_is_simple_string(*tmpsv)) {
             /*simple key*/
             if (cmd == PLCB_CMD_ARITHMETIC) {
                 die("Expected array reference!");
@@ -528,7 +528,7 @@ PLCB_multi_remove(SV *self, AV *speclist, PLCBA_cookie_t *async_cookie)
         
         _fetch_assert(tmpsv, speclist, ii, "empty arguments in spec");
 
-        if (SvTYPE(*tmpsv) == SVt_PV) {
+        if (plcb_is_simple_string(*tmpsv)) {
             args[0] = *tmpsv;
             speclen = 1;
 

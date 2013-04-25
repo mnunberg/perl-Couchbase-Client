@@ -238,6 +238,8 @@ name ## _cleanup(struct name* buf) { \
         }
 
 
+#define plcb_is_simple_string(sv) ( SvPOK(sv) != 0 && SvROK(sv) == 0 )
+
 /* Handy types for XS */
 /* for easy passing */
 typedef struct {
