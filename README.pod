@@ -211,3 +211,10 @@ if your C<libcouchbase> is installed as C</sources/lcb/inst>, you'd do
 
 where the C<--incpath> and C<--libpath> parameters specify extra compiler/linker
 flags to use.
+
+
+=head2 Support
+
+You may file a bug at the Couchbase JIRA, at L<http://www.couchbase.com/issues>,
+specifying the I<Couchbase Perl Client Library> project. You may also find support in
+the C<#libcouchbase> channel on L<irc.freenode.net>.
