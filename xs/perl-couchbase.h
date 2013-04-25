@@ -7,6 +7,7 @@
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
+#include "ppport.h"
 
 
 #define PLCB_RET_CLASSNAME "Couchbase::Client::Return"
@@ -22,11 +23,6 @@
 #if IVSIZE >= 8
 #define PLCB_PERL64
 #endif
-
-#ifndef mXPUSHs
-#define mXPUSHs(sv) XPUSHs(sv_2mortal(sv))
-#endif
-
 #include "plcb-util.h"
 
 typedef struct PLCB_st PLCB_t;
