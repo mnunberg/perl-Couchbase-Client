@@ -27,7 +27,6 @@ lib/Couchbase/Client/Compat.pm
 ################################################################################
 lib/Couchbase/Client/Async.pm
 lib/Couchbase/Client/Async/Event.pm
-lib/Couchbase/Client/Async/Request.pm
 
 ################################################################################
 ### Testing API                                                              ###
