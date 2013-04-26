@@ -52,6 +52,7 @@ sub runcmd {
         printf STDERR ("CPPFLAGS=%s\nLDFLAGS=%s\n", $ENV{CPPFLAGS}, $ENV{LDFLAGS});
         printf STDERR ("LD_RUN_PATH=%s\n", $ENV{LD_RUN_PATH});
         printf STDERR ("LIBS=%s\n", $ENV{LIBS});
+        printf STDERR ("LDFLAGS", $ENV{LDFLAGS});
         die "";
     }
 }
@@ -65,7 +66,7 @@ sub lib_2_tarball {
 sub tarball_2_dir {
     my $tarball = shift;
     my $ae = Archive::Extract->new(archive => $tarball);
-    $ae->extract();    
+    $ae->extract();
     my $filename = fileparse($tarball, qr/\.tar\..*/);
     return $filename;
 }
@@ -96,11 +97,11 @@ mkpath($LIB_PATH);
 
 $ENV{PKG_CONFIG_PATH} .= ":"
 . File::Spec->catfile($INST_DIR, 'lib', 'pkgconfig');
-#$ENV{CC} = $Config{cc};
+
 $ENV{LD_RUN_PATH} .= ":$RPATH";
 $ENV{LD_LIBRARY_PATH} .= ":" . $ENV{LD_RUN_PATH};
-
 $ENV{CPPFLAGS} .= $ENV_CPPFLAGS;
+$ENV{LDFLAGS} .= $ENV_LDFLAGS;
 $ENV{LIBS} .= $ENV_LIBS;
 
 my $MAKEPROG = $ENV{MAKE};

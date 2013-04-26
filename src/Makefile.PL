@@ -175,7 +175,7 @@ sub create_buildscript_invocation {
                 $mm->quote_literal($script_cppflags)) . "\\",
 
 
-        "\t".sprintf(" --env-libs=%s",
+        "\t".sprintf(" --env-ldflags=%s",
                 $mm->quote_literal($script_ldflags)) . "\\",
 
         "\t".sprintf(" --rpath=%s",
