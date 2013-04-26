@@ -851,6 +851,46 @@ PLCB_timeout(self, ...)
     OUTPUT:
     RETVAL
 
+SV *
+PLCB_cluster_nodes(self)
+    SV *self
+    PREINIT:
+    lcb_t instance;
+    PLCB_t *object;
+    AV *retav;
+    const char * const * server_nodes;
+
+    CODE:
+    mk_instance_vars(self, instance, object);
+    server_nodes = lcb_get_server_list(instance);
+    retav = newAV();
+    RETVAL = newRV_noinc((SV*)retav);
+
+    if (server_nodes) {
+        const char * const *cur_node;
+        for (cur_node = server_nodes; *cur_node; cur_node++) {
+            av_push(retav, newSVpv(*cur_node, 0));
+        }
+    }
+
+    OUTPUT: RETVAL
+
+SV *
+PLCB_lcb_version(...)
+    PREINIT:
+    uint32_t iversion = 0;
+    const char *strversion;
+    AV *ret;
+
+    CODE:
+    strversion = lcb_get_version(&iversion);
+    ret = newAV();
+    av_store(ret, 0, newSVpv(strversion, 0));
+    av_store(ret, 1, newSVuv(iversion));
+    RETVAL = newRV_noinc((SV*)ret);
+
+    OUTPUT: RETVAL
+
 int
 PLCB_connect(self)
     SV *self

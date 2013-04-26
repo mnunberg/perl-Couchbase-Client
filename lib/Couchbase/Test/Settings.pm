@@ -291,4 +291,20 @@ sub T25_multi_server_list :Test(no_plan)
     is($cbo->get_errors->[0]->[0], COUCHBASE_BUCKET_ENOENT,
        "BUCKET_ENOENT as expected");
 }
+
+sub T26_server_nodes :Test(no_plan) {
+    my $self = shift;
+    my $o = $self->cbo;
+    my $nodes = $o->cluster_nodes;
+    isa_ok($nodes, 'ARRAY');
+    ok($#{$nodes} >= 1, "Have more than a single element");
+}
+
+sub T27_lcb_version :Test(no_plan) {
+    my $self = shift;
+    my $version = Couchbase::Client::lcb_version();
+    isa_ok($version, 'ARRAY');
+    ok(length($version->[0]) > 0);
+    ok($version->[1] > 0);
+}
 1;

@@ -888,6 +888,18 @@ The return format is as so:
     }
 
 
+=head3 cluster_nodes()
+
+Returns an array of cluster nodes. Each element of the array is a string
+containing the hostname or IP of a cluster node.
+
+=head3 lcb_version()
+
+Returns the version information of the backing C<libcouchbase> library.
+The return value is an array; the first element contains the string version,
+i.e. C<'2.0.5'>, and the second element contains the second number, e.g.
+C<0x020005>
+
 =head2 VIEW QUERY METHODS
 
 
