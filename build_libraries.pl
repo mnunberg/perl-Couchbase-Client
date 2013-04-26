@@ -19,6 +19,7 @@ GetOptions(
     'env-libs=s'  => \my $ENV_LIBS,
     'rpath=s'     => \my $RPATH,
     'have-java'   => \my $HAVE_JAVA,
+    'no-tests'    => \my $NO_RUN_TESTS,
 );
 
 use lib __DIR__;
@@ -34,9 +35,16 @@ if($ENV{PLCB_BUILD_NOISY}) {
 }
 
 my $RUN_TESTS = 1;
+
 if(exists $ENV{PLCB_RUN_TESTS}) {
     $RUN_TESTS = $ENV{PLCB_RUN_TESTS};
 }
+
+if ($NO_RUN_TESTS) {
+    print STDERR "Test execution disabled from command line\n";
+    $RUN_TESTS = 0;
+}
+
 if($^O =~ /solaris/) {
     print STDERR "Tests disabled on solaris\n";
     $RUN_TESTS = 0;
