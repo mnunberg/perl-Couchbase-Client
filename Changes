@@ -1,3 +1,15 @@
+commit d34d6e2a1ae18e11a9c2bcc59050b25359a079cb
+Author: Mark Nunberg <mnunberg@haskalah.org>
+Date:   Thu Jun 19 14:31:33 2014 -0700
+
+    GH-15: Remove erroneous return statement
+
+commit 1724d3d28e9c8c3471b9a854db532021b901a1dd
+Author: Mark Nunberg <mnunberg@haskalah.org>
+Date:   Wed Mar 20 19:02:21 2013 -0700
+
+    Release 1.0.1
+
 commit b8bcaf047759859215e64d66f503516285a4bc32
 Author: Mark Nunberg <mnunberg@haskalah.org>
 Date:   Wed Mar 20 19:02:01 2013 -0700
