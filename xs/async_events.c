@@ -178,7 +178,6 @@ static int update_event(plcba_cbcio *cbcio,
        cevent->c.arg == cb_data &&
        new_state == cevent->state) {
         /*nothing to do here*/
-        return;
         return 0;
     }
     
