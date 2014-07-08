@@ -73,7 +73,8 @@ $MM_Options{CONFIGURE} = sub {
         Client
         Client_multi
         Iterator_get
-        Couch_request_handle);
+        Couch_request_handle
+        VBucket);
 
     foreach (@XS_Modules, @C_Modules) {
         my $obj = $_ . $Config{obj_ext};

@@ -85,7 +85,6 @@ sub tarball_2_dir {
 ################################################################################
 ################################################################################
 my $LIBCOUCHBASE_TARBALL = lib_2_tarball('libcouchbase');
-my $LIBEVENT_TARBALL = lib_2_tarball('libevent');
 
 ################################################################################
 ################################################################################
@@ -145,24 +144,6 @@ sub lib_is_built {
         return 1;
     }
     return 0;
-}
-
-
-################################################################################
-### libevent                                                                 ###
-################################################################################
-if(should_build('EVENT')) {
-    chdir $TOPLEVEL;
-    my @libevent_options = (qw(
-        --disable-openssl
-        --disable-debug-mode
-        ), @COMMON_OPTIONS
-    );
-
-    chdir tarball_2_dir($LIBEVENT_TARBALL);
-    runcmd("./configure", @libevent_options) unless -e 'Makefile';
-    log_info("Configured libevent");
-    runcmd("$MAKEPROG install");
 }
 
 ################################################################################

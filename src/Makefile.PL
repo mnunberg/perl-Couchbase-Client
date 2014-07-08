@@ -59,26 +59,6 @@ if(version >= 0x020000) {
 return 1;
 EOC
 
-my $LIBEVENT_CFUNC = <<EOC;
-
-int version_major = 0, version_minor = 0;
-
-const char *version_string = event_get_version();
-if(!version_string) {
-    return 1;
-}
-
-sscanf(version_string, "%d.%d", &version_major, &version_minor);
-
-if(version_major >= 2) {
-    return 0;
-} else if(version_major == 1 && version_minor >= 4) {
-    return 0;
-}
-return 1;
-
-EOC
-
 sub check_dependency {
     my ($names,$fn,%extra) = @_;
     $names = ref $names ? $names : [ $names ];
@@ -331,12 +311,6 @@ sub MM_Configure {
     } else {
         push @to_build, qw(COUCHBASE);
     }
-
-    if(!check_dependency(
-        'event', $LIBEVENT_CFUNC, header => ['event.h', 'stdio.h'] )) {
-        push @to_build, 'EVENT';
-    }
-
 
     GT_MANGLE:
     my $errmsg = "\n".
