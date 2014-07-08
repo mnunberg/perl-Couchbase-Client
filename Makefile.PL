@@ -181,12 +181,7 @@ WriteMakefile(
         #functionality
 
         'Test::More'        => 0,
-        'Test::Class'       => 0.36,
-
-        #these are needed for asynchronous tests and modules
-        'POE::Sugar::Attributes' => 0.02,
-        'POE'               => 1.312,
-
+        'Test::Class'       => 0.36
     },
 
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
