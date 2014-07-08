@@ -4,9 +4,6 @@
 #include "perl-couchbase-async.h"
 #include "plcb-util.h"
 
-#ifndef _WIN32
-#include <libcouchbase/libevent_io_opts.h>
-
 static lcb_io_opt_t plcba_default_io_opts(void)
 {
     struct lcb_create_io_ops_st options = { 0 };
@@ -16,15 +13,6 @@ static lcb_io_opt_t plcba_default_io_opts(void)
     lcb_create_io_ops(&iops, &options);
     return iops;
 }
-
-
-#else
-
-#include <libcouchbase/winsock_io_opts.h>
-#define plcba_default_io_opts() \
-    libcouchbase_create_winsock_io_opts()
-
-#endif
 
 
 static void plcb_call_sv_with_args_noret(SV *code, int mortalize, int nargs, ...)
