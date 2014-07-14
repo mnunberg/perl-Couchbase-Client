@@ -43,6 +43,7 @@ SV *PLCB_construct(const char *pkg, AV *options)
     lcb_set_cookie(instance, object);
 
     plcb_callbacks_setup(object);
+    plcb_couch_callbacks_setup(object);
 
     blessed_obj = newSV(0);
     sv_setiv(newSVrv(blessed_obj, "Couchbase::Client"), PTR2IV(object));
@@ -216,6 +217,7 @@ PLCB_remove_multi(self, keys, ...)
     RETVAL = PLCB_op_remove(self, &args);
     OUTPUT: RETVAL
 
+
     
 IV
 PLCB__settings(self, ...)
@@ -376,6 +378,14 @@ PLCB__lcb_version()
     
     RETVAL = newRV_noinc((SV*)ret);
     OUTPUT: RETVAL
+    
+SV *
+PLCB__new_viewhandle(PLCB_XS_OBJPAIR_t self, stash)
+    HV *stash
+    
+    CODE:
+    RETVAL = plcb_couch_handle_new(stash, self.sv, self.ptr);
+    OUTPUT: RETVAL
 
 int
 PLCB_connect(self)
@@ -402,6 +412,6 @@ SPAGAIN;
         */
         PERL_UNUSED_VAR(cbc_version_string);
     }
-    /* Iterator_get.xs */
+    PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__View)
 }
 #undef PLCB_BOOTSTRAP_DEPENDENCY

@@ -13,21 +13,18 @@ use Couchbase::Client::Errors;
 use Couchbase::Client::IDXConst;
 use Couchbase::Client::Return;
 use Couchbase::Client::Iterator;
+use Couchbase::Couch::Handle;
+use Couchbase::Couch::HandleInfo;
+use Couchbase::Couch::Design;
+use JSON;
+use JSON::SL;
+use Data::Dumper;
+use URI;
 
 my $have_storable = eval "use Storable; 1;";
 my $have_zlib = eval "use Compress::Zlib; 1;";
 
 use Array::Assign;
-
-{
-    no warnings 'once';
-    *gets = \&get;
-    *gets_multi = \&get_multi;
-    *gets_multi_A = \&get_multi_A;
-
-    *delete_multi = \&remove_multi;
-    *delete_multi_A = \&remove_multi_A;
-}
 
 # Get the CouchDB (2.0) API
 use Couchbase::Couch::Base;
@@ -119,7 +116,6 @@ sub _MkCtorIDX {
         warn sprintf("Unused keys (%s) in constructor",
                      join(", ", keys %$opts));
     }
-    __PACKAGE__->_CouchCtorInit(\@arglist);
     return \@arglist;
 }
 
@@ -134,6 +130,88 @@ sub new {
 
 sub lcb_version {
     return _lcb_version();
+}
+
+# Returns a 'raw' request handle
+sub _htraw {
+    my $self = $_[0];
+    return $self->_new_viewhandle(\%Couchbase::Couch::Handle::RawIterator::);
+}
+
+# Gets a design document
+sub design_get {
+    my ($self,$path) = @_;
+    my $handle = $self->_new_viewhandle(\%Couchbase::Couch::Handle::Slurpee::);
+    my $design = $handle->slurp_jsonized("GET", "_design/" . $path, "");
+    bless $design, 'Couchbase::Couch::Design';
+}
+
+# saves a design document
+sub design_put {
+    my ($self,$design,$path) = @_;
+    if (ref $design) {
+        $path = $design->{_id};
+        $design = encode_json($design);
+    }
+    my $handle = $self->_new_viewhandle(\%Couchbase::Couch::Handle::Slurpee::);
+    return $handle->slurp_jsonized("PUT", $path, $design);
+}
+
+sub _process_viewpath_common {
+    my ($orig,%options) = @_;
+    my %qparams;
+
+    if (delete $options{ForUpdate}) {
+        $qparams{include_docs} = "true";
+    }
+    if (%options) {
+        # TODO: pop any other known parameters?
+        %qparams = (%qparams,%options);
+    }
+
+    if (ref $orig ne 'ARRAY') {
+        if (!$orig) {
+            die("Path cannot be empty");
+        }
+        $orig = [($orig =~ m,([^/]+)/(.*),)]
+    }
+
+    unless ($orig->[0] && $orig->[1]) {
+        die("Path cannot be empty");
+    }
+
+    # Assume this is an array of [ design, view ]
+    $orig = sprintf("_design/%s/_view/%s", @$orig);
+
+    if (%qparams) {
+        $orig = URI->new($orig);
+        $orig->query_form(\%qparams);
+    }
+
+    return $orig . "";
+}
+
+# slurp an entire resultset of views
+sub view_slurp {
+    my ($self,$viewpath,%options) = @_;
+    my $handle = $self->_new_viewhandle(\%Couchbase::Couch::Handle::Slurpee::);
+
+    if (delete $options{ForUpdate}) {
+        $viewpath .= "?include_docs=true";
+    }
+    $viewpath = _process_viewpath_common($viewpath,%options);
+    $handle->slurp("GET", $viewpath, "");
+}
+
+sub view_iterator {
+    my ($self,$viewpath,%options) = @_;
+    my $handle;
+
+    $viewpath = _process_viewpath_common($viewpath, %options);
+    $handle = $self->_new_viewhandle(\%Couchbase::Couch::Handle::ViewIterator::);
+    $handle->_perl_initialize();
+    $handle->prepare("GET", $viewpath, "");
+    return $handle;
 }
 
 1;

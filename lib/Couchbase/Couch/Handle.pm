@@ -12,6 +12,7 @@ BEGIN {
     XSLoader::load('Couchbase::Client', '2.0.0_1');
 }
 
+use base qw(Couchbase::View);
 
 # This does some boilerplate initialization, ensuring that our private
 # fields are initialized. Subclasses usually override this method and end up
@@ -32,10 +33,12 @@ sub _perl_initialize {
 
 # Convenience function
 sub path { shift->info->path }
+
 sub default_data_callback {
     cluck "Got unhandled data callback";
     print Dumper($_[1]);
 }
+
 sub default_complete_callback {
     print Dumper($_[1]);
     cluck "Got unhandled completion callback..";
@@ -164,10 +167,10 @@ sub next {
     # so there's nothing in the queue. See if we can get something from the
     # network.
     my $rv = $self->_iter_step;
+    print Dumper($rv);
 
     # a true return value means we can wait for extra data
     if ($rv) {
-        die "Iteration stopped but got nothing in buffer" unless @$rows;
         return $return_stuff->();
     }
 

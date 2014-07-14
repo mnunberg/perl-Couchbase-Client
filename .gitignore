@@ -20,4 +20,5 @@ xs/Client.c
 xs/Client_multi.c
 xs/Couch_request_handle.c
 xs/Iterator_get.c
+xs/View.c
 pm_to_blib

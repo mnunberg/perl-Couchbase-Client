@@ -149,7 +149,7 @@ typedef struct {
 
     /* Weak reference to ourselves, so we can pass it to the callbacks */
     SV *self_rv;
-} PLCB_couch_handle_t;
+} PLCB_viewhandle_t;
 
 
 void plcb_couch_callbacks_setup(PLCB_t *object);
@@ -161,30 +161,24 @@ void plcb_couch_callbacks_setup(PLCB_t *object);
  */
 SV *plcb_couch_handle_new(HV *stash, SV *cbo_sv, PLCB_t *cbo);
 
-void plcb_couch_handle_free(PLCB_couch_handle_t *handle);
+void plcb_couch_handle_free(PLCB_viewhandle_t *handle);
 
 /* Non-chunked */
-void plcb_couch_handle_execute_all(PLCB_couch_handle_t *handle,
-                                   lcb_http_method_t method,
-                                   const char *path,
-                                   size_t npath,
-                                   const char *body,
-                                   size_t nbody);
+void
+plcb_couch_handle_execute_all(PLCB_viewhandle_t *handle, const char *method,
+    const char *path, size_t npath, const char *body, size_t nbody);
 
 /* Chunked, prepare the handle */
-void plcb_couch_handle_execute_chunked_init(PLCB_couch_handle_t *handle,
-                                            lcb_http_method_t method,
-                                            const char *path,
-                                            size_t npath,
-                                            const char *body,
-                                            size_t nbody);
+void plcb_couch_handle_execute_chunked_init(PLCB_viewhandle_t *handle,
+    const char *method, const char *path, size_t npath, const char *body,
+    size_t nbody);
 
 
 /* Chunked, wait until callback signal is done */
-int plcb_couch_handle_execute_chunked_step(PLCB_couch_handle_t *handle);
+int plcb_couch_handle_execute_chunked_step(PLCB_viewhandle_t *handle);
 
 /* Cancel a request. If the request is not yet active then nothing happens */
-void plcb_couch_handle_finish(PLCB_couch_handle_t *handle);
+void plcb_couch_handle_finish(PLCB_viewhandle_t *handle);
 
 
 #endif /* PERL_COUCHBASE_VIEWS_H_ */

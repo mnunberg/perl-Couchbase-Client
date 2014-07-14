@@ -64,9 +64,10 @@ $MM_Options{CONFIGURE} = sub {
         convert
         ctor
         operations
-        schedctx);
+        schedctx
+        viewhandle);
     my @XS_Modules = qw(
-        Client);
+        Client View);
 
     foreach (@XS_Modules, @C_Modules) {
         my $obj = $_ . $Config{obj_ext};

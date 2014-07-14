@@ -2,7 +2,7 @@ TYPEMAP
 PLCB_XS_OBJPAIR_t	T_PLCB_XS_OBJPAIR_T
 PLCB_XS_STRING_NONULL_t	T_PLCB_XS_STRING_NONULL_T
 PLCB_XS_STRING_t	T_PLCB_XS_STRING_T
-PLCB_couch_handle_t *	T_PLCB_COUCH_HANDLE_T 
+PLCB_viewhandle_t *	T_PLCB_COUCH_HANDLE_T 
 PLCB_jsondec_t*	T_PLCB_JSONDEC_T
 PLCB_iter_t *	T_PLCB_ITER_T 
 PLCB_exp_t		T_PLCB_EXP_T
@@ -45,7 +45,7 @@ T_PLCB_COUCH_HANDLE_T
 	    die(\"Not a valid Couchbase::Couch::RequestHandle\");
 	}
 	
-	$var = NUM2PTR(PLCB_couch_handle_t *, SvIV(SvRV($arg)));
+	$var = NUM2PTR(PLCB_viewhandle_t *, SvIV(SvRV($arg)));
 
 
 T_PLCB_JSONDEC_T
