@@ -1,339 +1,169 @@
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
-
 #include "perl-couchbase.h"
 
-#define _R \
-    resp->v.v0
-
-void plcb_evloop_wait_unref(PLCB_t *object)
+void
+plcb_evloop_wait_unref(PLCB_t *object)
 {
     assert(object->npending);
     object->npending--;
     if (!object->npending) {
-        plcb_evloop_stop(object);
+        lcb_breakout(object->instance);
     }
 }
 
-static void single_keyop_common(lcb_t instance,
-                                const void *cookie,
-                                lcb_error_t err,
-                                const void *key,
-                                size_t nkey,
-                                const void *bytes,
-                                size_t nbytes,
-                                uint32_t flags,
-                                uint64_t cas)
+static void
+get_resobj(const lcb_RESPBASE *resp, PLCB_sync_t **sync_p, AV **resobj_p)
 {
-    PLCB_sync_t *syncp = plcb_sync_cast(cookie);
+    PLCB_sync_t *sync;
+    AV *resobj;
 
-    if (syncp->type != PLCB_SYNCTYPE_SINGLE) {
-        plcb_multi_iterator_collect((PLCB_iter_t*) cookie,
-                                    err,
-                                    key,
-                                    nkey,
-                                    bytes,
-                                    nbytes,
-                                    flags,
-                                    cas);
-        return;
-    }
+    sync = resp->cookie;
 
-    plcb_ret_set_err(syncp->parent, syncp->ret, err);
-
-    if (err == LCB_SUCCESS && bytes) {
-        plcb_ret_set_strval( syncp->parent,
-                            syncp->ret,
-                            bytes,
-                            nbytes,
-                            flags,
-                            cas);
-    }
-
-    plcb_evloop_wait_unref(syncp->parent);
-}
-
-static void multi_keyop_common(lcb_t instance,
-                               const void *cookie,
-                               lcb_error_t err,
-                               const void *key,
-                               size_t nkey,
-                               const void *bytes,
-                               size_t nbytes,
-                               uint32_t flags,
-                               uint64_t cas)
-{
-    PLCB_sync_t *syncp = plcb_sync_cast(cookie);
-    AV *ret;
-    HV *results;
-
-    plcb_evloop_wait_unref(syncp->parent);
-
-    if (syncp->type != PLCB_SYNCTYPE_SINGLE) {
-
-        plcb_multi_iterator_collect((PLCB_iter_t*) cookie,
-                                    err,
-                                    key,
-                                    nkey,
-                                    bytes,
-                                    nbytes,
-                                    flags,
-                                    cas);
-        return;
-    }
-
-    ret = newAV();
-    results = (HV*)(syncp->ret);
-    
-    (void) hv_store(results,
-            key,
-            nkey,
-            plcb_ret_blessed_rv(syncp->parent, ret),
-            0);
-    
-    plcb_ret_set_err(syncp->parent, ret, err);
-    
-    if (err == LCB_SUCCESS && nbytes) {
-        plcb_ret_set_strval(
-            syncp->parent, ret, bytes, nbytes, flags, cas);
-    }
-}
-
-
-/**
- * Bleh, new API means more code duplication and boilerplate.
- */
-static void cb_get(lcb_t instance,
-                   const void *cookie,
-                   lcb_error_t error,
-                   const lcb_get_resp_t *resp)
-{
-    single_keyop_common(instance,
-                        cookie,
-                        error,
-                        _R.key,
-                        _R.nkey,
-                        _R.bytes,
-                        _R.nbytes,
-                        _R.flags,
-                        _R.cas);
-}
-
-static void cb_get_multi(lcb_t instance,
-                         const void *cookie,
-                         lcb_error_t error,
-                         const lcb_get_resp_t *resp)
-{
-    multi_keyop_common(instance,
-                       cookie,
-                       error,
-                       _R.key,
-                       _R.nkey,
-                       _R.bytes,
-                       _R.nbytes,
-                       _R.flags,
-                       _R.cas);
-}
-
-static void cb_touch(lcb_t instance,
-                     const void *cookie,
-                     lcb_error_t error,
-                     const lcb_touch_resp_t *resp)
-{
-    single_keyop_common(instance,
-                        cookie,
-                        error,
-                        _R.key,
-                        _R.nkey,
-                        NULL,
-                        0,
-                        0,
-                        _R.cas);
-}
-
-static void cb_touch_multi(lcb_t instance,
-                           const void *cookie,
-                           lcb_error_t error,
-                           const lcb_touch_resp_t *resp)
-{
-    multi_keyop_common(instance,
-                       cookie,
-                       error,
-                       _R.key,
-                       _R.nkey,
-                       NULL,
-                       0,
-                       0,
-                       _R.cas);
-}
-
-static void cb_unlock(lcb_t instance,
-                      const void *cookie,
-                      lcb_error_t error,
-                      const lcb_unlock_resp_t *resp)
-{
-    single_keyop_common(instance,
-                        cookie,
-                        error,
-                        _R.key,
-                        _R.nkey,
-                        NULL,
-                        0,
-                        0,
-                        0);
-}
-
-static void cb_remove(lcb_t instance,
-                      const void *cookie,
-                      lcb_error_t error,
-                      const lcb_remove_resp_t *resp)
-{
-    single_keyop_common(instance,
-                        cookie,
-                        error,
-                        _R.key,
-                        _R.nkey,
-                        NULL,
-                        0,
-                        0,
-                        _R.cas);
-}
-
-static void cb_storage(lcb_t instance,
-                       const void *cookie,
-                       lcb_storage_t op,
-                       lcb_error_t err,
-                       const lcb_store_resp_t *resp)
-{
-    PLCB_sync_t *syncp = plcb_sync_cast(cookie);
-    plcb_ret_set_err(syncp->parent, syncp->ret, err);
-
-    if (err == LCB_SUCCESS) {
-        plcb_ret_set_cas(syncp->parent, syncp->ret, &(_R.cas));
-    }
-
-    plcb_evloop_wait_unref(syncp->parent);
-}
-
-static void cb_arithmetic(lcb_t instance,
-                          const void *cookie,
-                          lcb_error_t err,
-                          const lcb_arithmetic_resp_t *resp)
-{
-    PLCB_sync_t *syncp = plcb_sync_cast(cookie);
-    plcb_ret_set_err(syncp->parent, syncp->ret, err);
-
-    if (err == LCB_SUCCESS) {
-        plcb_ret_set_numval(syncp->parent,
-                            syncp->ret,
-                            _R.value,
-                            _R.cas);
-    }
-
-    plcb_evloop_wait_unref(syncp->parent);
-}
-
-
-static void cb_error(lcb_t instance, lcb_error_t err, const char *errinfo)
-{
-    PLCB_t *object;
-    object = (PLCB_t*) lcb_get_cookie(instance);
-    plcb_errstack_push(object, err, errinfo);
-}
-
-static void cb_observe(lcb_t instance,
-                       const void *cookie,
-                       lcb_error_t error,
-                       const lcb_observe_resp_t *resp)
-{
-    PLCB_obs_t *obs = (PLCB_obs_t*)cookie;
-    printf("Hi!\n");
-    
-    if (resp->v.v0.key == NULL) {
-        plcb_evloop_wait_unref(obs->sync.parent);
-        return;
-    }
-    
-    plcb_observe_result(obs, resp);
-}
-
-static void cb_stat(lcb_t instance,
-                    const void *cookie,
-                    lcb_error_t err,
-                    const lcb_server_stat_resp_t *resp)
-{
-    PLCB_t *object;
-    SV *server_sv, *data_sv, *key_sv;
-    dSP;
-    
-    object = (PLCB_t*)lcb_get_cookie(instance);
-    
-    if (_R.key == NULL && _R.server_endpoint == NULL) {
-        plcb_evloop_wait_unref(object);
-        return;
-    }
-    
-    server_sv = newSVpvn(_R.server_endpoint, strlen(_R.server_endpoint));
-    if (_R.nkey) {
-        key_sv = newSVpvn(_R.key, _R.nkey);
-
+    if (sync->flags & PLCB_SYNCf_SINGLERET) {
+        resobj = sync->u.ret;
     } else {
-        key_sv = newSVpvn("", 0);
+        SV **ent = hv_fetch(sync->u.multiret, resp->key, resp->nkey, 0);
+        if (!ent) {
+            die("Missing entry!");
+        }
+        resobj = (AV*)SvRV((*ent));
     }
-    
-    if (_R.nbytes) {
-        data_sv = newSVpvn(_R.bytes, _R.nbytes);
 
+    plcb_ret_set_err(sync->parent, resobj, resp->rc);
+    *sync_p = sync;
+    *resobj_p = resobj;
+
+}
+
+/* This callback is only ever called for single operation, single key results */
+static void
+callback_common(lcb_t instance, int cbtype, const lcb_RESPBASE *resp)
+{
+    AV *resobj; /* Result object */
+    PLCB_sync_t *sync;
+
+    get_resobj(resp, &sync, &resobj);
+
+    switch (cbtype) {
+    case LCB_CALLBACK_GET: {
+        const lcb_RESPGET *gresp = (const lcb_RESPGET *)resp;
+        if (resp->rc == LCB_SUCCESS) {
+            plcb_ret_set_strval(sync->parent,
+                resobj, gresp->value, gresp->nvalue, gresp->itmflags, gresp->cas);
+        }
+        plcb_evloop_wait_unref(sync->parent);
+        break;
+    }
+    case LCB_CALLBACK_TOUCH:
+    case LCB_CALLBACK_REMOVE:
+    case LCB_CALLBACK_UNLOCK:
+    case LCB_CALLBACK_STORE:
+        plcb_ret_set_cas(sync->parent, resobj, &resp->cas);
+        plcb_evloop_wait_unref(sync->parent);
+        break;
+
+    case LCB_CALLBACK_COUNTER: {
+        const lcb_RESPCOUNTER *cresp = (const lcb_RESPCOUNTER*)resp;
+        plcb_ret_set_numval(sync->parent, resobj, cresp->value, resp->cas);
+        plcb_evloop_wait_unref(sync->parent);
+        break;
+    }
+    default:
+        abort();
+        break;
+    }
+}
+
+static void
+observe_callback(lcb_t instance, int cbtype, const lcb_RESPOBSERVE *resp)
+{
+    PLCB_sync_t *sync;
+    AV *resobj;
+    AV *curval;
+    SV *currv;
+    SV *tmp;
+    HV *obsinfo;
+
+    get_resobj((const lcb_RESPBASE*)resp, &sync, &resobj);
+    if (resp->rflags & LCB_RESP_F_FINAL) {
+        plcb_evloop_wait_unref(sync->parent);
+        return;
+    }
+
+    if (resp->rc != LCB_SUCCESS) {
+        return;
+    }
+
+    currv = *av_fetch(resobj, PLCB_RETIDX_VALUE, 1);
+    if (!SvOK(currv)) {
+        SV *tmprv;
+        curval = newAV();
+        tmprv = newRV_noinc((SV*)curval);
+
+        SvSetSV(currv, tmprv);
+        SvREFCNT_dec(tmprv);
     } else {
-        data_sv = newSVpvn("", 0);
+        curval = (AV*)SvRV(currv);
     }
-    
-    if (!object->stats_hv) {
-        die("We have nothing to write our stats to!");
+
+    /* Create the HV */
+    obsinfo = newHV();
+    av_push(curval, newRV_noinc((SV*)obsinfo));
+    hv_stores(obsinfo, "CAS", plcb_sv_from_u64_new(&resp->cas));
+    hv_stores(obsinfo, "Status", newSVuv(resp->status));
+
+    tmp = resp->ismaster ? &PL_sv_yes : &PL_sv_no;
+    SvREFCNT_inc(tmp);
+    hv_stores(obsinfo, "Master", tmp);
+}
+
+static void
+stats_callback(lcb_t instance, int cbtype, const lcb_RESPSTATS *resp)
+{
+    PLCB_sync_t *sync;
+    AV *resobj;
+    SV *cur;
+    HV *keys;
+    HV *srvhash;
+
+    get_resobj((const lcb_RESPBASE*)resp, &sync, &resobj);
+    cur = *av_fetch(resobj, PLCB_RETIDX_VALUE, 1);
+    if (!SvOK(cur)) {
+        SV *tmprv = newRV_noinc((SV*)newHV());
+        SvSetSV(cur, tmprv);
+        SvREFCNT_dec(tmprv);
     }
-    
-    ENTER;
-    SAVETMPS;
-    
-    PUSHMARK(SP);
-    XPUSHs(sv_2mortal(newRV_inc((SV*)object->stats_hv)));
-    XPUSHs(sv_2mortal(server_sv));
-    XPUSHs(sv_2mortal(key_sv));
-    XPUSHs(sv_2mortal(data_sv));
-    PUTBACK;
-    
-    call_pv(PLCB_STATS_SUBNAME, G_DISCARD);
-    FREETMPS;
-    LEAVE;
+
+    keys = (HV*)SvRV(cur);
+    /* Find the current stat key */
+    cur = *hv_fetch(keys, resp->key, resp->nkey, 1);
+    if (!SvOK(cur)) {
+        SV *tmprv = newRV_noinc((SV*)newHV());
+        SvSetSV(cur, tmprv);
+        SvREFCNT_dec(tmprv);
+    }
+    srvhash = (HV *)SvRV(cur);
+    /* Find the server */
+    cur = *hv_fetch(srvhash, resp->server, strlen(resp->server), 1);
+    sv_setpvn(cur, resp->value, resp->nvalue);
 }
 
-void plcb_callbacks_set_multi(PLCB_t *object)
+void
+plcb_callbacks_setup(PLCB_t *object)
 {
-    lcb_t instance = object->instance;
-    lcb_set_get_callback(instance, cb_get_multi);
-    lcb_set_touch_callback(instance, cb_touch_multi);
-}
+    lcb_t o = object->instance;
 
-void plcb_callbacks_set_single(PLCB_t *object)
-{
-    lcb_t instance = object->instance;
-    lcb_set_get_callback(instance, cb_get);
-    lcb_set_touch_callback(instance, cb_touch);
-}
+    lcb_install_callback3(o, LCB_CALLBACK_GET, callback_common);
+    lcb_install_callback3(o, LCB_CALLBACK_GETREPLICA, callback_common);
+    lcb_install_callback3(o, LCB_CALLBACK_STORE, callback_common);
+    lcb_install_callback3(o, LCB_CALLBACK_TOUCH, callback_common);
+    lcb_install_callback3(o, LCB_CALLBACK_REMOVE, callback_common);
+    lcb_install_callback3(o, LCB_CALLBACK_COUNTER, callback_common);
+    lcb_install_callback3(o, LCB_CALLBACK_UNLOCK, callback_common);
 
-void plcb_callbacks_setup(PLCB_t *object)
-{
-    lcb_t instance = object->instance;
-    lcb_set_get_callback(instance, cb_get);
-    lcb_set_store_callback(instance, cb_storage);
-    lcb_set_error_callback(instance, cb_error);
-    lcb_set_touch_callback(instance, cb_touch);
-    lcb_set_remove_callback(instance, cb_remove);
-    lcb_set_arithmetic_callback(instance, cb_arithmetic);
-    lcb_set_stat_callback(instance, cb_stat);
-    lcb_set_observe_callback(instance, cb_observe);
-    lcb_set_unlock_callback(instance, cb_unlock);
-    
-    lcb_set_cookie(instance, object);
+    /* Special */
+    lcb_install_callback3(o, LCB_CALLBACK_OBSERVE, (lcb_RESPCALLBACK)observe_callback);
+    lcb_install_callback3(o, LCB_CALLBACK_STATS, (lcb_RESPCALLBACK)stats_callback);
 }

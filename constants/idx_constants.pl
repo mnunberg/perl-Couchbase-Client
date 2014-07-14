@@ -14,10 +14,8 @@ include "perl-couchbase.h";
 include "perl-couchbase-async.h";
 
 my @const_bases = qw(
-    CTORIDX_SERVERS
-    CTORIDX_USERNAME
+    CTORIDX_CONNSTR
     CTORIDX_PASSWORD
-    CTORIDX_BUCKET
     CTORIDX_STOREFLAGS
     CTORIDX_MYFLAGS
 

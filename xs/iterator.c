@@ -65,10 +65,7 @@ static void iter_get_callback(lcb_t instance,
  * Create a new iterator object. This wraps around lcb_mget
  */
 SV*
-plcb_multi_iterator_new(PLCB_t *obj,
-                        SV *cbo_sv,
-                        const lcb_get_cmd_t * const * cmds,
-                        size_t nitems)
+plcb_multi_iterator_new(PLCB_t *obj, SV *cbo_sv, void **cookiep)
 {
     SV *my_iv, *ret_rv;
     PLCB_iter_t *iterobj;
@@ -83,24 +80,8 @@ plcb_multi_iterator_new(PLCB_t *obj,
 
     my_iv = newSViv(PTR2IV(iterobj));
     ret_rv = newRV_noinc(my_iv);
-
     sv_bless(ret_rv, obj->iter_stash);
-
-    err = lcb_get(obj->instance, iterobj, nitems, cmds);
-
-    if (err != LCB_SUCCESS) {
-        SV *tmprv;
-        iterobj->error_av = newAV();
-        tmprv = newRV_inc((SV*)iterobj->error_av);
-        sv_bless(tmprv, obj->ret_stash);
-        SvREFCNT_dec(tmprv);
-        plcb_ret_set_err(obj, iterobj->error_av, err);
-        iterobj->remaining = PLCB_ITER_ERROR;
-
-    } else {
-        iterobj->remaining = nitems;
-    }
-
+    *cookiep = iterobj;
     return ret_rv;
 }
 

@@ -124,12 +124,7 @@ void plcb_convert_storage(
 {
     SV *sv;
     *flags = 0;
-    
-    if (spec == PLCB_CONVERT_SPEC_JSON) {
-        /* Special for CouchDB */
-        
-    }
-    
+
     /* dereference SCALAR reference. bypass all conversion checks because
      * this is an internal setting
      */
@@ -140,15 +135,15 @@ void plcb_convert_storage(
         *data_len = SvCUR(*data_sv);
     }
     
+    /* Not a reference, and conversion disabled */
     if ( ( (object->my_flags & PLCBf_DO_CONVERSION) == 0 ||
          (object->my_flags & PLCBf_DECONVERT) == 0)
        && SvROK(*data_sv) == 0) {
-
         return;
     }
     
     sv = *data_sv;
-    
+
     /*only serialize references*/
     if (SvROK(sv)) {
         
@@ -188,7 +183,6 @@ void plcb_convert_storage(
     
     if (*data_sv != sv) {
         *data_sv = sv;
-        *data_len = SvCUR(sv);
     }
 }
 

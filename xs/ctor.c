@@ -12,18 +12,14 @@ void plcb_ctor_cbc_opts(AV *options, struct lcb_create_st *cropts)
 
     SV **tmp;
     
-    _assign_options(cropts->v.v0.host, PLCB_CTORIDX_SERVERS, "127.0.0.1:8091");
-    _assign_options(cropts->v.v0.user, PLCB_CTORIDX_USERNAME, NULL);
-    _assign_options(cropts->v.v0.passwd, PLCB_CTORIDX_PASSWORD, NULL);
-    _assign_options(cropts->v.v0.bucket, PLCB_CTORIDX_BUCKET, "default");
+    _assign_options(cropts->v.v3.passwd, PLCB_CTORIDX_PASSWORD, NULL);
+    _assign_options(cropts->v.v3.connstr, PLCB_CTORIDX_CONNSTR, "couchbase://");
 
 #undef _assign_options
 }
 
-static void ctor_extract_methpairs(AV *options,
-                                   int idx,
-                                   SV **outmeth,
-                                   SV **inmeth)
+static void
+ctor_extract_methpairs(AV *options, int idx, SV **outmeth, SV **inmeth)
 {
     SV **tmpsv;
     AV *methav = NULL;
@@ -132,7 +128,6 @@ void plcb_ctor_init_common(PLCB_t *object, lcb_t instance, AV *options)
     SV **tmpsv;
     
     object->instance = instance;
-    object->errors = newAV();
 
 #define get_stash_assert(stashname, target) \
     if (! (object->target = gv_stashpv(stashname, 0)) ) { \
@@ -154,8 +149,7 @@ void plcb_ctor_init_common(PLCB_t *object, lcb_t instance, AV *options)
             warn("Cannot use 0 for timeout");
 
         } else {
-            lcb_set_timeout(instance,
-                timeout_value * (1000*1000));
+            lcb_cntl_setu32(instance, LCB_CNTL_OP_TIMEOUT, timeout_value * (1000*1000));
         }
     }
     
@@ -165,6 +159,4 @@ void plcb_ctor_init_common(PLCB_t *object, lcb_t instance, AV *options)
     }
     /*maybe more stuff here?*/
     object->sync.type = PLCB_SYNCTYPE_SINGLE;
-
-    plcb_couch_callbacks_setup(object);
 }

@@ -60,20 +60,13 @@ $MM_Options{CONFIGURE} = sub {
 {
     my @C_Modules = qw(
         args
-        async_base
-        async_callbacks
-        async_events
         callbacks
         convert
         ctor
-        couch_handle
-        iterator
-        observe);
+        operations
+        schedctx);
     my @XS_Modules = qw(
-        Client
-        Client_multi
-        Iterator_get
-        Couch_request_handle);
+        Client);
 
     foreach (@XS_Modules, @C_Modules) {
         my $obj = $_ . $Config{obj_ext};

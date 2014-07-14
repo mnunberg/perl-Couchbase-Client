@@ -41,34 +41,29 @@ static void call_to_perl(PLCB_couch_handle_t *handle,
     LEAVE;
 }
 
-static void data_callback(lcb_http_request_t couchreq,
-                          lcb_t instance,
-                          const void *cookie,
-                          lcb_error_t error,
-                          const lcb_http_resp_t *resp)
+static void data_callback(lcb_t instance, int cbtype, const lcb_RESPHTTP *resp)
 {
-    PLCB_couch_handle_t *handle = (PLCB_couch_handle_t*)cookie;
+    PLCB_couch_handle_t *handle = (PLCB_couch_handle_t*)resp->cookie;
     SV **tmpsv;
     SV *datasv;
 
     if ((handle->flags & PLCB_COUCHREQf_INITIALIZED) == 0) {
         handle->flags |= PLCB_COUCHREQf_INITIALIZED;
         tmpsv = av_fetch(handle->plpriv, PLCB_COUCHIDX_HTTP, 1);
-        sv_setiv(*tmpsv, resp->v.v0.status);
+        sv_setiv(*tmpsv, resp->htstatus);
     }
     
-    if (resp->v.v0.nbytes) {
-        datasv = newSVpv((const char*)resp->v.v0.bytes,
-                         resp->v.v0.nbytes);
+    if (resp->nbody) {
+        datasv = newSVpv((const char*)resp->body, resp->nbody);
 
     } else {
         datasv = &PL_sv_undef;
     }
 
 
-    if (error != LCB_SUCCESS) {
-        plcb_ret_set_err(handle->parent, handle->plpriv, error);
-        lcb_cancel_http_request(handle->parent->instance, couchreq);
+    if (resp->rc != LCB_SUCCESS) {
+        plcb_ret_set_err(handle->parent, handle->plpriv, resp->rc);
+        lcb_cancel_http_request(handle->parent->instance, resp->_htreq);
 
         handle->lcb_request = NULL;
         handle->flags |=
@@ -104,32 +99,27 @@ static void data_callback(lcb_http_request_t couchreq,
  * Perl if the request is chunked. Otherwise we reduce the overhead by
  * simply appending data.
  */
-static void complete_callback(lcb_http_request_t couchreq,
-                              lcb_t instance,
-                              const void *cookie,
-                              lcb_error_t error,
-                              const lcb_http_resp_t *resp)
+static void complete_callback(lcb_t instance, int cbtype, const lcb_RESPHTTP *resp)
 {
-    PLCB_couch_handle_t *handle = (PLCB_couch_handle_t*)cookie;
-    lcb_http_status_t status = resp->v.v0.status;
+    PLCB_couch_handle_t *handle = (PLCB_couch_handle_t*)resp->cookie;
+    lcb_http_status_t status = resp->htstatus;
 
     handle->flags |= PLCB_COUCHREQf_TERMINATED;
     handle->lcb_request = NULL;
 
-    if (error != LCB_SUCCESS || (status < 200 && status > 299)) {
+    if (resp->rc != LCB_SUCCESS || (status < 200 && status > 299)) {
         handle->flags |= PLCB_COUCHREQf_ERROR;
     }
 
-    plcb_ret_set_err(handle->parent, handle->plpriv, error);
+    plcb_ret_set_err(handle->parent, handle->plpriv, resp->rc);
 
     if ( (handle->flags & PLCB_COUCHREQf_CHUNKED) == 0) {
         sv_setiv(*( av_fetch(handle->plpriv, PLCB_COUCHIDX_HTTP, 1) ), status);
 
-        if (resp->v.v0.nbytes) {
+        if (resp->nbody) {
             SV *datasv;
             datasv = *(av_fetch(handle->plpriv, PLCB_RETIDX_VALUE, 1));
-            sv_setpvn(datasv, (const char*)resp->v.v0.bytes,
-                      resp->v.v0.nbytes);
+            sv_setpvn(datasv, (const char*)resp->nbody, resp->body);
         }
         /* Not chunked, decrement reference count */
         plcb_evloop_wait_unref(handle->parent);
@@ -252,7 +242,6 @@ static void make_http_cmd(lcb_http_method_t method,
  * arrived. This is less complex and more performant than the incremental
  * variant
  */
-
 void plcb_couch_handle_execute_all(PLCB_couch_handle_t *handle,
                                    lcb_http_method_t method,
                                    const char *path,
@@ -285,7 +274,6 @@ void plcb_couch_handle_execute_all(PLCB_couch_handle_t *handle,
 /**
  * Initializes a handle for chunked/iterative invocation
  */
-
 void plcb_couch_handle_execute_chunked_init(PLCB_couch_handle_t *handle,
                                             lcb_http_method_t method,
                                             const char *path,

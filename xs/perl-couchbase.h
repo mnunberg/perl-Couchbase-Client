@@ -8,16 +8,8 @@
 #include "XSUB.h"
 #include "ppport.h"
 
-
 #define PLCB_RET_CLASSNAME "Couchbase::Client::Return"
 #define PLCB_ITER_CLASSNAME "Couchbase::Client::Iterator"
-#define PLCB_STATS_SUBNAME "Couchbase::Client::_stats_helper"
-
-/** Field name for OBSERVE result */
-#define PLCB_OBS_CAS "CAS"
-#define PLCB_OBS_NPERSIST "Persisted"
-#define PLCB_OBS_NREPLICATE "Replicated"
-#define PLCB_OBS_PERSIST_MASTER "PersistedMaster"
 
 #if IVSIZE >= 8
 #define PLCB_PERL64
@@ -28,25 +20,29 @@ typedef struct PLCB_st PLCB_t;
 
 typedef enum {
     PLCB_SYNCTYPE_SINGLE = 0,
+    PLCB_SYNCTYPE_MULTI,
     PLCB_SYNCTYPE_ITER
 } plcb_synctype_t;
 
+#define PLCB_SYNCf_SINGLERET 0x01
+#define PLCB_SYNCf_MULTIRET 0x02
+#define PLCB_SYNCf_STOREDUR 0x03
+
 #define PLCB_SYNC_BASE \
-    PLCB_t *parent; \
-    plcb_synctype_t type;
+    PLCB_t *parent; /**< Parent object */ \
+    unsigned type : 2; /**< Type of context */ \
+    unsigned flags : 6; /**< Flags for context */ \
+    unsigned remaining; /**< How many operations remain for this context */ \
+    SV *errsv; /**< SV containing an error to be thrown, if any */ \
+    union { \
+        AV *ret; /**< For single operation sync objects */ \
+        HV *multiret; /**< For multi operation sync objects */ \
+    } u
 
 typedef struct {
     PLCB_SYNC_BASE;
-    const char *key;
-    size_t nkey;
-    AV *ret;
 } PLCB_sync_t;
 
-/** Used for observe responses, holds metadata */
-typedef struct {
-    PLCB_sync_t sync;
-    uint64_t orig_cas;
-} PLCB_obs_t;
 
 #define PLCB_ITER_ERROR -2
 
@@ -65,13 +61,6 @@ typedef struct {
 
     /* We hold a reference to our parent */
     SV *parent_rv;
-
-    /* In the event where we release a handle, but a memcached
-     * stream is still continuing, we need to have a clever way
-     * to handle this.
-     * the 'remaining' counter is an inherent reference count into the
-     */
-    int remaining;
 
     /* If the remaining count is 0 and pl_destroyed is true, then the
      * callback should Safefree() this object without any questions.
@@ -110,8 +99,6 @@ typedef enum {
 struct PLCB_st {
     lcb_t instance; /*our library handle*/
     PLCB_sync_t sync; /*object to collect results from callbacks*/
-    HV *stats_hv; /*object to collect statistics from*/
-    AV *errors; /*per-operation error stack*/
     HV *ret_stash; /*stash with which we bless our return objects*/
     HV *iter_stash; /* Stash with which we bless our iterator objects */
 
@@ -124,9 +111,6 @@ struct PLCB_st {
     SV *cv_compress;
     SV *cv_decompress;
     STRLEN compress_threshold;
-    
-    /*io operations, needed for starting/stopping the event loop*/
-    struct lcb_io_opt_st *io_ops;
     
     /*how many operations are pending on this object*/
     int npending;
@@ -144,22 +128,21 @@ struct PLCB_st {
     } couch;
 };
 
-
-
 /*need to include this after defining PLCB_t*/
 #include "plcb-return.h"
 #include "perl-couchbase-couch.h"
 #include "plcb-convert.h"
+#include "plcb-schedctx.h"
+#include "plcb-args.h"
+#include "plcb-commands.h"
 
 
 /*Change this #define to the last index used by the 'default' constructor*/
 #define PLCB_CTOR_STDIDX_MAX 10
 
 typedef enum {
-    PLCB_CTORIDX_SERVERS,
-    PLCB_CTORIDX_USERNAME,
+    PLCB_CTORIDX_CONNSTR,
     PLCB_CTORIDX_PASSWORD,
-    PLCB_CTORIDX_BUCKET,
     PLCB_CTORIDX_MYFLAGS,
     PLCB_CTORIDX_STOREFLAGS,
     
@@ -183,61 +166,30 @@ typedef enum {
     PLCB_CONVERT_SPEC_JSON
 } plcb_conversion_spec_t;
 
-
 typedef time_t PLCB_exp_t;
 
 void plcb_callbacks_setup(PLCB_t *object);
-void plcb_callbacks_set_multi(PLCB_t *object);
-void plcb_callbacks_set_single(PLCB_t *object);
-
-
-void plcb_observe_result(PLCB_obs_t *obs, const lcb_observe_resp_t *resp);
 
 /*options for common constructor settings*/
 void plcb_ctor_cbc_opts(AV *options, struct lcb_create_st *cropts);
 void plcb_ctor_conversion_opts(PLCB_t *object, AV *options);
 void plcb_ctor_init_common(PLCB_t *object, lcb_t instance, AV *options);
-void plcb_errstack_push(PLCB_t *object, lcb_error_t err, const char *errinfo);
 
 /*cleanup functions*/
 void plcb_cleanup(PLCB_t *object);
 
 /*conversion functions*/
-void plcb_convert_storage(PLCB_t* object,
-                          SV **input_sv,
-                          STRLEN *data_len,
-                          uint32_t *flags,
-                          plcb_conversion_spec_t spec);
+void
+plcb_convert_storage(PLCB_t* object, SV **input_sv, STRLEN *data_len,
+    uint32_t *flags, plcb_conversion_spec_t spec);
 
 void plcb_convert_storage_free(PLCB_t *object, SV *output_sv, uint32_t flags);
-SV* plcb_convert_retrieval(PLCB_t *object,
-                           const char *data,
-                           size_t data_len,
-                           uint32_t flags);
-
+SV*
+plcb_convert_retrieval(PLCB_t *object, const char *data, size_t data_len,
+    uint32_t flags);
 
 int plcb_convert_settings(PLCB_t *object, int flag, int new_value);
 
-/**
- * Iterator functions
- */
-SV* plcb_multi_iterator_new(PLCB_t *obj,
-                            SV *cbo_sv,
-                            const lcb_get_cmd_t * const * cmds,
-                            size_t nitems);
-
-void plcb_multi_iterator_next(PLCB_iter_t *iter, SV **keyp, SV **retp);
-
-void plcb_multi_iterator_collect(PLCB_iter_t *iter,
-                                 lcb_error_t err,
-                                 const void *key,
-                                 size_t nkey,
-                                 const void *value,
-                                 size_t nvalue,
-                                 uint32_t flags,
-                                 uint64_t cas);
-
-void plcb_multi_iterator_cleanup(PLCB_iter_t *iter);
 
 /**
  * This function decrements the wait count by one, and possibly calls stop_event_loop
@@ -245,18 +197,15 @@ void plcb_multi_iterator_cleanup(PLCB_iter_t *iter);
  */
 void plcb_evloop_wait_unref(PLCB_t *obj);
 
-#define plcb_evloop_start(obj) \
-    (obj)->io_ops->v.v0.run_event_loop(obj->io_ops)
+/** Operation functions */
+SV *PLCB_op_get(SV*,PLCB_args_t*);
+SV *PLCB_op_set(SV*,PLCB_args_t*);
+SV *PLCB_op_remove(SV*,PLCB_args_t*);
 
-#define plcb_evloop_stop(obj) \
-    (obj)->io_ops->v.v0.stop_event_loop(obj->io_ops)
-
-#include "plcb-args.h"
 
 /**
  * XS prototypes.
  */
-XS(boot_Couchbase__Client_multi);
 XS(boot_Couchbase__Client_couch);
 XS(boot_Couchbase__Client_iterator);
 

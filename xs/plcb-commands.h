@@ -13,12 +13,8 @@
 #error "Include perl-couchbase.h first"
 #endif
 
-
-#define PLCB_COMMANDf_MULTI 0x100
-#define PLCB_COMMANDf_COUCH 0x200
-#define PLCB_COMMANDf_ITER 0x400
-#define PLCB_COMMANDf_SINGLE 0x800
-#define PLCB_COMMANDf_ARRAY 0x1000
+#define PLCB_COMMANDf_SINGLE 0x100
+#define PLCB_COMMANDf_MULTI 0x200
 
 /* Mask for only the command itself */
 #define PLCB_COMMAND_MASK 0xff
@@ -72,12 +68,7 @@ enum {
     #define X(v, prop) \
         PLCB_CMD_ ## v = (PLCB__CMDPRIV_ ## v | prop), \
         PLCB_CMD_MULTI_ ## v = (PLCB_CMD_ ## v | PLCB_COMMANDf_MULTI), \
-        PLCB_CMD_COUCH_ ## v = (PLCB_CMD_ ## v | PLCB_COMMANDf_COUCH), \
-        PLCB_CMD_MULTI_COUCH_ ## v = \
-            (PLCB_CMD_ ## v | PLCB_COMMANDf_MULTI|PLCB_COMMANDf_COUCH), \
-        PLCB_CMD_ITER_ ## v = (PLCB_CMD_ ## v | PLCB_COMMANDf_ITER),
-            
-    
+        PLCB_CMD_SINGLE_ ## v = (PLCB_CMD_ ## v | PLCB_COMMANDf_SINGLE),
     X_ALL
     #undef X
 };

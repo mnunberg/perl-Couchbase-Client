@@ -99,12 +99,10 @@ sub _MkCtorIDX {
     my $opts = shift;
 
     my @arglist;
-    my $server = delete $opts->{server} or die "Must have server";
+    my $connstr = delete $opts->{connstr} or die "Must have server";
     arry_assign_i(@arglist,
-        CTORIDX_SERVERS, $server,
-        CTORIDX_USERNAME, delete $opts->{username},
-        CTORIDX_PASSWORD, delete $opts->{password},
-        CTORIDX_BUCKET, delete $opts->{bucket});
+        CTORIDX_CONNSTR, $connstr,
+        CTORIDX_PASSWORD, delete $opts->{password});
 
     _make_conversion_settings(\@arglist, $opts);
 
@@ -113,7 +111,6 @@ sub _MkCtorIDX {
             delete $opts->{connect_timeout} ||
             delete $opts->{timeout};
 
-    $tmp ||= 2.5;
     $arglist[CTORIDX_TIMEOUT] = $tmp if defined $tmp;
     $arglist[CTORIDX_NO_CONNECT] = delete $opts->{no_init_connect};
 
@@ -127,35 +124,16 @@ sub _MkCtorIDX {
 }
 
 sub new {
-    my ($pkg,$opts) = @_;
-    my $server_str;
-    my $server_spec = $opts->{servers} || $opts->{server};
-
-    if (ref $server_spec eq 'ARRAY') {
-        $server_str = join(";", @$server_spec);
-    } else {
-        $server_str = $server_spec;
-    }
-
-    if (!$server_str) {
-        die("Must have 'servers' or 'server'");
-    }
-
-    my $privopts = { %$opts };
-
-    $privopts->{server} = $server_str;
-    delete $privopts->{servers};
+    my ($pkg, $connstr, $opts) = @_;
+    $opts ||= {};
+    my $privopts = { %$opts, connstr => $connstr };
     my $arglist = _MkCtorIDX($privopts);
     my $self = $pkg->construct($arglist);
     return $self;
 }
 
-#This is called from within C to record our stats:
-sub _stats_helper {
-    my ($hash,$server,$key,$data) = @_;
-    #printf("Got server %s, key%s\n", $server, $key);
-    $key ||= "__default__";
-    ($hash->{$server}->{$key} ||= "") .= $data;
+sub lcb_version {
+    return _lcb_version();
 }
 
 1;
@@ -927,7 +905,7 @@ L<http://www.couchbase.org> - Couchbase.
 
 =head1 AUTHOR & COPYRIGHT
 
-Copyright (C) 2012, 2013 M. Nunberg
+Copyright (C) 2012-2014 M. Nunberg
 
 You may use and distributed this software under the same terms and conditions as
 Perl itself.

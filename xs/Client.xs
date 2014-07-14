@@ -4,13 +4,6 @@
 
 static int PLCB_connect(SV* self);
 
-static void wait_for_single_response(PLCB_t *object)
-{
-    object->npending++;
-    plcb_evloop_start(object);
-}
-
-
 void plcb_cleanup(PLCB_t *object)
 {
     if (object->instance) {
@@ -18,38 +11,11 @@ void plcb_cleanup(PLCB_t *object)
         object->instance = NULL;
     }
 
-    if(object->errors) {
-        SvREFCNT_dec(object->errors);
-        object->errors = NULL;
-    }
-
-#define _free_cv(fld) \
-    if (object->fld) { \
-        SvREFCNT_dec(object->fld); object->fld = NULL; \
-    }
-
+#define _free_cv(fld) if (object->fld) { SvREFCNT_dec(object->fld); object->fld = NULL; }
     _free_cv(cv_compress); _free_cv(cv_decompress);
     _free_cv(cv_serialize); _free_cv(cv_deserialize);
-
 #undef _free_cv
 
-}
-
-void plcb_errstack_push(PLCB_t *object, lcb_error_t err, const char *errinfo)
-{
-    lcb_t instance;
-    SV *errsvs[2];
-
-    instance = object->instance;
-
-    if (!errinfo) {
-        errinfo = lcb_strerror(instance, err);
-    }
-
-    errsvs[0] = newSViv(err);
-    errsvs[1] = newSVpv(errinfo, 0);
-    av_push(object->errors,
-            newRV_noinc( (SV*)av_make(2, errsvs)));
 }
 
 /*Construct a new libcouchbase object*/
@@ -57,32 +23,20 @@ SV *PLCB_construct(const char *pkg, AV *options)
 {
     lcb_t instance;
     lcb_error_t err;
-    struct lcb_io_opt_st *io_ops = NULL;
-    struct lcb_create_io_ops_st io_options = { 0 };
     struct lcb_create_st cr_opts = { 0 };
     SV *blessed_obj;
     PLCB_t *object;
 
+    cr_opts.version = 3;
     plcb_ctor_cbc_opts(options, &cr_opts);
-
-    io_options.v.v0.type = LCB_IO_OPS_DEFAULT;
-    err = lcb_create_io_ops(&io_ops, &io_options);
-
-    if (io_ops == NULL && err != LCB_SUCCESS) {
-        die("Couldn't create new IO operations: %d", err);
-    }
-
-    cr_opts.v.v0.io = io_ops;
-
-    lcb_create(&instance, &cr_opts);
+    err = lcb_create(&instance, &cr_opts);
 
     if (!instance) {
-        die("Failed to create instance");
+        die("Failed to create instance: %s", lcb_strerror(NULL, err));
     }
 
     Newxz(object, 1, PLCB_t);
 
-    object->io_ops = io_ops;
     plcb_ctor_conversion_opts(object, options);
     plcb_ctor_init_common(object, instance, options);
 
@@ -102,18 +56,10 @@ SV *PLCB_construct(const char *pkg, AV *options)
 
 
 #define mk_instance_vars(sv, inst_name, obj_name) \
-    if (!SvROK(sv)) { \
-        die("self must be a reference"); \
-    } \
+    if (!SvROK(sv)) { die("self must be a reference"); } \
     obj_name = NUM2PTR(PLCB_t*, SvIV(SvRV(sv))); \
-    if (!obj_name) { \
-        die("tried to access de-initialized PLCB_t"); \
-    } \
+    if (!obj_name) { die("tried to access de-initialized PLCB_t"); } \
     inst_name = obj_name->instance;
-
-#define bless_return(object, rv, av) \
-    return plcb_ret_blessed_rv(object, av);
-
 
 static int PLCB_connect(SV *self)
 {
@@ -123,8 +69,6 @@ static int PLCB_connect(SV *self)
 
     mk_instance_vars(self, instance, object);
 
-    av_clear(object->errors);
-
     if (object->connected) {
         warn("Already connected");
         return 1;
@@ -132,8 +76,7 @@ static int PLCB_connect(SV *self)
     } else {
         if ( (err = lcb_connect(instance)) == LCB_SUCCESS) {
             lcb_wait(instance);
-
-            if (av_len(object->errors) > -1) {
+            if (lcb_get_bootstrap_status(instance) != LCB_SUCCESS) {
                 return 0;
             }
 
@@ -141,334 +84,10 @@ static int PLCB_connect(SV *self)
             return 1;
 
         } else {
-            plcb_errstack_push(object, err, NULL);
+            return 0;
         }
     }
     return 0;
-}
-
-
-#define _sync_return_single(object, err, syncp) \
-    if (err != LCB_SUCCESS ) { \
-        plcb_ret_set_err(object, (syncp)->ret, err); \
-    } else { \
-        wait_for_single_response(object); \
-    } \
-    return plcb_ret_blessed_rv(object, (syncp)->ret);
-
-#define _sync_initialize_single(object, syncp); \
-    syncp = &object->sync; \
-    syncp->parent = object; \
-    syncp->ret = newAV();
-
-static SV *PLCB_set_common(SV *self, int cmd, SV **args, int nargs)
-{
-    lcb_t instance;
-    PLCB_t *object;
-    lcb_error_t err;
-    lcb_storage_t storop;
-    plcb_conversion_spec_t conversion_spec = PLCB_CONVERT_SPEC_NONE;
-    PLCB_argopts_t ao = { 0 };
-
-    STRLEN vlen = 0;
-    char *sval;
-    PLCB_sync_t *syncp;
-    uint32_t store_flags = 0;
-    int cmdbase;
-    lcb_store_cmd_t scmd = { 0 };
-    const lcb_store_cmd_t *pcmd = &scmd;
-    SV *value;
-
-    mk_instance_vars(self, instance, object);
-
-    cmdbase = cmd & PLCB_COMMAND_MASK;
-
-    ao.autodie = 1;
-
-    if (cmdbase == PLCB_CMD_CAS) {
-        PLCB_args_cas(object, args, nargs, &scmd, &ao);
-    } else {
-        PLCB_args_set(object, args, nargs, &scmd, &ao);
-    }
-
-    value = args[1];
-
-    plcb_get_str_or_die(value, sval, vlen, "Value");
-    PLCB_APPEND_SANITY(cmdbase, value);
-
-    storop = plcb_command_to_storop(cmdbase);
-
-    /*Clear existing error status first*/
-    av_clear(object->errors);
-
-    _sync_initialize_single(object, syncp);
-
-    if ((cmd & PLCB_COMMAND_EXTRA_MASK) & PLCB_COMMANDf_COUCH) {
-        conversion_spec = PLCB_CONVERT_SPEC_JSON;
-    }
-
-    plcb_convert_storage(object,
-                         &value,
-                         &vlen,
-                         &store_flags,
-                         conversion_spec);
-
-    scmd.v.v0.bytes = SvPVX(value);
-    scmd.v.v0.nbytes = vlen;
-    scmd.v.v0.flags = store_flags;
-    scmd.v.v0.operation = storop;
-
-    err = lcb_store(instance, syncp, 1, &pcmd);
-
-    plcb_convert_storage_free(object, value, store_flags);
-
-    _sync_return_single(object, err, syncp);
-}
-
-static SV *PLCB_arithmetic_common(SV *self, int plcmd, SV **args, int nargs)
-{
-    PLCB_t *object;
-    lcb_t instance;
-    PLCB_sync_t *syncp;
-    lcb_error_t err;
-    PLCB_argopts_t ao = { 0 };
-
-    lcb_arithmetic_cmd_t cmd = { 0 };
-    const lcb_arithmetic_cmd_t *cmdp = &cmd;
-
-    ao.autodie = 1;
-
-    mk_instance_vars(self, instance, object);
-
-    switch (plcmd) {
-    case PLCB_CMD_ARITHMETIC:
-        PLCB_args_arithmetic(object, args, nargs, &cmd, &ao);
-        break;
-
-    case PLCB_CMD_INCR:
-        PLCB_args_incr(object, args, nargs, &cmd, &ao);
-        break;
-
-    case PLCB_CMD_DECR:
-        PLCB_args_decr(object, args, nargs, &cmd, &ao);
-        break;
-    }
-
-    _sync_initialize_single(object, syncp);
-    err = lcb_arithmetic(instance, syncp, 1, &cmdp);
-
-    _sync_return_single(object, err, syncp);
-}
-
-
-static SV *PLCB_handle_get(SV *self,
-                           int cmd,
-                           SV **args,
-                           int nargs)
-{
-    lcb_t instance;
-    PLCB_t *object;
-    PLCB_sync_t *syncp;
-    lcb_error_t err;
-    PLCB_argopts_t ao = { 0 };
-
-    union {
-        lcb_touch_cmd_t tcmd;
-        lcb_get_cmd_t gcmd;
-    } u_cmd;
-
-    ao.autodie = 1;
-
-    mk_instance_vars(self, instance, object);
-
-    memset(&u_cmd, 0, sizeof(u_cmd));
-
-    switch (cmd) {
-
-    case PLCB_CMD_GET:
-        PLCB_args_get(object, args, nargs, &u_cmd.gcmd, &ao);
-        break;
-
-    case PLCB_CMD_LOCK:
-        PLCB_args_lock(object, args, nargs, &u_cmd.gcmd, &ao);
-        break;
-
-    case PLCB_CMD_TOUCH:
-        PLCB_args_get(object, args, nargs, &u_cmd.tcmd, &ao);
-        break;
-
-    default:
-        abort();
-        break;
-    }
-
-    av_clear(object->errors);
-    _sync_initialize_single(object, syncp);
-
-    if (cmd == PLCB_CMD_TOUCH) {
-        const lcb_touch_cmd_t *cmdp = &u_cmd.tcmd;
-        err = lcb_touch(instance, syncp, 1, &cmdp);
-    } else {
-        const lcb_get_cmd_t *cmdp = &u_cmd.gcmd;
-        err = lcb_get(instance, syncp, 1, &cmdp);
-    }
-
-    _sync_return_single(object, err, syncp);
-
-
-}
-
-/*variable length ->get and ->cas are in the XS section*/
-
-
-SV *PLCB_remove(SV *self, SV **args, int nargs)
-{
-    lcb_t instance;
-    PLCB_t *object;
-    lcb_error_t err;
-    PLCB_sync_t *syncp;
-    lcb_remove_cmd_t cmd = { 0 };
-    const lcb_remove_cmd_t *cmdp = &cmd;
-    PLCB_argopts_t ao = { 0 };
-
-    mk_instance_vars(self, instance, object);
-    av_clear(object->errors);
-
-    ao.autodie = 1;
-
-    PLCB_args_remove(object, args, nargs, &cmd, &ao);
-
-
-    _sync_initialize_single(object, syncp);
-
-    err = lcb_remove(instance, syncp, 1, &cmdp);
-
-    _sync_return_single(object, err, syncp);
-}
-
-SV *PLCB_stats(SV *self, AV *stats)
-{
-    lcb_t instance;
-    PLCB_t *object;
-    char *skey;
-    STRLEN nkey;
-    int curidx;
-    lcb_error_t err;
-
-    SV *ret_hvref;
-    SV **tmpsv;
-
-    lcb_server_stats_cmd_t cmd = { 0 };
-    const lcb_server_stats_cmd_t *cmdp = &cmd;
-
-    mk_instance_vars(self, instance, object);
-
-    if (object->stats_hv) {
-        die("Hrrm.. stats_hv should be NULL");
-    }
-
-    av_clear(object->errors);
-    object->stats_hv = newHV();
-    ret_hvref = newRV_noinc((SV*)object->stats_hv);
-
-    if(stats == NULL || (curidx = av_len(stats)) == -1) {
-        skey = NULL;
-        nkey = 0;
-        curidx = -1;
-
-        err = lcb_server_stats(instance, NULL, 1, &cmdp);
-
-        if (err != LCB_SUCCESS) {
-            SvREFCNT_dec(ret_hvref);
-            ret_hvref = &PL_sv_undef;
-        }
-
-        wait_for_single_response(object);
-
-    } else {
-
-        for (; curidx >= 0; curidx--) {
-            tmpsv = av_fetch(stats, curidx, 0);
-
-            if (tmpsv == NULL ||
-                    SvTYPE(*tmpsv) == SVt_NULL ||
-                    (!SvPOK(*tmpsv))) {
-
-                continue;
-            }
-
-            skey = SvPV(*tmpsv, nkey);
-            cmd.v.v0.name = skey;
-            cmd.v.v0.nname = nkey;
-            err = lcb_server_stats(instance, NULL, 1, &cmdp);
-
-            if (err == LCB_SUCCESS) {
-                wait_for_single_response(object);
-            }
-        }
-    }
-
-    object->stats_hv = NULL;
-    return ret_hvref;
-}
-
-
-SV *PLCB_observe(SV *self, SV *key, uint64_t cas)
-{
-    lcb_t instance;
-    PLCB_t *object;
-    lcb_error_t err;
-    char *skey;
-    STRLEN key_len;
-
-    PLCB_obs_t obs;
-
-    lcb_observe_cmd_t cmd = { 0 };
-    const lcb_observe_cmd_t *cmdp = &cmd;
-
-
-    mk_instance_vars(self, instance, object);
-
-    memset(&obs, 0, sizeof(obs));
-    obs.sync.parent = object;
-
-    plcb_get_str_or_die(key, skey, key_len, "CAS");
-    obs.sync.ret = newAV();
-
-    av_store(obs.sync.ret,
-             PLCB_RETIDX_VALUE,
-             newRV_noinc((SV*)newHV()));
-
-    cmd.v.v0.key = skey;
-    cmd.v.v0.nkey = key_len;
-
-    obs.orig_cas = cas;
-
-    err = lcb_observe(instance, &obs, 1, &cmdp);
-    _sync_return_single(object, err, &(obs.sync));
-}
-
-SV *PLCB_unlock(SV *self, SV **args, int nargs)
-{
-    PLCB_t *object;
-    PLCB_sync_t *syncp;
-
-    lcb_unlock_cmd_t cmd = { 0 };
-    const lcb_unlock_cmd_t *cmd_p = &cmd;
-    lcb_t instance;
-    lcb_error_t err;
-    PLCB_argopts_t ao = { 0 };
-
-    mk_instance_vars(self, instance, object);
-
-    PLCB_args_unlock(object, args, nargs, &cmd, &ao);
-
-    av_clear(object->errors);
-
-    _sync_initialize_single(object, syncp);
-    err = lcb_unlock(instance, syncp, 1, &cmd_p);
-
-    _sync_return_single(object, err, syncp);
 }
 
 /*used for settings accessors*/
@@ -505,239 +124,99 @@ PLCB_DESTROY(self)
     Safefree(object);
 
     PERL_UNUSED_VAR(instance);
-
+    
 SV *
 PLCB_get(self, key, ...)
-    SV *    self
-    SV *    key
-
-    PREINIT:
-    SV *args[PLCB_ARGS_MAX];
-    (void)key;
-
-    CODE:
-    PLCB_MAKEARGS_XS(args);
-    RETVAL = PLCB_handle_get(self, PLCB_CMD_GET, args, items-1);
-    OUTPUT: RETVAL
-
-SV *
-PLCB_touch(self, key, exp, ...)
     SV *self
     SV *key
-    SV *exp
-
-    PREINIT:
-    SV *args[PLCB_ARGS_MAX];
-    (void)key; (void)exp;
-
+    
     CODE:
-    PLCB_MAKEARGS_XS(args);
-    RETVAL = PLCB_handle_get(self, PLCB_CMD_TOUCH, args, items - 1);
-    OUTPUT: RETVAL
+    PLCB_args_t args = { PLCB_CMD_SINGLE_GET };
+    PLCB_ARGS_FROM_STACK(2, &args, "get(key, options");
+    args.keys = key;
 
+    RETVAL = PLCB_op_get(self, &args);
+    OUTPUT: RETVAL
+    
 SV *
-PLCB_lock(self, key, exp)
+PLCB_get_multi(self, keys, ...)
     SV *self
-    SV *key
-    SV *exp
-
-    PREINIT:
-    SV *args[PLCB_ARGS_MAX];
-    (void)key; (void)exp;
-
+    SV *keys
     CODE:
-    PLCB_MAKEARGS_XS(args);
-    RETVAL = PLCB_handle_get(self, PLCB_CMD_LOCK, args, items - 1);
+    PLCB_args_t args = {PLCB_CMD_MULTI_GET};
+    PLCB_ARGS_FROM_STACK(2, &args, "get_multi(keys, options)");
+    args.keys = keys;
+    
+    RETVAL = PLCB_op_get(self, &args);
     OUTPUT: RETVAL
-
+    
 SV *
-PLCB_unlock(self, key, cas)
-    SV *self
-    SV *key
-    SV *cas
-
-    PREINIT:
-    SV *args[PLCB_ARGS_MAX];
-    (void)key; (void)cas;
-
-    CODE:
-    PLCB_MAKEARGS_XS(args);
-    RETVAL = PLCB_unlock(self, args, items - 1);
-
-    OUTPUT: RETVAL
-
-SV *
-PLCB__set(self, key, value, ...)
+PLCB__store(self, key, value, ...)
     SV *self
     SV *key
     SV *value
-
+    
     ALIAS:
-    set         = PLCB_CMD_SET
-    add         = PLCB_CMD_ADD
-    replace     = PLCB_CMD_REPLACE
-    append      = PLCB_CMD_APPEND
-    prepend     = PLCB_CMD_PREPEND
-
-    couch_add   = PLCB_CMD_COUCH_ADD
-    couch_set   = PLCB_CMD_COUCH_SET
-    couch_replace= PLCB_CMD_COUCH_REPLACE
-
-    PREINIT:
-    SV *args[PLCB_ARGS_MAX];
-    (void)key; (void)value;
-
+    upsert = PLCB_CMD_SINGLE_SET
+    insert = PLCB_CMD_SINGLE_ADD
+    update = PLCB_CMD_SINGLE_REPLACE
+    
     CODE:
-    PLCB_MAKEARGS_XS(args);
-    RETVAL = PLCB_set_common(self, ix, args, items - 1);
+    PLCB_args_t args = { 0 };
+    PLCB_ARGS_FROM_STACK(3, &args, "store(key, value, options)");
+    args.cmd = ix;
+    args.keys = key;
+    args.value = value;
+    
+    RETVAL = PLCB_op_set(self, &args);
     OUTPUT: RETVAL
 
 SV *
-PLCB__incrdecr(self, key, ...)
+PLCB__store_multi(self, kv, ...)
     SV *self
-    SV *key
-
+    SV *kv
+    
     ALIAS:
-    incr = 1
-    decr = 2
-
-    PREINIT:
-    int cmd = -1;
-    SV *args[PLCB_ARGS_MAX];
-    (void)key;
-
+    upsert_multi = PLCB_CMD_MULTI_SET
+    insert_multi = PLCB_CMD_MULTI_ADD
+    update_multi = PLCB_CMD_MULTI_REPLACE
+    
     CODE:
-    PLCB_MAKEARGS_XS(args);
-
-    if (ix == 0) {
-        die("Please use the incr or decr aliases");
-    } else if (ix == 1) {
-        cmd = PLCB_CMD_INCR;
-    } else {
-        cmd = PLCB_CMD_DECR;
-    }
-
-    RETVAL = PLCB_arithmetic_common(self, cmd, args, items - 1);
+    PLCB_args_t args = { 0 };
+    PLCB_ARGS_FROM_STACK(2, &args, "store_multi({kv}, options)");
+    args.cmd = ix;
+    args.keys = kv;
+    
+    RETVAL = PLCB_op_set(self, &args);
     OUTPUT: RETVAL
-
-
-SV *
-PLCB_arithmetic(self, key, delta_sv, initial, ...)
-    SV *self
-    SV *key
-    SV *delta_sv
-    SV *initial
-
-    PREINIT:
-    SV *args[PLCB_ARGS_MAX];
-    (void)key; (void)delta_sv; (void)initial;
-
-    CODE:
-    PLCB_MAKEARGS_XS(args);
-    RETVAL = PLCB_arithmetic_common(self, PLCB_CMD_ARITHMETIC, args, items-1);
-    OUTPUT: RETVAL
-
-SV *
-PLCB__cas(self, key, value, cas_sv, ...)
-    SV *self
-    SV *key
-    SV *value
-    SV *cas_sv
-
-    ALIAS:
-    cas = PLCB_CMD_CAS
-    couch_cas = PLCB_CMD_COUCH_CAS
-
-    PREINIT:
-    SV *args[PLCB_ARGS_MAX];
-    int cmd;
-    (void)key; (void)value; (void)cas_sv;
-
-    CODE:
-    PLCB_MAKEARGS_XS(args);
-    cmd =  PLCB_CMD_CAS | (ix & PLCB_COMMAND_EXTRA_MASK);
-    RETVAL = PLCB_set_common(self, cmd, args, items - 1);
-    OUTPUT: RETVAL
-
-
+    
 SV *
 PLCB_remove(self, key, ...)
     SV *self
     SV *key
-
-    ALIAS:
-    delete = 1
-
-    PREINIT:
-    SV *args[PLCB_ARGS_MAX];
-    (void)key;
-
+    
     CODE:
-    PLCB_MAKEARGS_XS(args);
-    RETVAL = PLCB_remove(self, args, items - 1);
-    OUTPUT:
-    RETVAL
-
+    PLCB_args_t args = { PLCB_CMD_SINGLE_REMOVE };
+    PLCB_ARGS_FROM_STACK(2, &args, "remove(key, options)");
+    args.keys = key;
+    
+    RETVAL = PLCB_op_remove(self, &args);
+    OUTPUT: RETVAL
+    
 SV *
-PLCB_observe(self, key, ...)
+PLCB_remove_multi(self, keys, ...)
     SV *self
-    SV *key
-    PREINIT:
-    uint64_t *cas_ptr = NULL;
-    SV *cas_sv;
-
+    SV *keys
+    
     CODE:
-    if (items == 2) {
-        RETVAL = PLCB_observe(self, key, 0);
-    } else {
-        cas_sv = ST(2);
-        plcb_cas_from_sv(cas_sv, cas_ptr);
-        RETVAL = PLCB_observe(self, key, *cas_ptr);
-    }
-
+    PLCB_args_t args = { PLCB_CMD_MULTI_REMOVE };
+    PLCB_ARGS_FROM_STACK(2, &args, "remove_multi(keys, options)");
+    args.keys = keys;
+    
+    RETVAL = PLCB_op_remove(self, &args);
     OUTPUT: RETVAL
 
-SV *
-PLCB_get_errors(self)
-    SV *self
-
-    PREINIT:
-    lcb_t instance;
-    PLCB_t *object;
-
-    CODE:
-    mk_instance_vars(self, instance, object);
-    RETVAL = newRV_inc((SV*)object->errors);
-
-    PERL_UNUSED_VAR(instance);
-
-    OUTPUT:
-    RETVAL
-
-
-SV *
-PLCB_stats(self, ...)
-    SV *self
-
-    PREINIT:
-    SV *klist;
-
-    CODE:
-    if (items < 2) {
-        klist = NULL;
-
-    } else {
-        klist = ST(1);
-        if (! (SvROK(klist) && SvTYPE(SvRV(klist)) >= SVt_PVAV) ) {
-            die("Usage: stats( ['some', 'keys', ...] )");
-        }
-    }
-    RETVAL = PLCB_stats(self, (klist) ? (AV*)SvRV(klist) : NULL);
-
-    OUTPUT:
-    RETVAL
-
-
+    
 IV
 PLCB__settings(self, ...)
     SV *self
@@ -832,8 +311,7 @@ PLCB_timeout(self, ...)
     CODE:
 
     mk_instance_vars(self, instance, object);
-
-    ret = ((NV)(lcb_get_timeout(instance))) / (1000*1000);
+    ret = lcb_cntl_getu32(instance, LCB_CNTL_OP_TIMEOUT) / (1000*1000);
 
     if (items == 2) {
         new_param = SvNV(ST(1));
@@ -843,7 +321,7 @@ PLCB_timeout(self, ...)
         }
 
         usecs = new_param * (1000*1000);
-        lcb_set_timeout(instance, usecs);
+        lcb_cntl_setu32(instance, LCB_CNTL_OP_TIMEOUT, usecs);
     }
 
     RETVAL = ret;
@@ -876,10 +354,12 @@ PLCB_cluster_nodes(self)
     OUTPUT: RETVAL
 
 SV *
-PLCB_lcb_version(...)
+PLCB__lcb_version()
     PREINIT:
     uint32_t iversion = 0;
     const char *strversion;
+    const char *changeset;
+    lcb_error_t err;
     AV *ret;
 
     CODE:
@@ -887,8 +367,14 @@ PLCB_lcb_version(...)
     ret = newAV();
     av_store(ret, 0, newSVpv(strversion, 0));
     av_store(ret, 1, newSVuv(iversion));
+    err = lcb_cntl(NULL, LCB_CNTL_GET, LCB_CNTL_CHANGESET, &changeset);
+    if (err == LCB_SUCCESS) {
+        av_store(ret, 2, newSVpv(changeset, 0));
+    } else {
+        warn("Couldn't retrieve changeset from library. %s", lcb_strerror(NULL, err));
+    }
+    
     RETVAL = newRV_noinc((SV*)ret);
-
     OUTPUT: RETVAL
 
 int
@@ -916,13 +402,6 @@ SPAGAIN;
         */
         PERL_UNUSED_VAR(cbc_version_string);
     }
-    /*Client_multi.xs*/
-    PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__Client_multi);
-    /* Couch_request_handle.xs */
-    PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__Client_couch);
     /* Iterator_get.xs */
-    PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__Client_iterator);
 }
 #undef PLCB_BOOTSTRAP_DEPENDENCY
-
-INCLUDE: Async.xs
