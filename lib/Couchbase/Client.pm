@@ -102,13 +102,6 @@ sub _MkCtorIDX {
         CTORIDX_PASSWORD, delete $opts->{password});
 
     _make_conversion_settings(\@arglist, $opts);
-
-    my $tmp = delete $opts->{io_timeout} ||
-            delete $opts->{select_timeout} ||
-            delete $opts->{connect_timeout} ||
-            delete $opts->{timeout};
-
-    $arglist[CTORIDX_TIMEOUT] = $tmp if defined $tmp;
     $arglist[CTORIDX_NO_CONNECT] = delete $opts->{no_init_connect};
 
 

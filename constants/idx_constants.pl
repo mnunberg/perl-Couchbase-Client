@@ -22,8 +22,6 @@ my @const_bases = qw(
     CTORIDX_COMP_METHODS
 
     CTORIDX_SERIALIZE_METHODS
-
-    CTORIDX_TIMEOUT
     CTORIDX_NO_CONNECT
 
     CTORIDX_JSON_ENCODE_METHOD
@@ -61,10 +59,4 @@ my @ctor_flags = qw(
 );
 
 constant("PLCBf_$_", name => "f$_") for (@ctor_flags);
-
-my @http_methods = qw(GET POST PUT DELETE);
-
-constant("LCB_HTTP_METHOD_$_",
-         name => "COUCH_METHOD_$_") for (@http_methods);
-
 write_output($ARGV[0]);

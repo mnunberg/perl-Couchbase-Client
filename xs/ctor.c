@@ -141,18 +141,6 @@ void plcb_ctor_init_common(PLCB_t *object, lcb_t instance, AV *options)
 #undef get_stash_assert
 
     /*gather instance-related options from the constructor*/
-    if ( (tmpsv = av_fetch(options, PLCB_CTORIDX_TIMEOUT, 0))  &&
-            (SvIOK(*tmpsv) || SvNOK(*tmpsv))) {
-        timeout_value = SvNV(*tmpsv);
-
-        if (!timeout_value) {
-            warn("Cannot use 0 for timeout");
-
-        } else {
-            lcb_cntl_setu32(instance, LCB_CNTL_OP_TIMEOUT, timeout_value * (1000*1000));
-        }
-    }
-    
     if ((tmpsv = av_fetch(options, PLCB_CTORIDX_NO_CONNECT, 0)) &&
        SvTRUE(*tmpsv)) {
         object->my_flags |= PLCBf_NO_CONNECT;
