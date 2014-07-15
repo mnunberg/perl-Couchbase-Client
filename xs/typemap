@@ -2,17 +2,17 @@ TYPEMAP
 PLCB_XS_OBJPAIR_t	T_PLCB_XS_OBJPAIR_T
 PLCB_XS_STRING_NONULL_t	T_PLCB_XS_STRING_NONULL_T
 PLCB_XS_STRING_t	T_PLCB_XS_STRING_T
-PLCB_viewhandle_t *	T_PLCB_COUCH_HANDLE_T 
+PLCB_viewhandle_t *	T_PLCB_COUCH_HANDLE_T
 PLCB_jsondec_t*	T_PLCB_JSONDEC_T
-PLCB_iter_t *	T_PLCB_ITER_T 
+PLCB_iter_t *	T_PLCB_ITER_T
 PLCB_exp_t		T_PLCB_EXP_T
 
 INPUT
 T_PLCB_XS_OBJPAIR_T
 	if (! (SvROK($arg) && SvOBJECT(SvRV($arg)) && SvIOK(SvRV($arg)))) {
-	    die(\"Not a valid Couchbase::Client\");
+	    die(\"Not a valid Couchbase::Bucket\");
 	}
-	
+
 	$var.sv = $arg;
 	$var.ptr = NUM2PTR(PLCB_t*, SvIV(SvRV($arg)));
 
@@ -29,7 +29,6 @@ T_PLCB_XS_STRING_NONULL_T
 	    die(\"$var cannot be empty\");
 	}
 
-
 T_PLCB_XS_STRING_T
 	if(!SvPOK($arg)) {
 	    $var.base = NULL;
@@ -40,23 +39,23 @@ T_PLCB_XS_STRING_T
 	$var.origsv = $arg;
 
 
-T_PLCB_COUCH_HANDLE_T 
+T_PLCB_COUCH_HANDLE_T
 	if (! (SvROK($arg) && SvOBJECT(SvRV($arg)) && SvIOK(SvRV($arg)))) {
 	    die(\"Not a valid Couchbase::Couch::RequestHandle\");
 	}
-	
+
 	$var = NUM2PTR(PLCB_viewhandle_t *, SvIV(SvRV($arg)));
 
 
 T_PLCB_JSONDEC_T
 	$var = (PLCB_jsondec_t*)SvPVX(SvRV($arg));
 
-T_PLCB_ITER_T 
+T_PLCB_ITER_T
 	if (! (SvROK($arg) && SvOBJECT(SvRV($arg)) && SvIOK(SvRV($arg)))) {
-	    die(\"Not a valid Couchbase::Client::Iterator\");
+	    die(\"Not a valid Couchbase::DocIterator\");
 	}
-	
+
 	$var = NUM2PTR(PLCB_iter_t*, SvIV(SvRV($arg)));
 
 T_PLCB_EXP_T
-	$var = plcb_exp_from_sv($arg); 
+	$var = plcb_exp_from_sv($arg);

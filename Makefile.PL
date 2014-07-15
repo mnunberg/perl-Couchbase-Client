@@ -67,7 +67,7 @@ $MM_Options{CONFIGURE} = sub {
         schedctx
         viewhandle);
     my @XS_Modules = qw(
-        Client View);
+        Couchbase View);
 
     foreach (@XS_Modules, @C_Modules) {
         my $obj = $_ . $Config{obj_ext};
@@ -136,10 +136,10 @@ $MM_Options{META_MERGE} = {
 };
 
 WriteMakefile(
-    NAME                => 'Couchbase::Client',
+    NAME                => 'Couchbase',
     AUTHOR              => q{M. Nunberg <mnunberg@haskalah.org>},
-    VERSION_FROM        => 'lib/Couchbase/Client.pm',
-    ABSTRACT_FROM       => 'lib/Couchbase/Client.pm',
+    VERSION_FROM        => 'lib/Couchbase.pm',
+    ABSTRACT_FROM       => 'lib/Couchbase.pm',
 
     ($ExtUtils::MakeMaker::VERSION >= 6.3002
       ? ('LICENSE'=> 'perl')
@@ -179,7 +179,7 @@ WriteMakefile(
     },
 
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
-    clean               => { FILES => 'Couchbase-Client-* COMPILER_FLAGS log.test-*' },
+    clean               => { FILES => 'Couchbase-* COMPILER_FLAGS log.test-*' },
     %MM_Options,
 );
 

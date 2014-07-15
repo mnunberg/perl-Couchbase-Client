@@ -3,15 +3,10 @@ package Couchbase::Couch::Handle;
 # This is mainly an (abstract) base class for all handle objects.
 use strict;
 use warnings;
+use Couchbase;
 use Couchbase::Client::IDXConst;
 use Carp qw(cluck);
 use Data::Dumper;
-
-BEGIN {
-    require XSLoader;
-    XSLoader::load('Couchbase::Client', '2.0.0_1');
-}
-
 use base qw(Couchbase::View);
 
 # This does some boilerplate initialization, ensuring that our private

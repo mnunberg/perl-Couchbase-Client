@@ -16,6 +16,7 @@ misc/*
 MANIFEST
 Changes
 COMPILER_FLAGS
+xs/Couchbase.c
 xs/Client.c
 xs/Client_multi.c
 xs/Couch_request_handle.c

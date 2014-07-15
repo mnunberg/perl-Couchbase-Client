@@ -8,8 +8,8 @@
 #include "XSUB.h"
 #include "ppport.h"
 
-#define PLCB_RET_CLASSNAME "Couchbase::Client::Return"
-#define PLCB_ITER_CLASSNAME "Couchbase::Client::Iterator"
+#define PLCB_RET_CLASSNAME "Couchbase::Document"
+#define PLCB_ITER_CLASSNAME "Couchbase::DocIterator"
 
 #if IVSIZE >= 8
 #define PLCB_PERL64

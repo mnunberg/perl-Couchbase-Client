@@ -46,7 +46,7 @@ SV *PLCB_construct(const char *pkg, AV *options)
     plcb_couch_callbacks_setup(object);
 
     blessed_obj = newSV(0);
-    sv_setiv(newSVrv(blessed_obj, "Couchbase::Client"), PTR2IV(object));
+    sv_setiv(newSVrv(blessed_obj, "Couchbase::Bucket"), PTR2IV(object));
 
     if ( (object->my_flags & PLCBf_NO_CONNECT) == 0) {
         PLCB_connect(blessed_obj);
@@ -103,7 +103,7 @@ enum {
     SETTINGS_ALIAS_DEREF_RVPV
 };
 
-MODULE = Couchbase::Client PACKAGE = Couchbase::Client    PREFIX = PLCB_
+MODULE = Couchbase PACKAGE = Couchbase::Bucket    PREFIX = PLCB_
 
 PROTOTYPES: DISABLE
 
@@ -354,6 +354,20 @@ PLCB_cluster_nodes(self)
     }
 
     OUTPUT: RETVAL
+    
+SV *
+PLCB__new_viewhandle(PLCB_XS_OBJPAIR_t self, stash)
+    HV *stash
+    
+    CODE:
+    RETVAL = plcb_couch_handle_new(stash, self.sv, self.ptr);
+    OUTPUT: RETVAL
+
+int
+PLCB_connect(self)
+    SV *self
+
+MODULE = Couchbase PACKAGE = Couchbase::Bucket    PREFIX = PLCB_
 
 SV *
 PLCB__lcb_version()
@@ -378,25 +392,19 @@ PLCB__lcb_version()
     
     RETVAL = newRV_noinc((SV*)ret);
     OUTPUT: RETVAL
-    
-SV *
-PLCB__new_viewhandle(PLCB_XS_OBJPAIR_t self, stash)
-    HV *stash
-    
-    CODE:
-    RETVAL = plcb_couch_handle_new(stash, self.sv, self.ptr);
-    OUTPUT: RETVAL
 
-int
-PLCB_connect(self)
-    SV *self
+IV
+PLCB__get_errtype(int code)
+    CODE:
+    RETVAL = lcb_get_errtype(code);
+    OUTPUT: RETVAL
 
 
 BOOT:
 /*XXX: DO NOT MODIFY WHITESPACE HERE. xsubpp is touchy*/
 #define PLCB_BOOTSTRAP_DEPENDENCY(bootfunc) \
 PUSHMARK(SP); \
-mXPUSHs(newSVpv("Couchbase::Client", sizeof("Couchbase::Client")-1)); \
+mXPUSHs(newSVpv("Couchbase", sizeof("Couchbase")-1)); \
 mXPUSHs(newSVpv(XS_VERSION, sizeof(XS_VERSION)-1)); \
 PUTBACK; \
 bootfunc(aTHX_ cv); \
