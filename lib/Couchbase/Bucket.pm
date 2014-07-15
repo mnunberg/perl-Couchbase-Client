@@ -113,9 +113,6 @@ sub new {
     return $self;
 }
 
-sub lcb_version {
-    return _lcb_version();
-}
 
 # Returns a 'raw' request handle
 sub _htraw {

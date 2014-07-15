@@ -367,10 +367,10 @@ int
 PLCB_connect(self)
     SV *self
 
-MODULE = Couchbase PACKAGE = Couchbase::Bucket    PREFIX = PLCB_
+MODULE = Couchbase PACKAGE = Couchbase    PREFIX = PLCB_
 
 SV *
-PLCB__lcb_version()
+PLCB_lcb_version()
     PREINIT:
     uint32_t iversion = 0;
     const char *strversion;
