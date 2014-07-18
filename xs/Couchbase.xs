@@ -2,7 +2,7 @@
 #include "plcb-util.h"
 #include "plcb-commands.h"
 
-static int PLCB_connect(SV* self);
+static int PLCB_connect(PLCB_t* self);
 
 void plcb_cleanup(PLCB_t *object)
 {
@@ -11,11 +11,10 @@ void plcb_cleanup(PLCB_t *object)
         object->instance = NULL;
     }
 
-#define _free_cv(fld) if (object->fld) { SvREFCNT_dec(object->fld); object->fld = NULL; }
+    #define _free_cv(fld) if (object->fld) { SvREFCNT_dec(object->fld); object->fld = NULL; }
     _free_cv(cv_compress); _free_cv(cv_decompress);
     _free_cv(cv_serialize); _free_cv(cv_deserialize);
-#undef _free_cv
-
+    #undef _free_cv
 }
 
 /*Construct a new libcouchbase object*/
@@ -49,26 +48,17 @@ SV *PLCB_construct(const char *pkg, AV *options)
     sv_setiv(newSVrv(blessed_obj, "Couchbase::Bucket"), PTR2IV(object));
 
     if ( (object->my_flags & PLCBf_NO_CONNECT) == 0) {
-        PLCB_connect(blessed_obj);
+        PLCB_connect(object);
     }
 
     return blessed_obj;
 }
 
-
-#define mk_instance_vars(sv, inst_name, obj_name) \
-    if (!SvROK(sv)) { die("self must be a reference"); } \
-    obj_name = NUM2PTR(PLCB_t*, SvIV(SvRV(sv))); \
-    if (!obj_name) { die("tried to access de-initialized PLCB_t"); } \
-    inst_name = obj_name->instance;
-
-static int PLCB_connect(SV *self)
+static int
+PLCB_connect(PLCB_t *object)
 {
-    lcb_t instance;
     lcb_error_t err;
-    PLCB_t *object;
-
-    mk_instance_vars(self, instance, object);
+    lcb_t instance = object->instance;
 
     if (object->connected) {
         warn("Already connected");
@@ -113,36 +103,23 @@ PLCB_construct(pkg, options)
     AV *options
 
 void
-PLCB_DESTROY(self)
-    SV *self
-
+PLCB_DESTROY(PLCB_t *object)
     CODE:
-    PLCB_t *object;
-    lcb_t instance;
-
-    mk_instance_vars(self, instance, object);
     plcb_cleanup(object);
     Safefree(object);
 
-    PERL_UNUSED_VAR(instance);
-    
 SV *
-PLCB_get(self, key, ...)
-    SV *self
-    SV *key
-    
+PLCB_get(PLCB_t *self, SV *key, ...)    
     CODE:
     PLCB_args_t args = { PLCB_CMD_SINGLE_GET };
-    PLCB_ARGS_FROM_STACK(2, &args, "get(key, options");
+    PLCB_ARGS_FROM_STACK(2, &args, "get(doc, options");
     args.keys = key;
 
     RETVAL = PLCB_op_get(self, &args);
     OUTPUT: RETVAL
     
 SV *
-PLCB_get_multi(self, keys, ...)
-    SV *self
-    SV *keys
+PLCB_get_multi(PLCB_t *self, SV *keys, ...)
     CODE:
     PLCB_args_t args = {PLCB_CMD_MULTI_GET};
     PLCB_ARGS_FROM_STACK(2, &args, "get_multi(keys, options)");
@@ -152,11 +129,7 @@ PLCB_get_multi(self, keys, ...)
     OUTPUT: RETVAL
     
 SV *
-PLCB__store(self, key, value, ...)
-    SV *self
-    SV *key
-    SV *value
-    
+PLCB__store(PLCB_t *self, SV *key, ...)
     ALIAS:
     upsert = PLCB_CMD_SINGLE_SET
     insert = PLCB_CMD_SINGLE_ADD
@@ -164,19 +137,16 @@ PLCB__store(self, key, value, ...)
     
     CODE:
     PLCB_args_t args = { 0 };
-    PLCB_ARGS_FROM_STACK(3, &args, "store(key, value, options)");
+    PLCB_ARGS_FROM_STACK(2, &args, "store(key, value, options)");
+
     args.cmd = ix;
     args.keys = key;
-    args.value = value;
     
     RETVAL = PLCB_op_set(self, &args);
     OUTPUT: RETVAL
 
 SV *
-PLCB__store_multi(self, kv, ...)
-    SV *self
-    SV *kv
-    
+PLCB__store_multi(PLCB_t *self, SV *kv, ...)
     ALIAS:
     upsert_multi = PLCB_CMD_MULTI_SET
     insert_multi = PLCB_CMD_MULTI_ADD
@@ -192,10 +162,7 @@ PLCB__store_multi(self, kv, ...)
     OUTPUT: RETVAL
     
 SV *
-PLCB_remove(self, key, ...)
-    SV *self
-    SV *key
-    
+PLCB_remove(PLCB_t *self, SV *key, ...)
     CODE:
     PLCB_args_t args = { PLCB_CMD_SINGLE_REMOVE };
     PLCB_ARGS_FROM_STACK(2, &args, "remove(key, options)");
@@ -205,10 +172,7 @@ PLCB_remove(self, key, ...)
     OUTPUT: RETVAL
     
 SV *
-PLCB_remove_multi(self, keys, ...)
-    SV *self
-    SV *keys
-    
+PLCB_remove_multi(PLCB_t *self, SV *keys, ...)
     CODE:
     PLCB_args_t args = { PLCB_CMD_MULTI_REMOVE };
     PLCB_ARGS_FROM_STACK(2, &args, "remove_multi(keys, options)");
@@ -220,8 +184,7 @@ PLCB_remove_multi(self, keys, ...)
 
     
 IV
-PLCB__settings(self, ...)
-    SV *self
+PLCB__settings(PLCB_t *object, ...)
 
     ALIAS:
     enable_compress             = SETTINGS_ALIAS_COMPRESS_COMPAT
@@ -236,10 +199,9 @@ PLCB__settings(self, ...)
     int flag = 0;
     int new_value = 0;
     lcb_t instance;
-    PLCB_t *object;
 
     CODE:
-    mk_instance_vars(self, instance, object);
+    instance = object->instance;
     switch (ix) {
         case SETTINGS_ALIAS_COMPRESS:
         case SETTINGS_ALIAS_COMPRESS_COMPAT:
@@ -285,10 +247,6 @@ PLCB__settings(self, ...)
         die("%s(self, [value])", GvNAME(GvCV(cv)));
     }
 
-    if (!SvROK(self)) {
-        die("%s: I was given a bad object", GvNAME(GvCV(cv)));
-    }
-
 
     RETVAL = plcb_convert_settings(object, flag, new_value);
     //warn("Report flag %d = %d", flag, RETVAL);
@@ -299,20 +257,15 @@ PLCB__settings(self, ...)
 
 
 NV
-PLCB_timeout(self, ...)
-    SV *self
-
+PLCB_timeout(PLCB_t *object)
     PREINIT:
     NV new_param;
     uint32_t usecs;
     NV ret;
-
     lcb_t instance;
-    PLCB_t *object;
 
     CODE:
-
-    mk_instance_vars(self, instance, object);
+    instance = object->instance;
     ret = lcb_cntl_getu32(instance, LCB_CNTL_OP_TIMEOUT) / (1000*1000);
 
     if (items == 2) {
@@ -332,17 +285,13 @@ PLCB_timeout(self, ...)
     RETVAL
 
 SV *
-PLCB_cluster_nodes(self)
-    SV *self
+PLCB_cluster_nodes(PLCB_t *object)
     PREINIT:
-    lcb_t instance;
-    PLCB_t *object;
     AV *retav;
     const char * const * server_nodes;
 
     CODE:
-    mk_instance_vars(self, instance, object);
-    server_nodes = lcb_get_server_list(instance);
+    server_nodes = lcb_get_server_list(object->instance);
     retav = newAV();
     RETVAL = newRV_noinc((SV*)retav);
 
@@ -364,33 +313,29 @@ PLCB__new_viewhandle(PLCB_XS_OBJPAIR_t self, stash)
     OUTPUT: RETVAL
 
 int
-PLCB_connect(self)
-    SV *self
+PLCB_connect(PLCB_t *self)
+
 
 MODULE = Couchbase PACKAGE = Couchbase    PREFIX = PLCB_
 
-SV *
+HV *
 PLCB_lcb_version()
     PREINIT:
-    uint32_t iversion = 0;
-    const char *strversion;
-    const char *changeset;
-    lcb_error_t err;
-    AV *ret;
+    lcb_U32 ivers;
+    HV *ret;
+    const char *tmp;
 
     CODE:
-    strversion = lcb_get_version(&iversion);
-    ret = newAV();
-    av_store(ret, 0, newSVpv(strversion, 0));
-    av_store(ret, 1, newSVuv(iversion));
-    err = lcb_cntl(NULL, LCB_CNTL_GET, LCB_CNTL_CHANGESET, &changeset);
-    if (err == LCB_SUCCESS) {
-        av_store(ret, 2, newSVpv(changeset, 0));
-    } else {
-        warn("Couldn't retrieve changeset from library. %s", lcb_strerror(NULL, err));
+    ret = newHV();
+    tmp = lcb_get_version(&ivers);
+    
+    hv_stores(ret, "hex", newSVuv(ivers));
+    hv_stores(ret, "str", newSVpv(tmp, 0));
+    if (lcb_cntl(NULL, LCB_CNTL_GET, LCB_CNTL_CHANGESET, &tmp) == LCB_SUCCESS) {
+        hv_stores(ret, "rev", newSVpv(tmp, 0));
     }
     
-    RETVAL = newRV_noinc((SV*)ret);
+    RETVAL = ret;
     OUTPUT: RETVAL
 
 IV
@@ -410,16 +355,6 @@ PUTBACK; \
 bootfunc(aTHX_ cv); \
 SPAGAIN;
 {
-    {
-        lcb_uint32_t cbc_version = 0;
-        const char *cbc_version_string;
-        cbc_version_string = lcb_get_version(&cbc_version);
-        /*
-        warn("Couchbase library version is (%s) %x",
-             cbc_version_string, cbc_version);
-        */
-        PERL_UNUSED_VAR(cbc_version_string);
-    }
     PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__View)
 }
 #undef PLCB_BOOTSTRAP_DEPENDENCY

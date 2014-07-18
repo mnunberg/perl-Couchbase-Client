@@ -52,11 +52,13 @@ typedef struct {
     const char *key;
     size_t nkey;
     plcb_argtype_t type;
-    void *value;
+    void * const value;
     SV *sv;
 } plcb_argval_t;
 
 #define PLCB_ARG_K_CAS "cas"
+#define PLCB_ARG_K_IGNORECAS "no_cas"
+#define PLCB_ARG_K_FRAGMENT "fragment"
 #define PLCB_ARG_K_EXPIRY "exp"
 #define PLCB_ARG_K_ARITH_DELTA "delta"
 #define PLCB_ARG_K_ARITH_INITIAL "initial"
@@ -74,23 +76,23 @@ typedef struct {
 #define PLCB_ARGS_MAX 10
 
 int
-PLCB_args_get(PLCB_t *object, SV *opts, lcb_CMDGET *gcmd, PLCB_schedctx_t *ctx);
+PLCB_args_get(PLCB_t *object, SV *doc, SV *opts, lcb_CMDGET *gcmd, PLCB_schedctx_t *ctx);
 int
-PLCB_args_lock(PLCB_t *object, SV *opts, lcb_CMDGET *gcmd, PLCB_schedctx_t *ctx);
+PLCB_args_lock(PLCB_t *object, SV *doc, SV *opts, lcb_CMDGET *gcmd, PLCB_schedctx_t *ctx);
 int
-PLCB_args_touch(PLCB_t *object, SV *opts, lcb_CMDTOUCH *tcmd, PLCB_schedctx_t *ctx);
+PLCB_args_touch(PLCB_t *object, SV *doc, SV *opts, lcb_CMDTOUCH *tcmd, PLCB_schedctx_t *ctx);
 int
-PLCB_args_remove(PLCB_t *object, SV *opts, lcb_CMDREMOVE *rcmd, PLCB_schedctx_t *ctx);
+PLCB_args_remove(PLCB_t *object, SV *doc, SV *opts, lcb_CMDREMOVE *rcmd, PLCB_schedctx_t *ctx);
 int
-PLCB_args_arithmetic(PLCB_t *object, SV *opts, lcb_CMDCOUNTER *cmd, PLCB_schedctx_t *ctx);
+PLCB_args_arithmetic(PLCB_t *object, SV *doc, SV *opts, lcb_CMDCOUNTER *cmd, PLCB_schedctx_t *ctx);
 int
-PLCB_args_incr(PLCB_t *object, SV *opts, lcb_CMDCOUNTER *cmd, PLCB_schedctx_t *ctx);
+PLCB_args_incr(PLCB_t *object, SV *doc, SV *opts, lcb_CMDCOUNTER *cmd, PLCB_schedctx_t *ctx);
 int
-PLCB_args_decr(PLCB_t *object, SV *opts, lcb_CMDCOUNTER *cmd, PLCB_schedctx_t *ctx);
+PLCB_args_decr(PLCB_t *object, SV *doc, SV *opts, lcb_CMDCOUNTER *cmd, PLCB_schedctx_t *ctx);
 int
-PLCB_args_unlock(PLCB_t *object, SV *opts, lcb_CMDUNLOCK *cmd, PLCB_schedctx_t *ctx);
+PLCB_args_unlock(PLCB_t *object, SV *doc, SV *opts, lcb_CMDUNLOCK *cmd, PLCB_schedctx_t *ctx);
 int
-PLCB_args_set(PLCB_t *object, SV *opts, lcb_CMDSTORE *cmd, PLCB_schedctx_t *ctx,
+PLCB_args_set(PLCB_t *object, SV *doc, SV *opts, lcb_CMDSTORE *cmd, PLCB_schedctx_t *ctx,
     SV **valuesv, int cmdcode);
 int
 PLCB_args_cas(PLCB_t *object, SV *opts, int nargs, lcb_CMDSTORE *scmd, PLCB_schedctx_t *Ctx);

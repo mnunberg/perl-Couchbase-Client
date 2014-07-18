@@ -96,8 +96,6 @@ static void data_callback(lcb_t instance, int cbtype, const lcb_RESPHTTP *resp)
     SV **tmpsv;
     SV *datasv;
 
-    printf("HAI!!!\n");
-
     if (resp->rflags & LCB_RESP_F_FINAL) {
         complete_callback(instance, cbtype, resp);
         return;

@@ -68,6 +68,8 @@ typedef struct {
     int pl_destroyed;
 } PLCB_iter_t;
 
+typedef SV* PLCB_document_rv;
+
 #define plcb_sync_cast(p) (PLCB_sync_t*)(p)
 
 typedef enum {
@@ -195,9 +197,9 @@ int plcb_convert_settings(PLCB_t *object, int flag, int new_value);
 void plcb_evloop_wait_unref(PLCB_t *obj);
 
 /** Operation functions */
-SV *PLCB_op_get(SV*,PLCB_args_t*);
-SV *PLCB_op_set(SV*,PLCB_args_t*);
-SV *PLCB_op_remove(SV*,PLCB_args_t*);
+SV *PLCB_op_get(PLCB_t*,PLCB_args_t*);
+SV *PLCB_op_set(PLCB_t*,PLCB_args_t*);
+SV *PLCB_op_remove(PLCB_t*,PLCB_args_t*);
 
 
 /**

@@ -14,8 +14,8 @@ typedef struct {
     } u_template;
 
     SV *keys;
-    SV *value;
     HV *cmdopts;
+    U32 wantret; /* Value of GIMME_V */
 } PLCB_args_t;
 
 /** Populate the argument stack with options */
@@ -64,6 +64,7 @@ typedef struct {
     lcb_error_t err;
     PLCB_args_t *args;
     SV *obj;
+    SV *blessed;
 } PLCB_schedctx_t;
 
 /** Callback invoked by plcb_argiter_run().
@@ -73,8 +74,8 @@ typedef struct {
  * @param optsv An SV containing options for the current key. May be NULL.
  */
 typedef void (*plcb_iter_cb)(PLCB_schedctx_t *iter,
-        const char *key, lcb_SIZE nkey, SV *optsv);
-
+        const char *key, lcb_SIZE nkey,
+        SV *docret, SV *optsv);
 
 /* Ok that keys are 'bare' and that the iterator is an AV, not an HV */
 #define PLCB_ARGITERf_RAWKEY_OK 0x01
@@ -104,6 +105,6 @@ plcb_schedctx_iter_bail(PLCB_schedctx_t *ctx, lcb_error_t err);
 SV *
 plcb_schedctx_return(PLCB_schedctx_t *ctx);
 void
-plcb_schedctx_init_common(PLCB_t *obj, SV *self, PLCB_args_t *args,
+plcb_schedctx_init_common(PLCB_t *obj, PLCB_args_t *args,
     PLCB_sync_t *sync, PLCB_schedctx_t *ctx);
 #endif

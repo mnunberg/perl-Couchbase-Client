@@ -142,10 +142,6 @@ sub design_put {
 sub _process_viewpath_common {
     my ($orig,%options) = @_;
     my %qparams;
-
-    if (delete $options{ForUpdate}) {
-        $qparams{include_docs} = "true";
-    }
     if (%options) {
         # TODO: pop any other known parameters?
         %qparams = (%qparams,%options);

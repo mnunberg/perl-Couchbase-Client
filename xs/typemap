@@ -6,6 +6,7 @@ PLCB_viewhandle_t *	T_PLCB_COUCH_HANDLE_T
 PLCB_jsondec_t*	T_PLCB_JSONDEC_T
 PLCB_iter_t *	T_PLCB_ITER_T
 PLCB_exp_t		T_PLCB_EXP_T
+PLCB_t *        T_PLCB
 
 INPUT
 T_PLCB_XS_OBJPAIR_T
@@ -16,6 +17,11 @@ T_PLCB_XS_OBJPAIR_T
 	$var.sv = $arg;
 	$var.ptr = NUM2PTR(PLCB_t*, SvIV(SvRV($arg)));
 
+T_PLCB
+	if (! (SvROK($arg) && (SvOBJECT($arg) || SvOBJECT(SvRV($arg))) && SvIOK(SvRV($arg)))) {
+		die(\"Not a valid Couchbase::Bucket\"); \
+	}
+	$var = NUM2PTR(PLCB_t*,SvIV(SvRV($arg)));
 
 T_PLCB_XS_STRING_NONULL_T
 	if(!SvPOK($arg)) {

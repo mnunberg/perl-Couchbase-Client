@@ -162,7 +162,6 @@ sub next {
     # so there's nothing in the queue. See if we can get something from the
     # network.
     my $rv = $self->_iter_step;
-    print Dumper($rv);
 
     # a true return value means we can wait for extra data
     if ($rv) {

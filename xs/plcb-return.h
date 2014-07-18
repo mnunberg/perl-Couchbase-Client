@@ -8,9 +8,14 @@ typedef enum {
     PLCB_RETIDX_ERRNUM  = 1,
     PLCB_RETIDX_ERRSTR  = 2,
     PLCB_RETIDX_CAS     = 3,
-        
-    PLCB_RETIDX_MAX    
+    PLCB_RETIDX_KEY     = 4,
+    PLCB_RETIDX_EXP     = 5, /* Last known expiry */
+    PLCB_RETIDX_MAX
 } PLCB_ret_idx_t;
+
+#define plcb_ret_isa(obj, ret) \
+    (sv_isobject(ret) && \
+            (SvSTASH(ret) == (obj)->ret_stash || sv_isa(ret, PLCB_RET_CLASSNAME)))
 
 #define plcb_ret_set_cas(obj, ret, cas) \
     av_store(ret, PLCB_RETIDX_CAS, \
