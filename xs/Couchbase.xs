@@ -12,8 +12,9 @@ void plcb_cleanup(PLCB_t *object)
     }
 
     #define _free_cv(fld) if (object->fld) { SvREFCNT_dec(object->fld); object->fld = NULL; }
-    _free_cv(cv_compress); _free_cv(cv_decompress);
     _free_cv(cv_serialize); _free_cv(cv_deserialize);
+    _free_cv(cv_jsonenc); _free_cv(cv_jsondec);
+    _free_cv(cv_customenc); _free_cv(cv_customdec);
     #undef _free_cv
 }
 
@@ -80,18 +81,6 @@ PLCB_connect(PLCB_t *object)
     }
     return 0;
 }
-
-/*used for settings accessors*/
-enum {
-    SETTINGS_ALIAS_BASE,
-    SETTINGS_ALIAS_COMPRESS,
-    SETTINGS_ALIAS_COMPRESS_COMPAT,
-    SETTINGS_ALIAS_SERIALIZE,
-    SETTINGS_ALIAS_CONVERT,
-    SETTINGS_ALIAS_DECONVERT,
-    SETTINGS_ALIAS_COMP_THRESHOLD,
-    SETTINGS_ALIAS_DEREF_RVPV
-};
 
 MODULE = Couchbase PACKAGE = Couchbase::Bucket    PREFIX = PLCB_
 
@@ -180,109 +169,6 @@ PLCB_remove_multi(PLCB_t *self, SV *keys, ...)
     
     RETVAL = PLCB_op_remove(self, &args);
     OUTPUT: RETVAL
-
-
-    
-IV
-PLCB__settings(PLCB_t *object, ...)
-
-    ALIAS:
-    enable_compress             = SETTINGS_ALIAS_COMPRESS_COMPAT
-    compression_settings        = SETTINGS_ALIAS_COMPRESS
-    serialization_settings      = SETTINGS_ALIAS_SERIALIZE
-    conversion_settings         = SETTINGS_ALIAS_CONVERT
-    deconversion_settings       = SETTINGS_ALIAS_DECONVERT
-    compress_threshold          = SETTINGS_ALIAS_COMP_THRESHOLD
-    dereference_scalar_ref_settings  = SETTINGS_ALIAS_DEREF_RVPV
-
-    PREINIT:
-    int flag = 0;
-    int new_value = 0;
-    lcb_t instance;
-
-    CODE:
-    instance = object->instance;
-    switch (ix) {
-        case SETTINGS_ALIAS_COMPRESS:
-        case SETTINGS_ALIAS_COMPRESS_COMPAT:
-            flag = PLCBf_USE_COMPRESSION;
-            break;
-
-        case SETTINGS_ALIAS_SERIALIZE:
-            flag = PLCBf_USE_STORABLE;
-            break;
-
-        case SETTINGS_ALIAS_CONVERT:
-            flag = PLCBf_USE_STORABLE|PLCBf_USE_COMPRESSION;
-            break;
-
-        case SETTINGS_ALIAS_DECONVERT:
-            flag = PLCBf_DECONVERT;
-            break;
-
-        case SETTINGS_ALIAS_COMP_THRESHOLD:
-            flag = PLCBf_COMPRESS_THRESHOLD;
-            break;
-
-        case SETTINGS_ALIAS_DEREF_RVPV:
-            flag = PLCBf_DEREF_RVPV;
-            break;
-
-        case 0:
-            die("This function should not be called directly. "
-                "use one of its aliases");
-
-        default:
-            die("Wtf?");
-            break;
-    }
-
-    if (items == 2) {
-        new_value = sv_2bool(ST(1));
-
-    } else if (items == 1) {
-        new_value = -1;
-
-    } else {
-        die("%s(self, [value])", GvNAME(GvCV(cv)));
-    }
-
-
-    RETVAL = plcb_convert_settings(object, flag, new_value);
-    //warn("Report flag %d = %d", flag, RETVAL);
-
-    PERL_UNUSED_VAR(instance);
-
-    OUTPUT: RETVAL
-
-
-NV
-PLCB_timeout(PLCB_t *object)
-    PREINIT:
-    NV new_param;
-    uint32_t usecs;
-    NV ret;
-    lcb_t instance;
-
-    CODE:
-    instance = object->instance;
-    ret = lcb_cntl_getu32(instance, LCB_CNTL_OP_TIMEOUT) / (1000*1000);
-
-    if (items == 2) {
-        new_param = SvNV(ST(1));
-        if (new_param <= 0) {
-            warn("Cannot disable timeouts.");
-            XSRETURN_UNDEF;
-        }
-
-        usecs = new_param * (1000*1000);
-        lcb_cntl_setu32(instance, LCB_CNTL_OP_TIMEOUT, usecs);
-    }
-
-    RETVAL = ret;
-
-    OUTPUT:
-    RETVAL
 
 SV *
 PLCB_cluster_nodes(PLCB_t *object)

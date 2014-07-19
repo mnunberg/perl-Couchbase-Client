@@ -3,6 +3,7 @@ use strict;
 use warnings;
 
 use Couchbase::Client::IDXConst;
+use Couchbase::Client::Errors;
 
 use Class::XSAccessor::Array {
     accessors => {

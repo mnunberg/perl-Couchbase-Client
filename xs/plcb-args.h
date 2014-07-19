@@ -57,7 +57,7 @@ typedef struct {
 } plcb_argval_t;
 
 #define PLCB_ARG_K_CAS "cas"
-#define PLCB_ARG_K_IGNORECAS "no_cas"
+#define PLCB_ARG_K_IGNORECAS "ignore_cas"
 #define PLCB_ARG_K_FRAGMENT "fragment"
 #define PLCB_ARG_K_EXPIRY "exp"
 #define PLCB_ARG_K_ARITH_DELTA "delta"
@@ -71,9 +71,10 @@ typedef struct {
 #define PLCB_KWARG(s, tbase, target) \
 { s, sizeof(s)-1, PLCB_ARG_T_##tbase, target }
 
-#define PLCB_PADARG() { "", 0, PLCB_ARGT_PAD, NULL }
+#define PLCB_PADARG() { "", 0, PLCB_ARG_T_PAD, NULL }
 
-#define PLCB_ARGS_MAX 10
+int
+plcb_extract_args(SV *sv, plcb_argval_t *values);
 
 int
 PLCB_args_get(PLCB_t *object, SV *doc, SV *opts, lcb_CMDGET *gcmd, PLCB_schedctx_t *ctx);

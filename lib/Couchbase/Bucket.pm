@@ -1,10 +1,12 @@
 package Couchbase::Bucket;
 use strict;
 use warnings;
+
 use Couchbase::DocIterator;
-use Couchbase::Client::Errors;
 use Couchbase::Client::IDXConst;
 use Couchbase::Document;
+
+use Couchbase::Couch::Base;
 use Couchbase::Couch::Handle;
 use Couchbase::Couch::HandleInfo;
 use Couchbase::Couch::Design;
@@ -12,105 +14,52 @@ use JSON;
 use JSON::SL;
 use Data::Dumper;
 use URI;
-
-my $have_storable = eval "use Storable; 1;";
-my $have_zlib = eval "use Compress::Zlib; 1;";
-
-use Array::Assign;
-
-# Get the CouchDB (2.0) API
-use Couchbase::Couch::Base;
+use Storable;
 use base qw(Couchbase::Couch::Base);
 
-#this function converts hash options for compression and serialization
-#to something suitable for construct()
-
-sub _make_conversion_settings {
-    my ($arglist,$options) = @_;
-    my $flags = 0;
-
-
-    $arglist->[CTORIDX_MYFLAGS] ||= 0;
-
-    if($options->{dereference_scalar_ref}) {
-        $arglist->[CTORIDX_MYFLAGS] |= fDEREF_RVPV;
-    }
-
-    if(exists $options->{deconversion}) {
-        if(! delete $options->{deconversion}) {
-            return;
-        }
-    } else {
-        $flags |= fDECONVERT;
-    }
-
-    if(exists $options->{compress_threshold}) {
-        my $compress_threshold = delete $options->{compress_threshold};
-        $compress_threshold =
-            (!$compress_threshold || $compress_threshold < 0)
-            ? 0 : $compress_threshold;
-        $arglist->[CTORIDX_COMP_THRESHOLD] = $compress_threshold;
-        if($compress_threshold) {
-            $flags |= fUSE_COMPRESSION;
-        }
-    }
-
-    my $meth_comp;
-    if(exists $options->{compress_methods}) {
-        $meth_comp = delete $options->{compress_methods};
-    } elsif($have_zlib) {
-        $meth_comp = [ sub { ${$_[1]} = Compress::Zlib::memGzip(${$_[0]}) },
-                      sub { ${$_[1]} = Compress::Zlib::memGunzip(${$_[0]}) }]
-    }
-
-    if(defined $meth_comp) {
-        $arglist->[CTORIDX_COMP_METHODS] = $meth_comp;
-    }
-
-    my $meth_serialize = 0;
-    if(exists $options->{serialize_methods}) {
-        $meth_serialize = delete $options->{serialize_methods};
-    }
-
-    if($meth_serialize == 0 && $have_storable) {
-        $meth_serialize = [ \&Storable::freeze, \&Storable::thaw ];
-    }
-
-    if($meth_serialize) {
-        $flags |= fUSE_STORABLE;
-        $arglist->[CTORIDX_SERIALIZE_METHODS] = $meth_serialize;
-    }
-
-    $arglist->[CTORIDX_MYFLAGS] |= $flags;
-}
-
-sub _MkCtorIDX {
-    my $opts = shift;
-
-    my @arglist;
-    my $connstr = delete $opts->{connstr} or die "Must have server";
-    arry_assign_i(@arglist,
-        CTORIDX_CONNSTR, $connstr,
-        CTORIDX_PASSWORD, delete $opts->{password});
-
-    _make_conversion_settings(\@arglist, $opts);
-    $arglist[CTORIDX_NO_CONNECT] = delete $opts->{no_init_connect};
-
-
-    if(keys %$opts) {
-        warn sprintf("Unused keys (%s) in constructor",
-                     join(", ", keys %$opts));
-    }
-    return \@arglist;
-}
+our $_JSON = JSON->new()->allow_nonref;
+sub _js_encode { $_JSON->encode($_[0]) }
+sub _js_decode { $_JSON->decode($_[0]) }
 
 sub new {
     my ($pkg, $connstr, $opts) = @_;
     $opts ||= {};
-    my $privopts = { %$opts, connstr => $connstr };
-    my $arglist = _MkCtorIDX($privopts);
-    my $self = $pkg->construct($arglist);
+
+    my @arglist = ();
+    $arglist[CTORIDX_STDIDX_MAX] = undef;
+    $arglist[CTORIDX_CONNSTR] = $connstr;
+    $arglist[CTORIDX_PASSWORD] = $opts->{password};
+    $arglist[CTORIDX_SERIALIZE_METHODS] = [\&Storable::freeze,\&Storable::thaw];
+    $arglist[CTORIDX_JSON_METHODS] = [\&_js_encode, \&_js_decode];
+
+    my $self = $pkg->construct(\@arglist);
     return $self;
+}
+
+# Helper Methods
+sub get_id {
+    my ($self,$key) = @_;
+    return $self->get(Couchbase::Document->new($key))->value;
+}
+
+sub get_value {
+    my ($self,$key) = @_;
+    return $self->get_id($key)->value;
+}
+
+sub insert_id {
+    my ($self,$key,$value) = @_;
+    return $self->insert(Couchbase::Document->new($key,$value))->is_ok;
+}
+
+sub upsert_id {
+    my ($self,$key,$value) = @_;
+    return $self->upsert(Couchbase::Document->new($key,$value))->is_ok;
+}
+
+sub remove_id {
+    my ($self,$key) = @_;
+    return $self->remove(Couchbase::Document->new($key))->is_ok;
 }
 
 
@@ -173,10 +122,6 @@ sub _process_viewpath_common {
 sub view_slurp {
     my ($self,$viewpath,%options) = @_;
     my $handle = $self->_new_viewhandle(\%Couchbase::Couch::Handle::Slurpee::);
-
-    if (delete $options{ForUpdate}) {
-        $viewpath .= "?include_docs=true";
-    }
     $viewpath = _process_viewpath_common($viewpath,%options);
     $handle->slurp("GET", $viewpath, "");
 }

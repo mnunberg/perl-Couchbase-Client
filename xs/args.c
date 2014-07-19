@@ -130,8 +130,8 @@ convert_valspec(plcb_argval_t *dst, SV *src)
 
 }
 
-static int
-extract_args(PLCB_t *parent, SV *sv, plcb_argval_t *values)
+int
+plcb_extract_args(SV *sv, plcb_argval_t *values)
 {
     char *cur_key;
     I32 klen;
@@ -230,7 +230,7 @@ PLCB_args_get(PLCB_t *object, SV *doc, SV *opts, lcb_CMDGET *gcmd,
         load_doc_options(object, doc, doc_specs);
     }
     if (opts) {
-        extract_args(object, opts, opt_specs);
+        plcb_extract_args(opts, opt_specs);
     }
 
     if (exp) {
@@ -265,7 +265,7 @@ PLCB_args_touch(PLCB_t *object, SV *doc, SV *options, lcb_CMDTOUCH *tcmd,
     };
 
     if (!doc) {
-        return;
+        return 0;
     }
 
     load_doc_options(object, doc, doc_specs);
@@ -295,7 +295,7 @@ PLCB_args_remove(PLCB_t *object, SV *doc, SV *options, lcb_CMDREMOVE *rcmd,
         load_doc_options(object, doc, doc_specs);
     }
     if (options) {
-        extract_args(object, options, opts_specs);
+        plcb_extract_args(options, opts_specs);
     }
     if (!ignore_cas) {
         rcmd->cas = cas;
@@ -317,7 +317,7 @@ PLCB_args_arithmetic(PLCB_t *object, SV *doc, SV *options, lcb_CMDCOUNTER *acmd,
     };
 
     if (options) {
-        extract_args(object, options, argspecs);
+        plcb_extract_args(options, argspecs);
     }
     return 0;
 }
@@ -350,7 +350,7 @@ PLCB_args_unlock(PLCB_t *object, SV *doc, SV *options, lcb_CMDUNLOCK *ucmd,
     };
 
     if (doc == NULL) {
-        return; /* No defaults to load */
+        return 0; /* No defaults to load */
     }
 
     load_doc_options(object, doc, argspecs);
@@ -397,7 +397,7 @@ PLCB_args_set(PLCB_t *object, SV *doc, SV *options, lcb_CMDSTORE *scmd,
         load_doc_options(object, doc, doc_specs);
     }
     if (options) {
-        extract_args(object, options, opt_specs);
+        plcb_extract_args(options, opt_specs);
     }
     scmd->exptime = exp;
     if (ignore_cas) {

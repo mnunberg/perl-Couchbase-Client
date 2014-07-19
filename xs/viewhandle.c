@@ -175,7 +175,7 @@ SV* plcb_couch_handle_new(HV *stash, SV *cbo_sv, PLCB_t *cbo)
     newhandle->parent = cbo;
     newhandle->plpriv = retav;
     av_rv = newRV_inc((SV*)retav);
-    sv_bless(av_rv, cbo->couch.handle_av_stash);
+    sv_bless(av_rv, cbo->handle_av_stash);
     return blessed_rv;
 }
 

@@ -9,7 +9,8 @@ typedef enum {
     PLCB_RETIDX_ERRSTR  = 2,
     PLCB_RETIDX_CAS     = 3,
     PLCB_RETIDX_KEY     = 4,
-    PLCB_RETIDX_EXP     = 5, /* Last known expiry */
+    PLCB_RETIDX_EXP     = 5,
+    PLCB_RETIDX_FMTSPEC = 6,
     PLCB_RETIDX_MAX
 } PLCB_ret_idx_t;
 

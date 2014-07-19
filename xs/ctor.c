@@ -52,7 +52,7 @@ ctor_extract_methpairs(AV *options, int idx, SV **outmeth, SV **inmeth)
 void plcb_ctor_conversion_opts(PLCB_t *object, AV *options)
 {
     SV **tmpsv;
-    
+
 #define meth_assert_getpairs(flag, optidx) \
     ((object->my_flags & flag) \
     ? \
@@ -84,42 +84,10 @@ void plcb_ctor_conversion_opts(PLCB_t *object, AV *options)
        && SvIOK(*tmpsv)) {
         object->my_flags = SvUV(*tmpsv);
     }
-    
-    ctor_extract_methpairs(options, PLCB_CTORIDX_COMP_METHODS,
-                           &object->cv_compress, &object->cv_decompress);
-    
-    if ((object->my_flags & PLCBf_USE_COMPRESSION) &&
-        object->cv_compress == NULL) {
-        
-        die("Compression requested but no methods provided");
-    }
-    
-    
     ctor_extract_methpairs(options, PLCB_CTORIDX_SERIALIZE_METHODS,
-                           &object->cv_serialize, &object->cv_deserialize);
-    
-    if ((object->my_flags & PLCBf_USE_STORABLE) &&
-        object->cv_serialize == NULL) {
-        
-        die("Serialization requested but no methods provided");
-    }
-        
-    if ((tmpsv = av_fetch(options, PLCB_CTORIDX_COMP_THRESHOLD, 0))
-       && SvIOK(*tmpsv)) {
-        object->compress_threshold = SvIV(*tmpsv);
-
-    } else {
-        object->compress_threshold = 0;
-    }
-
-    /* For Couch/JSON */
-    meth_maybe_assign(PLCB_CTORIDX_JSON_ENCODE_METHOD,
-                      couch.cv_json_encode,
-                      "JSON encode");
-
-    meth_maybe_assign(PLCB_CTORIDX_JSON_VERIFY_METHOD,
-                      couch.cv_json_verify,
-                      "JSON verify");
+        &object->cv_serialize, &object->cv_deserialize);
+    ctor_extract_methpairs(options, PLCB_CTORIDX_JSON_METHODS,
+        &object->cv_jsonenc, &object->cv_jsondec);
 }
 
 void plcb_ctor_init_common(PLCB_t *object, lcb_t instance, AV *options)
@@ -136,7 +104,7 @@ void plcb_ctor_init_common(PLCB_t *object, lcb_t instance, AV *options)
     
     get_stash_assert(PLCB_RET_CLASSNAME, ret_stash);
     get_stash_assert(PLCB_ITER_CLASSNAME, iter_stash);
-    get_stash_assert(PLCB_COUCH_HANDLE_INFO_CLASSNAME, couch.handle_av_stash);
+    get_stash_assert(PLCB_COUCH_HANDLE_INFO_CLASSNAME, handle_av_stash);
 
 #undef get_stash_assert
 

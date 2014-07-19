@@ -1,26 +1,26 @@
 #include "perl-couchbase.h"
 
-
 #define CONVERT_DIRECTION_OUT 1
 #define CONVERT_DIRECTION_IN 2
 
-static SV * serialize_convert(SV *meth, SV *input, int direction)
+static SV*
+serialize_convert(SV *meth, SV *input, int direction)
 {
     dSP;
     SV *ret;
     int count;    
-    
+
     ENTER;
     SAVETMPS;
+
     PUSHMARK(SP);
-    
     XPUSHs(input);
-    PUTBACK; 
-    
+    PUTBACK;
+
     if (direction == CONVERT_DIRECTION_OUT) {
         count = call_sv(meth, G_SCALAR);
         SPAGAIN;
-        
+
         /*for ouptut we must have this function succeed!*/
         if (count != 1) {
             croak("Serialization method returned nothing!");
@@ -30,7 +30,7 @@ static SV * serialize_convert(SV *meth, SV *input, int direction)
     } else {
         count = call_sv(meth, G_SCALAR|G_EVAL);
         SPAGAIN;
-        
+
         /*if someone has messed up our flags, don't die, but throw a warning*/
         if (SvTRUE(ERRSV)) {
             warn("Couldn't deserialize data: %s", SvPV_nolen(ERRSV));
@@ -43,221 +43,128 @@ static SV * serialize_convert(SV *meth, SV *input, int direction)
             ret = POPs;
         }
     }
-    
-    (void) SvREFCNT_inc(ret);
-    
+
+    SvREFCNT_inc(ret);
     FREETMPS;
     LEAVE;
     return ret;
 }
 
-static SV* compression_convert(SV *meth, SV *input, int direction)
+static SV *
+custom_convert(SV *meth, SV *input, uint32_t *flags, int direction)
 {
     dSP;
-    int count;
-    SV *converted = newSV(0);
     SV *ret;
-    
-    ENTER;
-    SAVETMPS;
-    
+    SV *flags_rv;
+    SV *input_rv;
+    int callflags;
+
+    ENTER; SAVETMPS;
     PUSHMARK(SP);
-    EXTEND(SP, 2);
-    
-    PUSHs(sv_2mortal(newRV_inc(input)));
-    PUSHs(sv_2mortal(newRV_inc(converted)));
+
+    input_rv = sv_2mortal(newRV_inc(input));
+    flags_rv = sv_2mortal(newRV_noinc(newSVuv(*flags)));
+
+    XPUSHs(input_rv);
+    XPUSHs(flags_rv);
+
     PUTBACK;
-    
-    /*output conversion must succeed*/
+
+    callflags = G_VOID|G_DISCARD;
     if (direction == CONVERT_DIRECTION_OUT) {
-        if (call_sv(meth, G_SCALAR) != 1) {
-            croak("Compression method returned nothing");
-        }
-        SPAGAIN;
-        
-        if (!SvTRUE(POPs)) {
-            croak("Compression method returned error status");
-        }
+        callflags |= G_EVAL;
+    }
 
-        input = NULL;
-        
+    call_sv(meth, callflags);
+    SPAGAIN;
+
+    if (SvTRUE(ERRSV)) {
+        ret = input;
     } else {
-        count = call_sv(meth, G_SCALAR|G_EVAL);
-        SPAGAIN;
-        
-        if (SvTRUE(ERRSV)) {
-            warn("Could not decompress input: %s", SvPV_nolen(ERRSV));
-
-        } else if (count == 0) {
-            warn("Decompression method didn't return anything");
-
-        } else if ( (ret = POPs) && SvTRUE(ret) == 0 ){
-            warn("Decompression method returned error status");
-
-        } else if (!SvTRUE(converted)) {
-            warn("Decompression returned empty string");
-
-        } else {
-            input = NULL;
-        }
+        warn("Conversion function failed");
+        ret = SvRV(input_rv);
+        *flags = SvUV(SvRV(flags_rv));
     }
 
-    if (input != NULL) {
-        /*conversion failed*/
-        SvREFCNT_dec(converted);
-        converted = input;
-    }
-    
-    FREETMPS;
-    LEAVE;
-    
-    return converted;
+    SvREFCNT_inc(ret);
+    return ret;
 }
 
-#define plcb_can_convert(object, flags) \
-    ((object->my_flags & (PLCBf_DECONVERT|flags)) == \
-        (PLCBf_DECONVERT|flags))
-
-void plcb_convert_storage(
-    PLCB_t *object, SV **data_sv, STRLEN *data_len,
-    uint32_t *flags, plcb_conversion_spec_t spec)
+void
+plcb_convert_storage(PLCB_t *object, plcb_vspec_t *vspec)
 {
-    SV *sv;
-    *flags = 0;
+    SV *pv = SvROK(vspec->value) ? SvRV(vspec->value) : vspec->value;
+    uint32_t fmt = vspec->spec & PLCB_CONVERT_MASK_FMT;
 
-    /* dereference SCALAR reference. bypass all conversion checks because
-     * this is an internal setting
-     */
-    if ( (object->my_flags & PLCBf_DEREF_RVPV) &&
-       SvROK(*data_sv) && SvTYPE(SvRV(*data_sv)) == SVt_PV) {
+    if (object->cv_customenc) {
+        vspec->need_free = 1;
+        vspec->value = custom_convert(object->cv_customenc,
+            vspec->value, &vspec->flags, CONVERT_DIRECTION_OUT);
 
-        *data_sv = SvRV(*data_sv);
-        *data_len = SvCUR(*data_sv);
-    }
-    
-    /* Not a reference, and conversion disabled */
-    if ( ( (object->my_flags & PLCBf_DO_CONVERSION) == 0 ||
-         (object->my_flags & PLCBf_DECONVERT) == 0)
-       && SvROK(*data_sv) == 0) {
-        return;
-    }
-    
-    sv = *data_sv;
+    } else if (fmt == PLCB_CONVERT_SPEC_JSON) {
+        vspec->need_free = 1;
+        vspec->value = serialize_convert(
+            object->cv_jsonenc, vspec->value, CONVERT_DIRECTION_OUT);
 
-    /*only serialize references*/
-    if (SvROK(sv)) {
-        
-        if (spec == PLCB_CONVERT_SPEC_JSON) {
-            sv = serialize_convert(object->couch.cv_json_encode,
-                                   sv,
-                                   CONVERT_DIRECTION_OUT);
+    } else if (fmt == PLCB_CONVERT_SPEC_STORABLE) {
+        vspec->need_free = 1;
+        vspec->value = serialize_convert(
+            object->cv_serialize, vspec->value, CONVERT_DIRECTION_OUT);
 
-        } else {
-        
-            if (!plcb_can_convert(object, PLCBf_USE_STORABLE)) {
-                croak("serialization requested but output conversion disabled");
-            }
-            
-            sv = serialize_convert(object->cv_serialize, sv,
-                                   CONVERT_DIRECTION_OUT);
-            
-            plcb_storeflags_apply_serialization(object, *flags);
+    } else if (fmt == PLCB_CONVERT_SPEC_RAW) {
+        if (SvTYPE(pv) != SVt_PV) {
+            die("Raw conversion requires string value!");
         }
-        
-        *data_len = SvCUR(sv); /*set this so compression method sees new length*/
+    } else if (vspec->spec == PLCB_CONVERT_SPEC_UTF8) {
+        sv_utf8_upgrade(pv);
     }
-    
-    /* Don't compress if we explicitly want uncompressed JSON */
-    
-    if (spec == PLCB_CONVERT_SPEC_NONE &&
-       
-       plcb_can_convert(object, PLCBf_USE_COMPRESSION) &&
-       object->compress_threshold &&
-       *data_len >= object->compress_threshold ) {
-        
-        sv = compression_convert(object->cv_compress,
-                                 sv,
-                                 CONVERT_DIRECTION_OUT);
-        plcb_storeflags_apply_compression(object, *flags); 
-    }
-    
-    if (*data_sv != sv) {
-        *data_sv = sv;
+
+    /* Assume the resultant value is an SV */
+    if (SvTYPE(vspec->value) == SVt_PV) {
+        vspec->encoded = SvPVX(vspec->value);
+        vspec->len = SvCUR(vspec->value);
+    } else {
+        vspec->encoded = SvPV(vspec->value, vspec->len);
     }
 }
 
-void plcb_convert_storage_free(PLCB_t *object, SV *data, uint32_t flags)
+void plcb_convert_storage_free(PLCB_t *object, plcb_vspec_t *vs)
 {
-    if (plcb_storeflags_has_compression(object, flags) == 0 &&
-       plcb_storeflags_has_serialization(object,flags) == 0) {
-        return;
+    if (vs->need_free) {
+        SvREFCNT_dec(vs->value);
     }
-    
-    SvREFCNT_dec(data);
 }
 
-SV* plcb_convert_retrieval(
+SV*
+plcb_convert_retrieval(
     PLCB_t *object, const char *data, size_t data_len, uint32_t flags)
 {
     SV *ret_sv, *input_sv;
-    
+    uint32_t fmtflags;
     input_sv = newSVpvn(data, data_len);
-    
-    if (plcb_storeflags_has_conversion(object, flags) == 0 ||
-            (object->my_flags & PLCBf_DECONVERT) == 0 ) {
+    fmtflags &= PLCB_CONVERT_MASK_FMT;
 
-        return input_sv;
-    }
-    
-    ret_sv = input_sv;
-    
-    if (plcb_storeflags_has_compression(object, flags)) {
-        ret_sv = compression_convert(object->cv_decompress,
-                                     ret_sv,
-                                     CONVERT_DIRECTION_IN);
-    }
-    
-    if (plcb_storeflags_has_serialization(object, flags)) {
-        ret_sv = serialize_convert(object->cv_deserialize,
-                                   ret_sv,
-                                   CONVERT_DIRECTION_IN);
-    }
-    
-    if (ret_sv != input_sv) {
-        SvREFCNT_dec(input_sv);
-    }
-    
-    return ret_sv;
-}
-
-
-/*this function provides an easy interface to fiddle with the module's settings*/
-int plcb_convert_settings(PLCB_t *object, int flag, int new_value)
-{
-    int ret;
-    if (flag == PLCBf_COMPRESS_THRESHOLD) {
-        /*this isn't really a flag value, but a proper integer*/
-        ret = object->compress_threshold;
-        
-        object->compress_threshold = new_value >= 0
-            ? new_value
-            : object->compress_threshold;
-        if (new_value >= 0) {
-            object->my_flags |= PLCBf_USE_COMPRESSION;
-        }
-        return ret;
-    }
-    
-    ret = (object->my_flags & flag);
-    
-    if (new_value > 0) {
-        object->my_flags |= flag;
-
+    if (object->cv_customdec) {
+        ret_sv = custom_convert(object->cv_customdec, input_sv, &flags,
+            CONVERT_DIRECTION_IN);
+    } else if (fmtflags == PLCB_CONVERT_SPEC_JSON) {
+        ret_sv = serialize_convert(object->cv_jsondec, input_sv,
+            CONVERT_DIRECTION_IN);
+    } else if (fmtflags == PLCB_CONVERT_SPEC_STORABLE) {
+        ret_sv = serialize_convert(object->cv_deserialize, input_sv,
+            CONVERT_DIRECTION_IN);
+    } else if (fmtflags == PLCB_CONVERT_SPEC_RAW) {
+        ret_sv = input_sv;
+        SvREFCNT_inc(ret_sv);
+    } else if (fmtflags == PLCB_CONVERT_SPEC_UTF8) {
+        SvUTF8_on(input_sv);
+        ret_sv = input_sv;
+        SvREFCNT_inc(ret_sv);
     } else {
-        if (new_value == 0) {
-            object->my_flags &= (~flag);
-        }
+        warn("Unrecognized flags 0x%x. Assuming raw", flags);
+        ret_sv = input_sv;
     }
-    
-    return ret;
+
+    SvREFCNT_dec(input_sv);
+    return ret_sv;
 }

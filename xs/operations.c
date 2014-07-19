@@ -52,34 +52,28 @@ store_argiter_cb(PLCB_schedctx_t *ctx, const char *key, lcb_SIZE nkey,
     STRLEN nvalue = 0;
     char *value = NULL;
     SV *value_sv = NULL;
-    uint32_t store_flags = 0;
     lcb_CMDSTORE scmd = ctx->args->u_template.store;
     my_STOREINFO *info = ctx->priv;
+    plcb_vspec_t vspec = { 0 };
+
 
     LCB_CMD_SET_KEY(&scmd, key, nkey);
     PLCB_args_set(ctx->parent, doc, options, &scmd, ctx, &value_sv, ctx->args->cmd);
+    if ((vspec.value = value_sv) == NULL) {
+        die("Invalid value!");
+    }
 
+    vspec.spec = info->spec;
+    plcb_convert_storage(ctx->parent, &vspec);
     if (value_sv == NULL) {
         die("Invalid value!");
     }
-    plcb_convert_storage(ctx->parent, &value_sv, &nvalue, &store_flags, info->spec);
-    if (value_sv == NULL) {
-        die("Invalid value!");
-    }
-    if (nvalue == 0) {
-        if (SvTYPE(value_sv) == SVt_PV) {
-            nvalue = SvCUR(value_sv);
-            value = SvPVX(value_sv);
-        } else {
-            value = SvPV(value_sv, nvalue);
-        }
-    }
-    LCB_CMD_SET_VALUE(&scmd, value, nvalue);
 
-    scmd.flags = store_flags;
+    LCB_CMD_SET_VALUE(&scmd, vspec.encoded, vspec.len);
+    scmd.flags = vspec.flags;
     scmd.operation = info->storop;
     ctx->err = lcb_store3(ctx->parent->instance, ctx->cookie, &scmd);
-    plcb_convert_storage_free(ctx->parent, value_sv, store_flags);
+    plcb_convert_storage_free(ctx->parent, &vspec);
     if (ctx->err != LCB_SUCCESS) {
         ctx->loop = 0;
     }
@@ -94,7 +88,7 @@ PLCB_op_set(PLCB_t *object, PLCB_args_t *args)
     plcb_schedctx_init_common(object, args, NULL, &ctx);
     ctx.priv = &info;
     info.storop = plcb_command_to_storop(ctx.cmdbase);
-    info.spec = PLCB_CONVERT_SPEC_NONE;
+    info.spec = PLCB_CONVERT_SPEC_JSON;
 
     if (args->cmdopts) {
         PLCB_args_set(object, NULL, (SV*)args->cmdopts, &args->u_template.store,
@@ -193,9 +187,6 @@ static void
 unlock_argiter_cb(PLCB_schedctx_t *ctx, const char *key, lcb_SIZE nkey, SV *doc, SV *opts)
 {
     lcb_CMDUNLOCK ucmd = { 0 };
-    if (!opts) {
-        die("Unlock must be given a CAS");
-    }
     PLCB_args_unlock(ctx->parent, doc, opts, &ucmd, ctx);
     LCB_CMD_SET_KEY(&ucmd, key, nkey);
     ctx->err = lcb_unlock3(ctx->parent->instance, ctx->cookie, &ucmd);

@@ -95,14 +95,14 @@ typedef enum {
     PLCBf_JSON_VERIFY           = 0x400,
 } PLCB_flags_t;
 
-#define PLCBf_DO_CONVERSION \
-    (PLCBf_USE_COMPRESSION|PLCBf_USE_STORABLE|PLCBf_USE_CONVERT_UTF8)
-
 struct PLCB_st {
     lcb_t instance; /*our library handle*/
     PLCB_sync_t sync; /*object to collect results from callbacks*/
     HV *ret_stash; /*stash with which we bless our return objects*/
     HV *iter_stash; /* Stash with which we bless our iterator objects */
+    HV *view_stash;
+    HV *design_stash;
+    HV *handle_av_stash;
 
     PLCB_flags_t my_flags;
 
@@ -110,24 +110,13 @@ struct PLCB_st {
     
     SV *cv_serialize;
     SV *cv_deserialize;
-    SV *cv_compress;
-    SV *cv_decompress;
-    STRLEN compress_threshold;
-    
+    SV *cv_jsonenc;
+    SV *cv_jsondec;
+    SV *cv_customenc;
+    SV *cv_customdec;
+
     /*how many operations are pending on this object*/
     int npending;
-    
-    /* Structure containing specific data for Couch */
-    struct {
-        /* This will encode references into JSON */
-        SV *cv_json_encode;
-        /* This will verify that a stored string is indeed JSON, optional */
-        SV *cv_json_verify;
-
-        HV *view_stash;
-        HV *design_stash;
-        HV *handle_av_stash;
-    } couch;
 };
 
 /*need to include this after defining PLCB_t*/
@@ -146,24 +135,33 @@ typedef enum {
     PLCB_CTORIDX_CONNSTR,
     PLCB_CTORIDX_PASSWORD,
     PLCB_CTORIDX_MYFLAGS,
-    PLCB_CTORIDX_STOREFLAGS,
-    
-    PLCB_CTORIDX_COMP_THRESHOLD,
-    PLCB_CTORIDX_COMP_METHODS,
     PLCB_CTORIDX_SERIALIZE_METHODS,
-    
+    PLCB_CTORIDX_JSON_METHODS,
     PLCB_CTORIDX_NO_CONNECT,
-    PLCB_CTORIDX_JSON_ENCODE_METHOD,
-    PLCB_CTORIDX_JSON_VERIFY_METHOD,
-    
-    PLCB_CTORIDX_STDIDX_MAX = PLCB_CTORIDX_JSON_VERIFY_METHOD
+    PLCB_CTORIDX_STDIDX_MAX
     
 } PLCB_ctor_idx_t;
 
 typedef enum {
-    PLCB_CONVERT_SPEC_NONE = 0,
-    PLCB_CONVERT_SPEC_JSON
+    PLCB_CONVERT_SPEC_JSON = 0x00 << 3,
+    PLCB_CONVERT_SPEC_STORABLE = 0x01 << 3,
+    PLCB_CONVERT_SPEC_RAW = 0x03 << 3,
+    PLCB_CONVERT_SPEC_UTF8 = 0x04 << 3,
 } plcb_conversion_spec_t;
+
+/* Magic bit */
+#define PLCB_CONVERT_F_MAGIC 0x80000000
+#define PLCB_CONVERT_MASK_FMT 0x78
+#define PLCB_CONVERT_MASK_COMP 0x0F
+
+typedef struct {
+    SV *value;
+    uint32_t flags;
+    short spec;
+    short need_free;
+    const char *encoded;
+    size_t len;
+} plcb_vspec_t;
 
 typedef time_t PLCB_exp_t;
 
@@ -179,15 +177,12 @@ void plcb_cleanup(PLCB_t *object);
 
 /*conversion functions*/
 void
-plcb_convert_storage(PLCB_t* object, SV **input_sv, STRLEN *data_len,
-    uint32_t *flags, plcb_conversion_spec_t spec);
+plcb_convert_storage(PLCB_t* object, plcb_vspec_t *vspec);
 
-void plcb_convert_storage_free(PLCB_t *object, SV *output_sv, uint32_t flags);
+void plcb_convert_storage_free(PLCB_t *object, plcb_vspec_t *vspec);
 SV*
 plcb_convert_retrieval(PLCB_t *object, const char *data, size_t data_len,
     uint32_t flags);
-
-int plcb_convert_settings(PLCB_t *object, int flag, int new_value);
 
 
 /**
