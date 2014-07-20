@@ -44,6 +44,11 @@ typedef enum {
     /* Like a string, but ensure it's not empty */
     PLCB_ARG_T_STRING_NN,
 
+    /* A NUL-terminated string */
+    PLCB_ARG_T_CSTRING,
+
+    PLCB_ARG_T_CSTRING_NN,
+
     /* Consume an element but ignore the argument */
     PLCB_ARG_T_PAD
 } plcb_argtype_t;

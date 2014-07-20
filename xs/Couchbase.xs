@@ -19,16 +19,22 @@ void plcb_cleanup(PLCB_t *object)
 }
 
 /*Construct a new libcouchbase object*/
-SV *PLCB_construct(const char *pkg, AV *options)
+static SV *
+PLCB_construct(const char *pkg, HV *hvopts)
 {
     lcb_t instance;
     lcb_error_t err;
     struct lcb_create_st cr_opts = { 0 };
     SV *blessed_obj;
     PLCB_t *object;
+    plcb_argval_t options[] = {
+        PLCB_KWARG("connstr", CSTRING, &cr_opts.v.v3.connstr),
+        PLCB_KWARG("password", CSTRING, &cr_opts.v.v3.passwd),
+        { NULL }
+    };
 
     cr_opts.version = 3;
-    plcb_ctor_cbc_opts(options, &cr_opts);
+    plcb_extract_args((SV*)hvopts, options);
     err = lcb_create(&instance, &cr_opts);
 
     if (!instance) {
@@ -36,22 +42,24 @@ SV *PLCB_construct(const char *pkg, AV *options)
     }
 
     Newxz(object, 1, PLCB_t);
-
-    plcb_ctor_conversion_opts(object, options);
-    plcb_ctor_init_common(object, instance, options);
-
     lcb_set_cookie(instance, object);
+    object->instance = instance;
 
     plcb_callbacks_setup(object);
     plcb_couch_callbacks_setup(object);
 
+    #define get_stash_assert(stashname, target) \
+        if (! (object->target = gv_stashpv(stashname, 0)) ) { \
+            die("Couldn't load '%s'", stashname); \
+        }
+
+    get_stash_assert(PLCB_RET_CLASSNAME, ret_stash);
+    get_stash_assert(PLCB_ITER_CLASSNAME, iter_stash);
+    get_stash_assert(PLCB_COUCH_HANDLE_INFO_CLASSNAME, handle_av_stash);
+
+
     blessed_obj = newSV(0);
     sv_setiv(newSVrv(blessed_obj, "Couchbase::Bucket"), PTR2IV(object));
-
-    if ( (object->my_flags & PLCBf_NO_CONNECT) == 0) {
-        PLCB_connect(object);
-    }
-
     return blessed_obj;
 }
 
@@ -82,14 +90,61 @@ PLCB_connect(PLCB_t *object)
     return 0;
 }
 
+static void
+get_converter_pointers(PLCB_t *object, int type, SV ***cv_encode, SV ***cv_decode)
+{
+    if (type == PLCB_CONVERTERS_CUSTOM) {
+        *cv_encode = &object->cv_customenc;
+        *cv_decode = &object->cv_customdec;
+    } else if (type == PLCB_CONVERTERS_JSON) {
+        *cv_encode = &object->cv_jsonenc;
+        *cv_decode = &object->cv_jsondec;
+    } else if (type == PLCB_CONVERTERS_STORABLE) {
+        *cv_encode = &object->cv_serialize;
+        *cv_decode = &object->cv_deserialize;
+    } else {
+        die("Unrecognized converter type %d", type);
+    }
+}
+
+static void
+PLCB__set_converters(PLCB_t *object, int type, CV *encode, CV *decode)
+{
+    SV **cv_encode, **cv_decode;
+    get_converter_pointers(object, type, &cv_encode, &cv_decode);
+    if (*cv_encode) {
+        SvREFCNT_dec(*cv_encode);
+    }
+    if (*cv_decode) {
+        SvREFCNT_dec(*cv_decode);
+    }
+    SvREFCNT_inc(encode);
+    SvREFCNT_inc(decode);
+    *cv_encode = (SV*)encode;
+    *cv_decode = (SV*)decode;
+}
+
+SV *
+PLCB__get_converters(PLCB_t *object, int type)
+{
+    SV **cv_encode, **cv_decode;
+    SV *my_encode, *my_decode;
+    AV *ret;
+    return NULL;
+}
+
 MODULE = Couchbase PACKAGE = Couchbase::Bucket    PREFIX = PLCB_
 
 PROTOTYPES: DISABLE
 
 SV *
-PLCB_construct(pkg, options)
-    const char *pkg
-    AV *options
+PLCB_construct(const char *pkg, HV *options)
+
+int
+PLCB_connect(PLCB_t *object)
+
+void
+PLCB__set_converters(PLCB_t *object, int type, CV *encode, CV *decode)
 
 void
 PLCB_DESTROY(PLCB_t *object)
@@ -197,9 +252,6 @@ PLCB__new_viewhandle(PLCB_XS_OBJPAIR_t self, stash)
     CODE:
     RETVAL = plcb_couch_handle_new(stash, self.sv, self.ptr);
     OUTPUT: RETVAL
-
-int
-PLCB_connect(PLCB_t *self)
 
 
 MODULE = Couchbase PACKAGE = Couchbase    PREFIX = PLCB_

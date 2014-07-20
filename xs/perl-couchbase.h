@@ -28,6 +28,12 @@ typedef enum {
 #define PLCB_SYNCf_MULTIRET 0x02
 #define PLCB_SYNCf_STOREDUR 0x03
 
+typedef enum {
+    PLCB_CONVERTERS_CUSTOM = 1,
+    PLCB_CONVERTERS_JSON,
+    PLCB_CONVERTERS_STORABLE
+} PLCB_converters_t;
+
 #define PLCB_SYNC_BASE \
     PLCB_t *parent; /**< Parent object */ \
     unsigned type : 2; /**< Type of context */ \
@@ -126,21 +132,6 @@ struct PLCB_st {
 #include "plcb-schedctx.h"
 #include "plcb-args.h"
 #include "plcb-commands.h"
-
-
-/*Change this #define to the last index used by the 'default' constructor*/
-#define PLCB_CTOR_STDIDX_MAX 10
-
-typedef enum {
-    PLCB_CTORIDX_CONNSTR,
-    PLCB_CTORIDX_PASSWORD,
-    PLCB_CTORIDX_MYFLAGS,
-    PLCB_CTORIDX_SERIALIZE_METHODS,
-    PLCB_CTORIDX_JSON_METHODS,
-    PLCB_CTORIDX_NO_CONNECT,
-    PLCB_CTORIDX_STDIDX_MAX
-    
-} PLCB_ctor_idx_t;
 
 typedef enum {
     PLCB_CONVERT_SPEC_JSON = 0x00 << 3,

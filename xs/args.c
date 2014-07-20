@@ -120,6 +120,17 @@ convert_valspec(plcb_argval_t *dst, SV *src)
         break;
     }
 
+    case PLCB_ARG_T_CSTRING:
+    case PLCB_ARG_T_CSTRING_NN: {
+        *(const char **)dst->value = SvPV_nolen(src);
+        if (dst->type == PLCB_ARG_T_CSTRING_NN) {
+            if (dst->value == NULL|| *(const char*)dst->value == '\0') {
+                die("Value passed must not be empty for %s", dst->key);
+            }
+        }
+        break;
+    }
+
     default:
         return -1;
         break;
@@ -135,6 +146,10 @@ plcb_extract_args(SV *sv, plcb_argval_t *values)
 {
     char *cur_key;
     I32 klen;
+    if (SvROK(sv)) {
+        sv = SvRV(sv);
+    }
+
     if (SvTYPE(sv) == SVt_PVAV) {
         AV *av = (AV*)sv;
         plcb_argval_t *cur = values;

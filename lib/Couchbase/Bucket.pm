@@ -2,10 +2,10 @@ package Couchbase::Bucket;
 use strict;
 use warnings;
 
+use Couchbase;
 use Couchbase::DocIterator;
 use Couchbase::Client::IDXConst;
 use Couchbase::Document;
-
 use Couchbase::Couch::Base;
 use Couchbase::Couch::Handle;
 use Couchbase::Couch::HandleInfo;
@@ -24,15 +24,15 @@ sub _js_decode { $_JSON->decode($_[0]) }
 sub new {
     my ($pkg, $connstr, $opts) = @_;
     $opts ||= {};
+    my %options = (connstr => $connstr);
 
-    my @arglist = ();
-    $arglist[CTORIDX_STDIDX_MAX] = undef;
-    $arglist[CTORIDX_CONNSTR] = $connstr;
-    $arglist[CTORIDX_PASSWORD] = $opts->{password};
-    $arglist[CTORIDX_SERIALIZE_METHODS] = [\&Storable::freeze,\&Storable::thaw];
-    $arglist[CTORIDX_JSON_METHODS] = [\&_js_encode, \&_js_decode];
-
-    my $self = $pkg->construct(\@arglist);
+    if ($opts->{password}) {
+        $options{password} = $opts->{password};
+    }
+    my $self = $pkg->construct(\%options);
+    $self->connect();
+    $self->_set_converters(CONVERTERS_JSON, \&_js_encode, \&_js_decode);
+    $self->_set_converters(CONVERTERS_STORABLE, \&Storable::freeze, \&Storable::thaw);
     return $self;
 }
 

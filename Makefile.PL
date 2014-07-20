@@ -62,7 +62,6 @@ $MM_Options{CONFIGURE} = sub {
         args
         callbacks
         convert
-        ctor
         operations
         schedctx
         viewhandle);

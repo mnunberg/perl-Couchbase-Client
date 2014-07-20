@@ -13,15 +13,6 @@ include "sys/types.h";
 include "perl-couchbase.h";
 
 my @const_bases = qw(
-    CTORIDX_CONNSTR
-    CTORIDX_PASSWORD
-    CTORIDX_MYFLAGS
-
-    CTORIDX_SERIALIZE_METHODS
-    CTORIDX_JSON_METHODS
-    CTORIDX_NO_CONNECT
-    CTORIDX_STDIDX_MAX
-
     RETIDX_VALUE
     RETIDX_ERRSTR
     RETIDX_CAS
@@ -41,6 +32,10 @@ my @const_bases = qw(
     ROWIDX_CBO
     ROWIDX_DOCID
     ROWIDX_REV
+
+    CONVERTERS_JSON
+    CONVERTERS_CUSTOM
+    CONVERTERS_STORABLE
 );
 
 constant("PLCB_$_", name => $_) for (@const_bases);
