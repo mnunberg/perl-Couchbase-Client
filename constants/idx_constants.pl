@@ -36,6 +36,12 @@ my @const_bases = qw(
     CONVERTERS_JSON
     CONVERTERS_CUSTOM
     CONVERTERS_STORABLE
+
+    SETTING_INT
+    SETTING_UINT
+    SETTING_U32
+    SETTING_SIZE
+    SETTING_TIMEOUT
 );
 
 constant("PLCB_$_", name => $_) for (@const_bases);

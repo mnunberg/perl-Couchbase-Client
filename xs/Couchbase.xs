@@ -124,14 +124,107 @@ PLCB__set_converters(PLCB_t *object, int type, CV *encode, CV *decode)
     *cv_decode = (SV*)decode;
 }
 
-SV *
+static SV *
 PLCB__get_converters(PLCB_t *object, int type)
 {
     SV **cv_encode, **cv_decode;
     SV *my_encode, *my_decode;
     AV *ret;
-    return NULL;
+    get_converter_pointers(object, type, &cv_encode, &cv_decode);
+    if ((my_encode = *cv_encode)) {
+        my_encode = newRV_inc(my_encode);
+    } else {
+        my_encode = &PL_sv_undef; SvREFCNT_inc(my_encode);
+    }
+    if ((my_decode = *cv_decode)) {
+        my_decode = newRV_inc(my_decode);
+    } else {
+        my_decode = &PL_sv_undef; SvREFNCT_inc(my_decode);
+    }
+    ret = newAV();
+    av_push(ret, my_encode);
+    av_push(ret, my_decode);
+    return newRV_noinc((SV*)ret);
 }
+
+/* lcb_cntl() APIs */
+static void
+PLCB__cntl_set(PLCB_t *object, int setting, int type, SV *value)
+{
+    lcb_error_t err;
+    void *p = NULL;
+    union {
+        float floatval;
+        int intval;
+        unsigned uintval;
+        size_t sizeval;
+        uint32_t u32val;
+    } u;
+    p = &u;
+
+    if (!SvOK(value)) {
+        die("Passed empty value");
+    }
+
+    if (type == PLCB_SETTING_INT) {
+        u.intval = SvIV(value);
+    } else if (type == PLCB_SETTING_UINT) {
+        u.uintval = SvUV(value);
+    } else if (type == PLCB_SETTING_U32) {
+        u.u32val = SvUV(value);
+    } else if (type == PLCB_SETTING_SIZE) {
+        u.sizeval = SvUV(value);
+    } else if (type == PLCB_SETTING_TIMEOUT) {
+        u.u32val = SvNV(value) * 1000000;
+    } else if (type == PLCB_SETTING_STRING) {
+        p = SvPV_nolen(value);
+    } else {
+        die("Unrecognized type code %d", type);
+    }
+    err = lcb_cntl(object->instance, LCB_CNTL_SET, setting, p);
+    if (err != LCB_SUCCESS) {
+        warn("Failed to set setting=%d, type=%d", setting, type);
+    }
+}
+
+static SV *
+PLCB__cntl_get(PLCB_t *object, int setting, int type)
+{
+    lcb_error_t err;
+    void *p = NULL;
+    union {
+        float floatval;
+        int intval;
+        unsigned uintval;
+        size_t sizeval;
+        uint32_t u32val;
+        const char *strval;
+    } u;
+
+    err = lcb_cntl(object->instance, LCB_CNTL_GET, setting, &u);
+    if (err != LCB_SUCCESS) {
+        warn("Couldn't set setting=%d, type=%d: %s", setting, type, lcb_strerror(NULL, err));
+        SvREFCNT_inc(&PL_sv_undef);
+        return &PL_sv_undef;
+    }
+
+    if (type == PLCB_SETTING_INT) {
+        return newSViv(u.intval);
+    } else if (type == PLCB_SETTING_UINT) {
+        return newSVuv(u.uintval);
+    } else if (type == PLCB_SETTING_U32) {
+        return newSVuv(u.u32val);
+    } else if (type == PLCB_SETTING_SIZE) {
+        return newSVuv(u.sizeval);
+    } else if (type == PLCB_SETTING_TIMEOUT) {
+        return newSVnv((float)u.u32val / 1000000.0);
+    } else if (type == PLCB_SETTING_STRING) {
+        return newSVpvn(u.strval, 0);
+    } else {
+        die("Unknown type %d", type);
+    }
+}
+
 
 MODULE = Couchbase PACKAGE = Couchbase::Bucket    PREFIX = PLCB_
 
@@ -145,6 +238,12 @@ PLCB_connect(PLCB_t *object)
 
 void
 PLCB__set_converters(PLCB_t *object, int type, CV *encode, CV *decode)
+
+void
+PLCB__cntl_set(PLCB_t *object, int setting, int type, SV *value)
+
+SV *
+PLCB__cntl_get(PLCB_t *object, int setting, int type)
 
 void
 PLCB_DESTROY(PLCB_t *object)

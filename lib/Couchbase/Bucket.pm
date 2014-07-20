@@ -10,6 +10,7 @@ use Couchbase::Couch::Base;
 use Couchbase::Couch::Handle;
 use Couchbase::Couch::HandleInfo;
 use Couchbase::Couch::Design;
+use Couchbase::Settings;
 use JSON;
 use JSON::SL;
 use Data::Dumper;
@@ -34,6 +35,12 @@ sub new {
     $self->_set_converters(CONVERTERS_JSON, \&_js_encode, \&_js_decode);
     $self->_set_converters(CONVERTERS_STORABLE, \&Storable::freeze, \&Storable::thaw);
     return $self;
+}
+
+sub settings {
+    my $self = shift;
+    tie my %h, 'Couchbase::Settings', $self;
+    return \%h;
 }
 
 # Helper Methods

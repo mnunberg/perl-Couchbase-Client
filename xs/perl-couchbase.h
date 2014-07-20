@@ -34,6 +34,15 @@ typedef enum {
     PLCB_CONVERTERS_STORABLE
 } PLCB_converters_t;
 
+typedef enum {
+    PLCB_SETTING_INT,
+    PLCB_SETTING_UINT,
+    PLCB_SETTING_U32,
+    PLCB_SETTING_SIZE,
+    PLCB_SETTING_STRING,
+    PLCB_SETTING_TIMEOUT
+} PLCB_setting_code;
+
 #define PLCB_SYNC_BASE \
     PLCB_t *parent; /**< Parent object */ \
     unsigned type : 2; /**< Type of context */ \
