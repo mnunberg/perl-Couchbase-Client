@@ -30,7 +30,7 @@ sub STORE {
         warn("Unknown key $key");
         return;
     }
-    tied($self)->{_cbo}->_cntl_set($spec->[0], $spec->[1], $value);
+    $self->{_cbo}->_cntl_set($spec->[0], $spec->[1], $value);
 }
 
 sub FETCH {
