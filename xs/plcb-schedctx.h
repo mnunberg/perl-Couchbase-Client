@@ -11,6 +11,7 @@ typedef struct {
         lcb_CMDSTORE store;
         lcb_CMDTOUCH touch;
         lcb_CMDCOUNTER counter;
+        lcb_CMDOBSERVE observe;
     } u_template;
 
     SV *keys;
@@ -88,6 +89,8 @@ typedef void (*plcb_iter_cb)(PLCB_schedctx_t *iter,
 
 /* Internal flag set _if_ the SV is actually a single value */
 #define PLCB_ARGITERf_SINGLE 0x08
+
+#define PLCB_ARGITERf_DUP_RET 0x10
 
 /**
  * Initalize the iterator for the list of keys. The iterator

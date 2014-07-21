@@ -420,3 +420,22 @@ PLCB_args_set(PLCB_t *object, SV *doc, SV *options, lcb_CMDSTORE *scmd,
     }
     return 0;
 }
+
+int
+PLCB_args_observe(PLCB_t *object, SV *doc, SV *options, lcb_CMDOBSERVE *ocmd,
+    PLCB_schedctx_t *ctx)
+{
+    int master_only = 0;
+    plcb_argval_t opt_specs[] = {
+        PLCB_KWARG("master_only", BOOL, &master_only),
+        { NULL }
+    };
+    if (!options) {
+        return;
+    }
+    plcb_extract_args(options, opt_specs);
+    if (master_only) {
+        ocmd->cmdflags |= LCB_CMDOBSERVE_F_MASTER_ONLY;
+    }
+    return 0;
+}

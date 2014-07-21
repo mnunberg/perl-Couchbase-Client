@@ -15,6 +15,7 @@
 
 #define PLCB_COMMANDf_SINGLE 0x100
 #define PLCB_COMMANDf_MULTI 0x200
+#define PLCB_COMMANDf_CUSTOMRET 0x300
 
 /* Mask for only the command itself */
 #define PLCB_COMMAND_MASK 0xff
@@ -42,12 +43,14 @@
     X(DECR, 0) \
     X(ARITHMETIC, 0) \
     X(GAT, 0) \
+    X(OBSERVE, 0) \
     \
     X(CAS, 0) \
     \
     X(STATS, 0) \
     X(FLUSH, 0) \
     X(VERSION, 0) \
+    X(ENDURE, 0)
 
 
 #define X_ALL \

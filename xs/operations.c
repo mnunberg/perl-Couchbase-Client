@@ -210,3 +210,47 @@ PLCB_op_unlock(PLCB_t *object, PLCB_args_t *args)
 
     return plcb_schedctx_return(&ctx);
 }
+
+static void
+observe_argiter_cb(PLCB_schedctx_t *ctx, const char *key, lcb_SIZE nkey,
+    SV *doc, SV *opts)
+{
+    lcb_CMDOBSERVE ocmd = { 0 };
+    lcb_MULTICMD_CTX *mctx = ctx->priv;
+    ocmd = ctx->args->u_template.observe;
+
+    LCB_CMD_SET_KEY(&ocmd, key, nkey);
+
+    ctx->err = mctx->addcmd(mctx, (lcb_CMDBASE *)&ocmd);
+    if (ctx->err != LCB_SUCCESS) {
+        ctx->loop = 0;
+    }
+}
+
+SV*
+PLCB_op_observe(PLCB_t *object, PLCB_args_t *args)
+{
+    PLCB_schedctx_t ctx = { NULL };
+    lcb_MULTICMD_CTX *mctx;
+
+    ctx.flags = PLCB_ARGITERf_DUP_RET;
+
+    plcb_schedctx_init_common(object, args, NULL, &ctx);
+    if (args->cmdopts) {
+        PLCB_args_observe(object, NULL,
+            (SV *)args->cmdopts, &args->u_template.observe, &ctx);
+    }
+
+    mctx = lcb_observe3_ctxnew(object->instance);
+    ctx.priv = mctx;
+    plcb_schedctx_iter_start(&ctx);
+    plcb_schedctx_iter_run(&ctx, observe_argiter_cb);
+
+    if (ctx.err == LCB_SUCCESS) {
+        mctx->done(mctx, ctx.cookie);
+    } else {
+        mctx->fail(mctx);
+        plcb_schedctx_iter_bail(&ctx, ctx.err);
+    }
+    return plcb_schedctx_return(&ctx);
+}

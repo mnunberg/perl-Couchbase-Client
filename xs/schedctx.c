@@ -16,14 +16,19 @@ plcb_schedctx_init_common(PLCB_t *obj, PLCB_args_t *args,
         sync = ctx->sync;
         sync->parent = obj;
     }
-
     if (args->cmd & PLCB_COMMANDf_MULTI) {
         sync->u.multiret = newHV();
         sync->type = PLCB_SYNCTYPE_MULTI;
         sync->flags = PLCB_SYNCf_MULTIRET;
         SAVEFREESV(sync->u.multiret);
     } else {
-        sync->u.ret = (AV*)SvRV(args->keys);
+        if (ctx->flags & PLCB_ARGITERf_DUP_RET) {
+            sync->u.ret = newAV();
+            SAVEFREESV(sync->u.ret);
+        } else {
+            sync->u.ret = (AV*)SvRV(args->keys);
+        }
+
         sync->type = PLCB_SYNCTYPE_SINGLE;
         sync->flags = PLCB_SYNCf_SINGLERET;
     }
@@ -46,8 +51,13 @@ plcb_schedctx_return(PLCB_schedctx_t *ctx)
     }
 
     if (sync->type == PLCB_SYNCTYPE_SINGLE) {
-        ret = ctx->obj;
-        SvREFCNT_inc(ctx->obj);
+        if (ctx->flags & PLCB_ARGITERf_DUP_RET) {
+            SvREFCNT_inc(sync->u.ret);
+            ret = plcb_ret_blessed_rv(ctx->parent, sync->u.ret);
+        } else {
+            ret = ctx->obj;
+            SvREFCNT_inc(ctx->obj);
+        }
     } else {
         SvREFCNT_inc((SV*)sync->u.multiret);
         ret = newRV_noinc((SV*)sync->u.multiret);
@@ -146,8 +156,22 @@ handle_current_item(PLCB_schedctx_t *ctx, SV *elem, plcb_iter_cb callback)
     }
 
     key_from_ret(docsv, &key, &nkey);
-    hv_store(ctx->sync->u.multiret, key, nkey, docsv, 0);
-    SvREFCNT_inc(docsv);
+
+    if (ctx->flags & PLCB_ARGITERf_DUP_RET) {
+        SV **existing;
+        /* Fetch to see if it does not already exist */
+        existing = hv_fetch(ctx->sync->u.multiret, key, nkey, 1);
+        if (!SvOK(*existing)) {
+            SV *copy;
+            AV *newret = newAV();
+            copy = plcb_ret_blessed_rv(ctx->parent, newret);
+            SvSetSV(*existing, copy);
+        }
+    } else {
+        hv_store(ctx->sync->u.multiret, key, nkey, docsv, 0);
+        SvREFCNT_inc(docsv);
+    }
+
     callback(ctx, key, nkey, docsv, optsv);
     return 1;
 }

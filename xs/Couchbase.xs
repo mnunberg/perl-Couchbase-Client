@@ -324,6 +324,24 @@ PLCB_remove_multi(PLCB_t *self, SV *keys, ...)
     OUTPUT: RETVAL
 
 SV *
+PLCB_observe_multi(PLCB_t *self, SV *keys, ...)
+    CODE:
+    PLCB_args_t args = { PLCB_CMD_MULTI_OBSERVE };
+    PLCB_ARGS_FROM_STACK(2, &args, "observe_multi(docs, options)");
+    args.keys = keys;
+    RETVAL = PLCB_op_observe(self, &args);
+    OUTPUT: RETVAL
+
+SV *
+PLCB_observe(PLCB_t *self, SV *keys, ...)
+    CODE:
+    PLCB_args_t args = { PLCB_CMD_SINGLE_OBSERVE };
+    PLCB_ARGS_FROM_STACK(2, &args, "observe(key, options)");
+    args.keys = keys;
+    RETVAL = PLCB_op_observe(self, &args);
+    OUTPUT: RETVAL
+
+SV *
 PLCB_cluster_nodes(PLCB_t *object)
     PREINIT:
     AV *retav;

@@ -86,11 +86,13 @@ observe_callback(lcb_t instance, int cbtype, const lcb_RESPOBSERVE *resp)
     SV *tmp;
     HV *obsinfo;
 
-    get_resobj((const lcb_RESPBASE*)resp, &sync, &resobj);
+    sync = resp->cookie;
     if (resp->rflags & LCB_RESP_F_FINAL) {
         plcb_evloop_wait_unref(sync->parent);
         return;
     }
+
+    get_resobj((const lcb_RESPBASE*)resp, &sync, &resobj);
 
     if (resp->rc != LCB_SUCCESS) {
         return;
