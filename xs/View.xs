@@ -9,17 +9,15 @@ PLCBCH_prepare(PLCB_viewhandle_t *handle, const char* method, \
     PLCB_XS_STRING_NONULL_t path, PLCB_XS_STRING_t body)
 
     CODE:
-    plcb_couch_handle_execute_chunked_init(handle, method,
-            path.base, path.len, body.base, body.len);
+    plcb_vh_iter_start(handle, method, path.base, path.len, body.base, body.len);
     av_store(handle->plpriv, PLCB_COUCHIDX_PATH, newSVsv(path.origsv));
     CLEANUP:
     /* Nothing here */
 
 int
 PLCBCH__iter_step(PLCB_viewhandle_t *handle)
-
     CODE:
-    RETVAL = plcb_couch_handle_execute_chunked_step(handle);
+    RETVAL = plcb_vh_iter_step(handle);
     OUTPUT: RETVAL
 
 
@@ -29,26 +27,23 @@ PLCBCH_slurp(PLCB_viewhandle_t *handle, const char* method, \
 
     CODE:
     av_store(handle->plpriv, PLCB_COUCHIDX_PATH, newSVsv(path.origsv));
-    plcb_couch_handle_execute_all(handle, method,
-            path.base, path.len, body.base, body.len);
+    plcb_vh_slurp(handle, method, path.base, path.len, body.base, body.len);
 
 void
 PLCBCH_stop(PLCB_viewhandle_t *handle)
     CODE:
-    plcb_couch_handle_finish(handle);
+    plcb_vh_iter_finish(handle);
 
 SV *
 PLCBCH_info(PLCB_viewhandle_t *handle)
-
     CODE:
     RETVAL = newRV_inc((SV*)handle->plpriv);
     OUTPUT: RETVAL
 
 void
 PLCBCH_DESTROY(PLCB_viewhandle_t *handle)
-
     CODE:
-    plcb_couch_handle_free(handle);
+    plcb_vh_free(handle);
 
 SV *
 PLCBCH_error(PLCB_viewhandle_t *handle)

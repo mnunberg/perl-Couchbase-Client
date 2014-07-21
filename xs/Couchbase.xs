@@ -46,7 +46,7 @@ PLCB_construct(const char *pkg, HV *hvopts)
     object->instance = instance;
 
     plcb_callbacks_setup(object);
-    plcb_couch_callbacks_setup(object);
+    plcb_vh_callbacks_setup(object);
 
     #define get_stash_assert(stashname, target) \
         if (! (object->target = gv_stashpv(stashname, 0)) ) { \
@@ -225,7 +225,6 @@ PLCB__cntl_get(PLCB_t *object, int setting, int type)
     }
 }
 
-
 MODULE = Couchbase PACKAGE = Couchbase::Bucket    PREFIX = PLCB_
 
 PROTOTYPES: DISABLE
@@ -349,7 +348,7 @@ PLCB__new_viewhandle(PLCB_XS_OBJPAIR_t self, stash)
     HV *stash
     
     CODE:
-    RETVAL = plcb_couch_handle_new(stash, self.sv, self.ptr);
+    RETVAL = plcb_vh_new(stash, self.sv, self.ptr);
     OUTPUT: RETVAL
 
 

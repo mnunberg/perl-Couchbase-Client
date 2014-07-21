@@ -134,7 +134,7 @@ typedef enum {
      * used to avoid multiple calls to evloop_wait_unref()
      */
     PLCB_COUCHREQf_STOPITER_NOOP = 1 << 6
-} plcb_couch_reqflags_t;
+} plcb_vh_reqflags_t;
 
 
 typedef struct {    
@@ -143,7 +143,7 @@ typedef struct {
     AV *plpriv;
     
     lcb_http_request_t lcb_request;
-    plcb_couch_reqflags_t flags;
+    plcb_vh_reqflags_t flags;
     
     PLCB_t *parent;
 
@@ -152,33 +152,33 @@ typedef struct {
 } PLCB_viewhandle_t;
 
 
-void plcb_couch_callbacks_setup(PLCB_t *object);
+void plcb_vh_callbacks_setup(PLCB_t *object);
 
 /**
  * Create a new handle. stash is the subclass in which the handle
  * should be blessed, cbo_sv is a Couchbase::Client object (whose reference
  * count will be incremented) and cbo is the C-level parent object
  */
-SV *plcb_couch_handle_new(HV *stash, SV *cbo_sv, PLCB_t *cbo);
+SV *plcb_vh_new(HV *stash, SV *cbo_sv, PLCB_t *cbo);
 
-void plcb_couch_handle_free(PLCB_viewhandle_t *handle);
+void plcb_vh_free(PLCB_viewhandle_t *handle);
 
 /* Non-chunked */
 void
-plcb_couch_handle_execute_all(PLCB_viewhandle_t *handle, const char *method,
+plcb_vh_slurp(PLCB_viewhandle_t *handle, const char *method,
     const char *path, size_t npath, const char *body, size_t nbody);
 
 /* Chunked, prepare the handle */
-void plcb_couch_handle_execute_chunked_init(PLCB_viewhandle_t *handle,
+void plcb_vh_iter_start(PLCB_viewhandle_t *handle,
     const char *method, const char *path, size_t npath, const char *body,
     size_t nbody);
 
 
 /* Chunked, wait until callback signal is done */
-int plcb_couch_handle_execute_chunked_step(PLCB_viewhandle_t *handle);
+int plcb_vh_iter_step(PLCB_viewhandle_t *handle);
 
 /* Cancel a request. If the request is not yet active then nothing happens */
-void plcb_couch_handle_finish(PLCB_viewhandle_t *handle);
+void plcb_vh_iter_finish(PLCB_viewhandle_t *handle);
 
 
 #endif /* PERL_COUCHBASE_VIEWS_H_ */

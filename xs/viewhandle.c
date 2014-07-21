@@ -150,7 +150,7 @@ static void data_callback(lcb_t instance, int cbtype, const lcb_RESPHTTP *resp)
  * simply appending data.
  */
 
-SV* plcb_couch_handle_new(HV *stash, SV *cbo_sv, PLCB_t *cbo)
+SV* plcb_vh_new(HV *stash, SV *cbo_sv, PLCB_t *cbo)
 {
     SV *my_iv;
     SV *blessed_rv;
@@ -179,7 +179,7 @@ SV* plcb_couch_handle_new(HV *stash, SV *cbo_sv, PLCB_t *cbo)
     return blessed_rv;
 }
 
-void plcb_couch_handle_free(PLCB_viewhandle_t *handle)
+void plcb_vh_free(PLCB_viewhandle_t *handle)
 {
     if (handle->lcb_request) {
         lcb_cancel_http_request(handle->parent->instance, handle->lcb_request);
@@ -198,7 +198,7 @@ void plcb_couch_handle_free(PLCB_viewhandle_t *handle)
     Safefree(handle);
 }
 
-void plcb_couch_handle_finish(PLCB_viewhandle_t *handle)
+void plcb_vh_iter_finish(PLCB_viewhandle_t *handle)
 {
     if (handle->flags & PLCB_COUCHREQf_TERMINATED) {
         /* already stopped */
@@ -247,7 +247,7 @@ static void make_http_cmd(const char* method, const char *path, size_t npath,
  * arrived. This is less complex and more performant than the incremental
  * variant
  */
-void plcb_couch_handle_execute_all(PLCB_viewhandle_t *handle,
+void plcb_vh_slurp(PLCB_viewhandle_t *handle,
     const char* method, const char *path, size_t npath, const char *body,
     size_t nbody)
 {
@@ -273,7 +273,7 @@ void plcb_couch_handle_execute_all(PLCB_viewhandle_t *handle,
 /**
  * Initializes a handle for chunked/iterative invocation
  */
-void plcb_couch_handle_execute_chunked_init(PLCB_viewhandle_t *handle,
+void plcb_vh_iter_start(PLCB_viewhandle_t *handle,
     const char* method, const char *path, size_t npath, const char *body,
     size_t nbody)
 {
@@ -303,7 +303,7 @@ void plcb_couch_handle_execute_chunked_init(PLCB_viewhandle_t *handle,
  * Returns true if we did something, or 0 if we couldn't
  */
 
-int plcb_couch_handle_execute_chunked_step(PLCB_viewhandle_t *handle)
+int plcb_vh_iter_step(PLCB_viewhandle_t *handle)
 {
     if (handle->flags & PLCB_COUCHREQf_TERMINATED) {
         return 0;
@@ -317,7 +317,7 @@ int plcb_couch_handle_execute_chunked_step(PLCB_viewhandle_t *handle)
     return ((handle->flags & PLCB_COUCHREQf_TERMINATED) == 0);
 }
 
-void plcb_couch_callbacks_setup(PLCB_t *object)
+void plcb_vh_callbacks_setup(PLCB_t *object)
 {
     lcb_install_callback3(object->instance, LCB_CALLBACK_HTTP,
         (lcb_RESPCALLBACK)data_callback);
