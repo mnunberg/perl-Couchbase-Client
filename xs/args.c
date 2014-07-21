@@ -439,3 +439,20 @@ PLCB_args_observe(PLCB_t *object, SV *doc, SV *options, lcb_CMDOBSERVE *ocmd,
     }
     return 0;
 }
+
+int
+PLCB_args_endure(PLCB_t *object, SV *doc, SV *options, lcb_CMDENDURE *dcmd,
+    PLCB_schedctx_t *ctx)
+{
+    plcb_argval_t opt_docs [] = {
+            PLCB_KWARG(PLCB_ARG_K_CAS, CAS, &dcmd->cas),
+            { NULL }
+    };
+
+    if (!doc) {
+        return;
+    }
+
+    load_doc_options(object, doc, opt_docs);
+    return 0;
+}

@@ -254,3 +254,58 @@ PLCB_op_observe(PLCB_t *object, PLCB_args_t *args)
     }
     return plcb_schedctx_return(&ctx);
 }
+
+static void
+endure_argiter_cb(PLCB_schedctx_t *ctx, const char *key, lcb_SIZE nkey,
+    SV *doc, SV *opts)
+{
+    lcb_CMDENDURE dcmd = { 0 };
+    lcb_MULTICMD_CTX *mctx = ctx->priv;
+    LCB_CMD_SET_KEY(&dcmd, key, nkey);
+    PLCB_args_endure(ctx->parent, doc, opts, &dcmd, ctx);
+    ctx->err = mctx->addcmd(mctx, (lcb_CMDBASE*)&dcmd);
+    if (ctx->err != LCB_SUCCESS) {
+        ctx->loop = 0;
+    }
+}
+
+SV *
+PLCB_op_endure(PLCB_t *object, PLCB_args_t *args)
+{
+    lcb_durability_opts_t dopts = { 0 };
+    int persist_to = -1, replicate_to = -1;
+    PLCB_schedctx_t ctx = { NULL };
+
+    lcb_MULTICMD_CTX *mctx;
+    plcb_argval_t argspecs[] = {
+        PLCB_KWARG("persist_to", INT, &persist_to),
+        PLCB_KWARG("replicate_to", INT, &replicate_to),
+        { NULL }
+    };
+
+    /* Parse the arguments */
+    if (args->cmdopts) {
+        plcb_extract_args((SV*)args->cmdopts, argspecs);
+    }
+
+    plcb_schedctx_init_common(object, args, NULL, &ctx);
+    plcb_schedctx_iter_start(&ctx);
+
+    dopts.v.v0.cap_max = 1;
+    dopts.v.v0.persist_to = persist_to;
+    dopts.v.v0.replicate_to = replicate_to;
+    mctx = lcb_endure3_ctxnew(object->instance, &dopts, &ctx.err);
+    if (mctx == NULL) {
+        plcb_schedctx_iter_bail(&ctx, ctx.err);
+        return plcb_schedctx_return(&ctx);
+    }
+    ctx.priv = mctx;
+    plcb_schedctx_iter_run(&ctx, endure_argiter_cb);
+    if (ctx.err != LCB_SUCCESS) {
+        mctx->fail(mctx);
+        plcb_schedctx_iter_bail(&ctx, ctx.err);
+    } else {
+        mctx->done(mctx, ctx.cookie);
+    }
+    return plcb_schedctx_return(&ctx);
+}

@@ -104,6 +104,9 @@ PLCB_args_set(PLCB_t *object, SV *doc, SV *opts, lcb_CMDSTORE *cmd, PLCB_schedct
 int
 PLCB_args_observe(PLCB_t *object, SV *doc, SV *options, lcb_CMDOBSERVE *ocmd,
     PLCB_schedctx_t *ctx);
+int
+PLCB_args_endure(PLCB_t *object, SV *doc, SV *options, lcb_CMDENDURE *dcmd,
+    PLCB_schedctx_t *ctx);
 
 int
 PLCB_args_cas(PLCB_t *object, SV *opts, int nargs, lcb_CMDSTORE *scmd, PLCB_schedctx_t *Ctx);

@@ -70,6 +70,11 @@ callback_common(lcb_t instance, int cbtype, const lcb_RESPBASE *resp)
         plcb_evloop_wait_unref(sync->parent);
         break;
     }
+
+    case LCB_CALLBACK_ENDURE:
+        plcb_evloop_wait_unref(sync->parent);
+        break;
+
     default:
         abort();
         break;
@@ -164,6 +169,7 @@ plcb_callbacks_setup(PLCB_t *object)
     lcb_install_callback3(o, LCB_CALLBACK_REMOVE, callback_common);
     lcb_install_callback3(o, LCB_CALLBACK_COUNTER, callback_common);
     lcb_install_callback3(o, LCB_CALLBACK_UNLOCK, callback_common);
+    lcb_install_callback3(o, LCB_CALLBACK_ENDURE, callback_common);
 
     /* Special */
     lcb_install_callback3(o, LCB_CALLBACK_OBSERVE, (lcb_RESPCALLBACK)observe_callback);

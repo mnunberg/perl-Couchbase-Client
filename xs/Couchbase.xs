@@ -342,6 +342,29 @@ PLCB_observe(PLCB_t *self, SV *keys, ...)
     OUTPUT: RETVAL
 
 SV *
+PLCB_sync(PLCB_t *self, SV *key, HV *options)
+    ALIAS:
+    endure = 1
+
+    CODE:
+    PLCB_args_t args = { PLCB_CMD_SINGLE_ENDURE };
+    args.keys = key;
+    args.cmdopts = options;
+    RETVAL = PLCB_op_endure(self, &args);
+    OUTPUT: RETVAL
+
+SV *
+PLCB_sync_multi(PLCB_t *self, SV *kv, HV *options)
+    ALIAS:
+    endure_multi = 1
+    CODE:
+    PLCB_args_t args = { PLCB_CMD_MULTI_ENDURE };
+    args.keys = kv;
+    args.cmdopts = options;
+    RETVAL = PLCB_op_endure(self, &args);
+    OUTPUT: RETVAL
+
+SV *
 PLCB_cluster_nodes(PLCB_t *object)
     PREINIT:
     AV *retav;

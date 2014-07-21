@@ -196,6 +196,7 @@ SV *PLCB_op_get(PLCB_t*,PLCB_args_t*);
 SV *PLCB_op_set(PLCB_t*,PLCB_args_t*);
 SV *PLCB_op_remove(PLCB_t*,PLCB_args_t*);
 SV *PLCB_op_observe(PLCB_t *object, PLCB_args_t *args);
+SV *PLCB_op_endure(PLCB_t *object, PLCB_args_t *args);
 
 /**
  * XS prototypes.
