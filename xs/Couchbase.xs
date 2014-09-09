@@ -139,7 +139,7 @@ PLCB__get_converters(PLCB_t *object, int type)
     if ((my_decode = *cv_decode)) {
         my_decode = newRV_inc(my_decode);
     } else {
-        my_decode = &PL_sv_undef; SvREFNCT_inc(my_decode);
+        my_decode = &PL_sv_undef; SvREFCNT_inc(my_decode);
     }
     ret = newAV();
     av_push(ret, my_encode);
@@ -222,6 +222,7 @@ PLCB__cntl_get(PLCB_t *object, int setting, int type)
         return newSVpvn(u.strval, 0);
     } else {
         die("Unknown type %d", type);
+        return NULL;
     }
 }
 

@@ -431,7 +431,7 @@ PLCB_args_observe(PLCB_t *object, SV *doc, SV *options, lcb_CMDOBSERVE *ocmd,
         { NULL }
     };
     if (!options) {
-        return;
+        return 0;
     }
     plcb_extract_args(options, opt_specs);
     if (master_only) {
@@ -450,7 +450,7 @@ PLCB_args_endure(PLCB_t *object, SV *doc, SV *options, lcb_CMDENDURE *dcmd,
     };
 
     if (!doc) {
-        return;
+        return 0;
     }
 
     load_doc_options(object, doc, opt_docs);
