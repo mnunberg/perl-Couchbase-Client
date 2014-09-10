@@ -54,7 +54,6 @@ PLCB_construct(const char *pkg, HV *hvopts)
         }
 
     get_stash_assert(PLCB_RET_CLASSNAME, ret_stash);
-    get_stash_assert(PLCB_ITER_CLASSNAME, iter_stash);
     get_stash_assert(PLCB_COUCH_HANDLE_INFO_CLASSNAME, handle_av_stash);
 
 

@@ -9,7 +9,6 @@
 #include "ppport.h"
 
 #define PLCB_RET_CLASSNAME "Couchbase::Document"
-#define PLCB_ITER_CLASSNAME "Couchbase::DocIterator"
 
 #if IVSIZE >= 8
 #define PLCB_PERL64
@@ -61,28 +60,6 @@ typedef struct {
 
 #define PLCB_ITER_ERROR -2
 
-typedef struct {
-    PLCB_SYNC_BASE;
-    /* Because callbacks can be invoked more than once per iteration,
-     * the output needs to be buffered. Array of (key, retav (RV)) pairs.
-     */
-    AV *buffer_av;
-
-    /*
-     * In the case of an error in creating the iterator, the error
-     * will be placed here
-     */
-    AV *error_av;
-
-    /* We hold a reference to our parent */
-    SV *parent_rv;
-
-    /* If the remaining count is 0 and pl_destroyed is true, then the
-     * callback should Safefree() this object without any questions.
-     */
-    int pl_destroyed;
-} PLCB_iter_t;
-
 typedef SV* PLCB_document_rv;
 
 #define plcb_sync_cast(p) (PLCB_sync_t*)(p)
@@ -114,7 +91,6 @@ struct PLCB_st {
     lcb_t instance; /*our library handle*/
     PLCB_sync_t sync; /*object to collect results from callbacks*/
     HV *ret_stash; /*stash with which we bless our return objects*/
-    HV *iter_stash; /* Stash with which we bless our iterator objects */
     HV *view_stash;
     HV *design_stash;
     HV *handle_av_stash;
