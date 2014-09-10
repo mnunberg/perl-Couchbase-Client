@@ -73,19 +73,19 @@ PLCB_connect(PLCB_t *object)
         return 1;
 
     } else {
-        if ( (err = lcb_connect(instance)) == LCB_SUCCESS) {
-            lcb_wait(instance);
-            if (lcb_get_bootstrap_status(instance) != LCB_SUCCESS) {
-                return 0;
-            }
-
-            object->connected = 1;
-            return 1;
-
-        } else {
-            return 0;
+        if ((err = lcb_connect(instance)) != LCB_SUCCESS) {
+            goto GT_ERR;
         }
+        lcb_wait(instance);
+        if ((err = lcb_get_bootstrap_status(instance)) != LCB_SUCCESS) {
+            goto GT_ERR;
+        }
+        object->connected = 1;
+        return 1;
     }
+
+    GT_ERR:
+    die("Couldn't connect: 0x%x (%s)", err, lcb_strerror(NULL, err));
     return 0;
 }
 
