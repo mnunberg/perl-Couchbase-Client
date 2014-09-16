@@ -19,10 +19,18 @@ use Class::XSAccessor::Array {
 sub is_ok { $_[0]->[RETIDX_ERRNUM] == COUCHBASE_SUCCESS }
 
 sub new {
-    my ($pkg, $id, $doc) = @_;
+    my ($pkg, $id, $doc, $options) = @_;
     my $rv = bless [], $pkg;
     $rv->id($id);
     $rv->value($doc);
+
+    if ($options) {
+        while (my ($k,$v) = each %$options) {
+            no strict 'refs';
+            $rv->$k ($v);
+        }
+    }
+
     return $rv;
 }
 
