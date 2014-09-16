@@ -22,11 +22,6 @@ typedef enum {
     av_store(ret, PLCB_RETIDX_CAS, \
         plcb_sv_from_u64_new(cas) );
 
-#define plcb_ret_set_strval(obj, ret, value, nvalue, flags, cas) \
-    av_store(ret, PLCB_RETIDX_VALUE, \
-        plcb_convert_retrieval(obj, value, nvalue, flags)); \
-    plcb_ret_set_cas(obj, ret, &cas);
-
 static inline void
 plcb_ret_set_numval(PLCB_t *obj, AV *ret, uint64_t value, uint64_t cas)
 {

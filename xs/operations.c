@@ -41,7 +41,7 @@ PLCB_op_get(PLCB_t *object, PLCB_args_t *args)
 }
 
 typedef struct {
-    plcb_conversion_spec_t spec;
+    uint32_t spec;
     lcb_storage_t storop;
 } my_STOREINFO;
 
@@ -64,7 +64,7 @@ store_argiter_cb(PLCB_schedctx_t *ctx, const char *key, lcb_SIZE nkey,
     }
 
     vspec.spec = info->spec;
-    plcb_convert_storage(ctx->parent, &vspec);
+    plcb_convert_storage(ctx->parent, doc, &vspec);
     if (value_sv == NULL) {
         die("Invalid value!");
     }
@@ -88,7 +88,7 @@ PLCB_op_set(PLCB_t *object, PLCB_args_t *args)
     plcb_schedctx_init_common(object, args, NULL, &ctx);
     ctx.priv = &info;
     info.storop = plcb_command_to_storop(ctx.cmdbase);
-    info.spec = PLCB_CONVERT_SPEC_JSON;
+    info.spec = PLCB_CF_JSON;
 
     if (args->cmdopts) {
         PLCB_args_set(object, NULL, (SV*)args->cmdopts, &args->u_template.store,

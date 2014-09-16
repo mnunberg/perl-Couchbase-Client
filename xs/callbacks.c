@@ -14,7 +14,7 @@ plcb_evloop_wait_unref(PLCB_t *object)
 }
 
 static void
-get_resobj(const lcb_RESPBASE *resp, PLCB_sync_t **sync_p, AV **resobj_p)
+get_resobj(const lcb_RESPBASE *resp, PLCB_sync_t **sync_p, AV **resobj_p, SV **resobj_rv)
 {
     PLCB_sync_t *sync;
     AV *resobj;
@@ -28,13 +28,15 @@ get_resobj(const lcb_RESPBASE *resp, PLCB_sync_t **sync_p, AV **resobj_p)
         if (!ent) {
             die("Missing entry!");
         }
+        if (resobj_rv) {
+            *resobj_rv = *ent;
+        }
         resobj = (AV*)SvRV((*ent));
     }
 
     plcb_ret_set_err(sync->parent, resobj, resp->rc);
     *sync_p = sync;
     *resobj_p = resobj;
-
 }
 
 /* This callback is only ever called for single operation, single key results */
@@ -42,20 +44,24 @@ static void
 callback_common(lcb_t instance, int cbtype, const lcb_RESPBASE *resp)
 {
     AV *resobj; /* Result object */
+    SV *resobj_rv = NULL;
     PLCB_sync_t *sync;
 
-    get_resobj(resp, &sync, &resobj);
+    get_resobj(resp, &sync, &resobj, &resobj_rv);
 
     switch (cbtype) {
     case LCB_CALLBACK_GET: {
         const lcb_RESPGET *gresp = (const lcb_RESPGET *)resp;
         if (resp->rc == LCB_SUCCESS) {
-            plcb_ret_set_strval(sync->parent,
-                resobj, gresp->value, gresp->nvalue, gresp->itmflags, gresp->cas);
+            SV *newval = plcb_convert_retrieval(sync->parent,
+                resobj_rv, gresp->value, gresp->nvalue, gresp->itmflags);
+
+            av_store(resobj, PLCB_RETIDX_VALUE, newval);
         }
         plcb_evloop_wait_unref(sync->parent);
         break;
     }
+
     case LCB_CALLBACK_TOUCH:
     case LCB_CALLBACK_REMOVE:
     case LCB_CALLBACK_UNLOCK:
@@ -97,7 +103,7 @@ observe_callback(lcb_t instance, int cbtype, const lcb_RESPOBSERVE *resp)
         return;
     }
 
-    get_resobj((const lcb_RESPBASE*)resp, &sync, &resobj);
+    get_resobj((const lcb_RESPBASE*)resp, &sync, &resobj, NULL);
 
     if (resp->rc != LCB_SUCCESS) {
         return;
@@ -135,7 +141,7 @@ stats_callback(lcb_t instance, int cbtype, const lcb_RESPSTATS *resp)
     HV *keys;
     HV *srvhash;
 
-    get_resobj((const lcb_RESPBASE*)resp, &sync, &resobj);
+    get_resobj((const lcb_RESPBASE*)resp, &sync, &resobj, NULL);
     cur = *av_fetch(resobj, PLCB_RETIDX_VALUE, 1);
     if (!SvOK(cur)) {
         SV *tmprv = newRV_noinc((SV*)newHV());

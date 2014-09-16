@@ -119,11 +119,21 @@ struct PLCB_st {
 #include "plcb-commands.h"
 
 typedef enum {
-    PLCB_CONVERT_SPEC_JSON = 0x00 << 3,
-    PLCB_CONVERT_SPEC_STORABLE = 0x01 << 3,
-    PLCB_CONVERT_SPEC_RAW = 0x03 << 3,
-    PLCB_CONVERT_SPEC_UTF8 = 0x04 << 3,
-} plcb_conversion_spec_t;
+    PLCB_LF_JSON = 0x00,
+    PLCB_LF_STORABLE = 0x01 << 3,
+    PLCB_LF_RAW = 0x03 << 3,
+    PLCB_LF_UTF8 = 0x04 << 3,
+    PLCB_LF_MASK = 0xFF,
+
+    PLCB_CF_NONE,
+    PLCB_CF_PRIVATE = 0x01 << 24,
+    PLCB_CF_STORABLE = PLCB_CF_PRIVATE,
+
+    PLCB_CF_JSON = 0x02 << 24,
+    PLCB_CF_RAW = 0x03 << 24,
+    PLCB_CF_UTF8 = 0x04 << 24,
+    PLCB_CF_MASK = 0xFF << 24
+} PLCB_vflags;
 
 /* Magic bit */
 #define PLCB_CONVERT_F_MAGIC 0x80000000
@@ -133,7 +143,7 @@ typedef enum {
 typedef struct {
     SV *value;
     uint32_t flags;
-    short spec;
+    uint32_t spec;
     short need_free;
     const char *encoded;
     size_t len;
@@ -153,12 +163,13 @@ void plcb_cleanup(PLCB_t *object);
 
 /*conversion functions*/
 void
-plcb_convert_storage(PLCB_t* object, plcb_vspec_t *vspec);
+plcb_convert_storage(PLCB_t* object, SV *doc, plcb_vspec_t *vspec);
 
 void plcb_convert_storage_free(PLCB_t *object, plcb_vspec_t *vspec);
+
 SV*
-plcb_convert_retrieval(PLCB_t *object, const char *data, size_t data_len,
-    uint32_t flags);
+plcb_convert_retrieval(PLCB_t *object, SV *doc,
+    const char *data, size_t data_len, uint32_t flags);
 
 
 /**

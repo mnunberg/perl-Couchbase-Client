@@ -51,7 +51,7 @@ serialize_convert(SV *meth, SV *input, int direction)
 }
 
 static SV *
-custom_convert(SV *meth, SV *input, uint32_t *flags, int direction)
+custom_convert(SV *doc, SV *meth, SV *input, uint32_t *flags, int direction)
 {
     dSP;
     SV *ret;
@@ -65,6 +65,7 @@ custom_convert(SV *meth, SV *input, uint32_t *flags, int direction)
     input_rv = sv_2mortal(newRV_inc(input));
     flags_rv = sv_2mortal(newRV_noinc(newSVuv(*flags)));
 
+    XPUSHs(doc);
     XPUSHs(input_rv);
     XPUSHs(flags_rv);
 
@@ -91,31 +92,36 @@ custom_convert(SV *meth, SV *input, uint32_t *flags, int direction)
 }
 
 void
-plcb_convert_storage(PLCB_t *object, plcb_vspec_t *vspec)
+plcb_convert_storage(PLCB_t *object, SV *doc, plcb_vspec_t *vspec)
 {
     SV *pv = SvROK(vspec->value) ? SvRV(vspec->value) : vspec->value;
-    uint32_t fmt = vspec->spec & PLCB_CONVERT_MASK_FMT;
+    uint32_t fmt = vspec->spec;
+    uint32_t compat_flags = 0;
 
     if (object->cv_customenc) {
         vspec->need_free = 1;
-        vspec->value = custom_convert(object->cv_customenc,
+        vspec->value = custom_convert(doc, object->cv_customenc,
             vspec->value, &vspec->flags, CONVERT_DIRECTION_OUT);
 
-    } else if (fmt == PLCB_CONVERT_SPEC_JSON) {
+    } else if (fmt == PLCB_CF_JSON) {
+        compat_flags = PLCB_LF_JSON;
         vspec->need_free = 1;
         vspec->value = serialize_convert(
             object->cv_jsonenc, vspec->value, CONVERT_DIRECTION_OUT);
 
-    } else if (fmt == PLCB_CONVERT_SPEC_STORABLE) {
+    } else if (fmt == PLCB_CF_STORABLE) {
+        compat_flags = PLCB_CF_STORABLE;
         vspec->need_free = 1;
         vspec->value = serialize_convert(
             object->cv_serialize, vspec->value, CONVERT_DIRECTION_OUT);
 
-    } else if (fmt == PLCB_CONVERT_SPEC_RAW) {
+    } else if (fmt == PLCB_CF_RAW) {
+        compat_flags = PLCB_CF_RAW;
         if (SvTYPE(pv) != SVt_PV) {
             die("Raw conversion requires string value!");
         }
-    } else if (vspec->spec == PLCB_CONVERT_SPEC_UTF8) {
+    } else if (vspec->spec == PLCB_CF_UTF8) {
+        compat_flags = PLCB_CF_UTF8;
         sv_utf8_upgrade(pv);
     }
 
@@ -126,6 +132,7 @@ plcb_convert_storage(PLCB_t *object, plcb_vspec_t *vspec)
     } else {
         vspec->encoded = SvPV(vspec->value, vspec->len);
     }
+    vspec->flags |= compat_flags;
 }
 
 void plcb_convert_storage_free(PLCB_t *object, plcb_vspec_t *vs)
@@ -136,34 +143,46 @@ void plcb_convert_storage_free(PLCB_t *object, plcb_vspec_t *vs)
 }
 
 SV*
-plcb_convert_retrieval(
-    PLCB_t *object, const char *data, size_t data_len, uint32_t flags)
+plcb_convert_retrieval(PLCB_t *object, SV *doc,
+    const char *data, size_t data_len, uint32_t flags)
 {
     SV *ret_sv, *input_sv;
-    uint32_t fmtflags;
+    uint32_t f_common, f_legacy;
     input_sv = newSVpvn(data, data_len);
-    fmtflags &= PLCB_CONVERT_MASK_FMT;
+
+    f_common = flags & PLCB_CF_MASK;
+    f_legacy = flags & PLCB_LF_MASK;
+
+#define IS_FMT(fbase) \
+    f_common == PLCB_CF_##fbase || f_legacy == PLCB_LF_##fbase
 
     if (object->cv_customdec) {
-        ret_sv = custom_convert(object->cv_customdec, input_sv, &flags,
+        ret_sv = custom_convert(doc, object->cv_customdec, input_sv, &flags,
             CONVERT_DIRECTION_IN);
-    } else if (fmtflags == PLCB_CONVERT_SPEC_JSON) {
+
+    } else if (IS_FMT(JSON)) {
         ret_sv = serialize_convert(object->cv_jsondec, input_sv,
             CONVERT_DIRECTION_IN);
-    } else if (fmtflags == PLCB_CONVERT_SPEC_STORABLE) {
+
+    } else if (IS_FMT(STORABLE)) {
         ret_sv = serialize_convert(object->cv_deserialize, input_sv,
             CONVERT_DIRECTION_IN);
-    } else if (fmtflags == PLCB_CONVERT_SPEC_RAW) {
+
+    } else if (IS_FMT(RAW)) {
         ret_sv = input_sv;
         SvREFCNT_inc(ret_sv);
-    } else if (fmtflags == PLCB_CONVERT_SPEC_UTF8) {
+
+    } else if (IS_FMT(UTF8)) {
         SvUTF8_on(input_sv);
         ret_sv = input_sv;
         SvREFCNT_inc(ret_sv);
+
     } else {
         warn("Unrecognized flags 0x%x. Assuming raw", flags);
         ret_sv = input_sv;
     }
+
+#undef IS_FMT
 
     SvREFCNT_dec(input_sv);
     return ret_sv;
