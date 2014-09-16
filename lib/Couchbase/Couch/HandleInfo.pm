@@ -9,11 +9,10 @@ package Couchbase::Couch::HandleInfo;
 use strict;
 use warnings;
 
-use Couchbase::Client::Return;
+use Couchbase::Document;
 use Couchbase::Client::IDXConst;
-use Couchbase::Client::Return;
 use JSON;
-use base qw(Couchbase::Client::Return);
+use base qw(Couchbase::Document);
 
 use Class::XSAccessor::Array {
     accessors => {

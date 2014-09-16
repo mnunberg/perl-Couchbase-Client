@@ -3,7 +3,6 @@ use strict;
 use warnings;
 
 use Couchbase;
-use Couchbase::DocIterator;
 use Couchbase::Client::IDXConst;
 use Couchbase::Document;
 use Couchbase::Couch::Base;
