@@ -37,7 +37,6 @@ lib/Couchbase/Test/Views.pm
 ################################################################################
 ### Views Perl API                                                           ###
 ################################################################################
-lib/Couchbase/Client/Iterator.pm
 lib/Couchbase/Couch/Base.pm
 lib/Couchbase/Couch/Design.pm
 lib/Couchbase/Couch/Handle.pm
@@ -82,7 +81,6 @@ xs/Async.xs
 xs/async_base.c
 xs/async_callbacks.c
 xs/async_events.c
-xs/iterator.c
 
 
 ################################################################################
