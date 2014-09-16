@@ -141,6 +141,20 @@ convert_valspec(plcb_argval_t *dst, SV *src)
 
 }
 
+static void
+handle_ignore_cas(PLCB_schedctx_t *ctx, SV *doc, int igncas, lcb_CMDBASE *cmd)
+{
+    if (igncas == -1) {
+        igncas = ctx->flags & PLCB_ARGITERf_IGNCAS;
+    }
+    if (igncas) {
+        cmd->cas = 0;
+        if (!doc) {
+            ctx->flags |= PLCB_ARGITERf_IGNCAS;
+        }
+    }
+}
+
 int
 plcb_extract_args(SV *sv, plcb_argval_t *values)
 {
@@ -297,7 +311,7 @@ PLCB_args_remove(PLCB_t *object, SV *doc, SV *options, lcb_CMDREMOVE *rcmd,
     PLCB_schedctx_t *ctx)
 {
     uint64_t cas = 0;
-    int ignore_cas = 0;
+    int ignore_cas = -1;
     plcb_argval_t doc_specs[] = {
         PLCB_KWARG(PLCB_ARG_K_CAS, CAS, &cas),
         { NULL }
@@ -312,9 +326,8 @@ PLCB_args_remove(PLCB_t *object, SV *doc, SV *options, lcb_CMDREMOVE *rcmd,
     if (options) {
         plcb_extract_args(options, opts_specs);
     }
-    if (!ignore_cas) {
-        rcmd->cas = cas;
-    }
+
+    handle_ignore_cas(ctx, doc, ignore_cas, (lcb_CMDBASE*)rcmd);
     return 0;
 }
 
@@ -381,7 +394,7 @@ PLCB_args_set(PLCB_t *object, SV *doc, SV *options, lcb_CMDSTORE *scmd,
     PLCB_schedctx_t *ctx, SV **valuesv, int cmdcode)
 {
     UV exp = 0;
-    int ignore_cas = 0;
+    int ignore_cas = -1;
 
     plcb_argval_t doc_specs[] = {
         PLCB_KWARG(PLCB_ARG_K_VALUE, SV, valuesv),
@@ -415,9 +428,7 @@ PLCB_args_set(PLCB_t *object, SV *doc, SV *options, lcb_CMDSTORE *scmd,
         plcb_extract_args(options, opt_specs);
     }
     scmd->exptime = exp;
-    if (ignore_cas) {
-        scmd->cas = 0;
-    }
+    handle_ignore_cas(ctx, doc, ignore_cas, (lcb_CMDBASE *)scmd);
     return 0;
 }
 

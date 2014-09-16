@@ -92,6 +92,9 @@ typedef void (*plcb_iter_cb)(PLCB_schedctx_t *iter,
 
 #define PLCB_ARGITERf_DUP_RET 0x10
 
+/* Internal flag set if the CAS should be ignored at the operation level */
+#define PLCB_ARGITERf_IGNCAS 0x20
+
 /**
  * Initalize the iterator for the list of keys. The iterator
  * should have been cleared and its relevant flags and fields set
