@@ -275,7 +275,7 @@ PLCB__store(PLCB_t *self, SV *key, ...)
     ALIAS:
     upsert = PLCB_CMD_SINGLE_SET
     insert = PLCB_CMD_SINGLE_ADD
-    update = PLCB_CMD_SINGLE_REPLACE
+    replace = PLCB_CMD_SINGLE_REPLACE
     
     CODE:
     PLCB_args_t args = { 0 };
@@ -292,7 +292,7 @@ PLCB__store_multi(PLCB_t *self, SV *kv, ...)
     ALIAS:
     upsert_multi = PLCB_CMD_MULTI_SET
     insert_multi = PLCB_CMD_MULTI_ADD
-    update_multi = PLCB_CMD_MULTI_REPLACE
+    replace_multi = PLCB_CMD_MULTI_REPLACE
     
     CODE:
     PLCB_args_t args = { 0 };
