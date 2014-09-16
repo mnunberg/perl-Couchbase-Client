@@ -25,6 +25,8 @@ sub _js_decode { $_JSON->decode($_[0]) }
 sub new {
     my ($pkg, $connstr, $opts) = @_;
     $opts ||= {};
+    die("Must have connection string") unless $connstr;
+
     my %options = (connstr => $connstr);
 
     if ($opts->{password}) {
@@ -42,33 +44,6 @@ sub settings {
     tie my %h, 'Couchbase::Settings', $self;
     return \%h;
 }
-
-# Helper Methods
-sub get_id {
-    my ($self,$key) = @_;
-    return $self->get(Couchbase::Document->new($key))->value;
-}
-
-sub get_value {
-    my ($self,$key) = @_;
-    return $self->get_id($key)->value;
-}
-
-sub insert_id {
-    my ($self,$key,$value) = @_;
-    return $self->insert(Couchbase::Document->new($key,$value))->is_ok;
-}
-
-sub upsert_id {
-    my ($self,$key,$value) = @_;
-    return $self->upsert(Couchbase::Document->new($key,$value))->is_ok;
-}
-
-sub remove_id {
-    my ($self,$key) = @_;
-    return $self->remove(Couchbase::Document->new($key))->is_ok;
-}
-
 
 # Returns a 'raw' request handle
 sub _htraw {
