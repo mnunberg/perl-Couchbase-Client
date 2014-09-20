@@ -12,7 +12,6 @@ use Class::XSAccessor::Array {
         cas => RETIDX_CAS,
         value => RETIDX_VALUE,
         errnum => RETIDX_ERRNUM,
-        errstr => RETIDX_ERRSTR
     }
 };
 

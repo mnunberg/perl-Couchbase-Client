@@ -1,6 +1,5 @@
 #include "perl-couchbase.h"
 #include "plcb-util.h"
-#include "plcb-commands.h"
 
 static int PLCB_connect(PLCB_t* self);
 
@@ -16,6 +15,33 @@ void plcb_cleanup(PLCB_t *object)
     _free_cv(cv_jsonenc); _free_cv(cv_jsondec);
     _free_cv(cv_customenc); _free_cv(cv_customdec);
     #undef _free_cv
+}
+
+static SV *
+new_opctx(PLCB_t *parent, int flags)
+{
+    AV *array = newAV();
+    SV *blessed = newRV_noinc( (SV *)array);
+    SV *flagsiv = newSVuv(flags);
+
+    SV *dummyrv = newRV_inc(parent->selfobj);
+    sv_rvweaken(dummyrv);
+
+    av_store(array, PLCB_OPCTX_IDX_FLAGS, flagsiv);
+    av_store(array, PLCB_OPCTX_IDX_CBO, dummyrv);
+    sv_bless(blessed, parent->opctx_sync_stash);
+    return blessed;
+}
+
+static void
+clear_opctx(PLCB_t *parent)
+{
+    if (!parent->curctx) {
+        return;
+    }
+    SvREFCNT_dec(parent->curctx);
+    parent->curctx = NULL;
+
 }
 
 /*Construct a new libcouchbase object*/
@@ -55,10 +81,14 @@ PLCB_construct(const char *pkg, HV *hvopts)
 
     get_stash_assert(PLCB_RET_CLASSNAME, ret_stash);
     get_stash_assert(PLCB_COUCH_HANDLE_INFO_CLASSNAME, handle_av_stash);
-
+    get_stash_assert(PLCB_OPCTX_CLASSNAME, opctx_sync_stash);
 
     blessed_obj = newSV(0);
     sv_setiv(newSVrv(blessed_obj, "Couchbase::Bucket"), PTR2IV(object));
+
+    object->selfobj = SvRV(blessed_obj);
+    object->deflctx = new_opctx(object, PLCB_OPCTX_IMPLICIT);
+
     return blessed_obj;
 }
 
@@ -225,6 +255,94 @@ PLCB__cntl_get(PLCB_t *object, int setting, int type)
     }
 }
 
+static void
+init_singleop(plcb_SINGLEOP *so, PLCB_t *parent, SV *doc, SV *ctx, SV *options)
+{
+    if (!plcb_ret_isa(parent, doc)) {
+        sv_dump(doc);
+        die("Must pass a Couchbase::Document");
+        /* Initialize the document to 0 */
+    }
+
+    so->docav = (AV *)SvRV(doc);
+    so->opctx = ctx;
+    so->parent = parent;
+
+    plcb_ret_set_err(parent, so->docav, -1);
+
+    if (options && SvTYPE(options) != SVt_NULL) {
+        if (SvROK(options) == 0 || SvTYPE(SvRV(options)) != SVt_PVHV) {
+            sv_dump(options);
+            die("options must be undef or a HASH reference");
+        }
+        so->cmdopts = options;
+    }
+
+    if (ctx != &PL_sv_undef) {
+        if (!plcb_opctx_isa(parent, ctx)) {
+            die("ctx must be undef or a Couchbase::OpContext object");
+        }
+        if (parent->curctx && SvRV(ctx) != SvRV(parent->curctx)) {
+            sv_dump(parent->curctx);
+            sv_dump(ctx);
+            die("Current context already set!");
+        }
+        so->opctx = ctx;
+    } else {
+        if (parent->curctx) {
+            /* Have a current context? */
+            warn("Existing batch context found. This may leak memory.");
+            lcb_sched_fail(parent->instance);
+            clear_opctx(parent);
+        }
+
+        so->opctx = parent->deflctx;
+        lcb_sched_enter(parent->instance);
+    }
+}
+
+SV *
+PLCB_args_return(plcb_SINGLEOP *so, lcb_error_t err)
+{
+    /* Figure out what type of context we are */
+    AV *opctx_real = (AV *) SvRV(so->opctx);
+    UV flags = SvUV(*av_fetch(opctx_real, PLCB_OPCTX_IDX_FLAGS, 0));
+
+    if (err != LCB_SUCCESS) {
+        /* Remove the doc's "Parent" field */
+        av_store(so->docav, PLCB_RETIDX_PARENT, &PL_sv_undef);
+
+        if (flags & PLCB_OPCTX_IMPLICIT) {
+            lcb_sched_fail(so->parent->instance);
+        }
+
+        die("Couldn't schedule operation. Code 0x%x (%s)\n", err, lcb_strerror(NULL, err));
+        return NULL;
+    }
+
+    /* Increment refcount for the parent */
+    av_store(so->docav, PLCB_RETIDX_PARENT, newRV_inc(SvRV(so->opctx)));
+
+    /* Increment refcount for the doc itself (decremented in callback) */
+    SvREFCNT_inc((SV*)so->docav);
+
+    if (flags & PLCB_OPCTX_IMPLICIT) {
+        lcb_sched_leave(so->parent->instance);
+        lcb_wait3(so->parent->instance, LCB_WAIT_NOCHECK);
+    }
+
+    SvREFCNT_inc(&PL_sv_undef);
+    return &PL_sv_undef;
+}
+
+#define dPLCB_INPUTS \
+    SV *options = &PL_sv_undef; SV *ctx = &PL_sv_undef;
+
+#define FILL_EXTRA_PARAMS() \
+    if (items > 4) { croak_xs_usage(cv, "bucket, doc [, options, ctx ]"); } \
+    if (items >= 3) { options = ST(2); } \
+    if (items >= 4) { ctx = ST(3); }
+
 MODULE = Couchbase PACKAGE = Couchbase::Bucket    PREFIX = PLCB_
 
 PROTOTYPES: DISABLE
@@ -251,117 +369,49 @@ PLCB_DESTROY(PLCB_t *object)
     Safefree(object);
 
 SV *
-PLCB_get(PLCB_t *self, SV *key, ...)    
-    CODE:
-    PLCB_args_t args = { PLCB_CMD_SINGLE_GET };
-    PLCB_ARGS_FROM_STACK(2, &args, "get(doc, options");
-    args.keys = key;
+PLCB_get(PLCB_t *self, SV *doc, ...)
+    PREINIT:
+    plcb_SINGLEOP opinfo = { PLCB_CMD_GET };
+    dPLCB_INPUTS
 
-    RETVAL = PLCB_op_get(self, &args);
-    OUTPUT: RETVAL
-    
-SV *
-PLCB_get_multi(PLCB_t *self, SV *keys, ...)
     CODE:
-    PLCB_args_t args = {PLCB_CMD_MULTI_GET};
-    PLCB_ARGS_FROM_STACK(2, &args, "get_multi(keys, options)");
-    args.keys = keys;
-    
-    RETVAL = PLCB_op_get(self, &args);
+    FILL_EXTRA_PARAMS()
+
+    init_singleop(&opinfo, self, doc, ctx, options);
+    RETVAL = PLCB_op_get(self, &opinfo);
     OUTPUT: RETVAL
     
 SV *
-PLCB__store(PLCB_t *self, SV *key, ...)
+PLCB__store(PLCB_t *self, SV *doc, ...)
     ALIAS:
-    upsert = PLCB_CMD_SINGLE_SET
-    insert = PLCB_CMD_SINGLE_ADD
-    replace = PLCB_CMD_SINGLE_REPLACE
+    upsert = PLCB_CMD_SET
+    insert = PLCB_CMD_ADD
+    replace = PLCB_CMD_REPLACE
+
+    PREINIT:
+    plcb_SINGLEOP opinfo = { 0 };
+    dPLCB_INPUTS
     
     CODE:
-    PLCB_args_t args = { 0 };
-    PLCB_ARGS_FROM_STACK(2, &args, "store(key, value, options)");
+    FILL_EXTRA_PARAMS()
+    opinfo.cmdbase = ix;
+    init_singleop(&opinfo, self, doc, ctx, options);
 
-    args.cmd = ix;
-    args.keys = key;
     
-    RETVAL = PLCB_op_set(self, &args);
-    OUTPUT: RETVAL
-
-SV *
-PLCB__store_multi(PLCB_t *self, SV *kv, ...)
-    ALIAS:
-    upsert_multi = PLCB_CMD_MULTI_SET
-    insert_multi = PLCB_CMD_MULTI_ADD
-    replace_multi = PLCB_CMD_MULTI_REPLACE
-    
-    CODE:
-    PLCB_args_t args = { 0 };
-    PLCB_ARGS_FROM_STACK(2, &args, "store_multi({kv}, options)");
-    args.cmd = ix;
-    args.keys = kv;
-    
-    RETVAL = PLCB_op_set(self, &args);
+    RETVAL = PLCB_op_set(self, &opinfo);
     OUTPUT: RETVAL
     
 SV *
-PLCB_remove(PLCB_t *self, SV *key, ...)
+PLCB_remove(PLCB_t *self, SV *doc, ...)
+    PREINIT:
+    plcb_SINGLEOP opinfo = { PLCB_CMD_REMOVE };
+    dPLCB_INPUTS
+
     CODE:
-    PLCB_args_t args = { PLCB_CMD_SINGLE_REMOVE };
-    PLCB_ARGS_FROM_STACK(2, &args, "remove(key, options)");
-    args.keys = key;
+    FILL_EXTRA_PARAMS()
+    init_singleop(&opinfo, self, doc, ctx, options);
     
-    RETVAL = PLCB_op_remove(self, &args);
-    OUTPUT: RETVAL
-    
-SV *
-PLCB_remove_multi(PLCB_t *self, SV *keys, ...)
-    CODE:
-    PLCB_args_t args = { PLCB_CMD_MULTI_REMOVE };
-    PLCB_ARGS_FROM_STACK(2, &args, "remove_multi(keys, options)");
-    args.keys = keys;
-    
-    RETVAL = PLCB_op_remove(self, &args);
-    OUTPUT: RETVAL
-
-SV *
-PLCB_observe_multi(PLCB_t *self, SV *keys, ...)
-    CODE:
-    PLCB_args_t args = { PLCB_CMD_MULTI_OBSERVE };
-    PLCB_ARGS_FROM_STACK(2, &args, "observe_multi(docs, options)");
-    args.keys = keys;
-    RETVAL = PLCB_op_observe(self, &args);
-    OUTPUT: RETVAL
-
-SV *
-PLCB_observe(PLCB_t *self, SV *keys, ...)
-    CODE:
-    PLCB_args_t args = { PLCB_CMD_SINGLE_OBSERVE };
-    PLCB_ARGS_FROM_STACK(2, &args, "observe(key, options)");
-    args.keys = keys;
-    RETVAL = PLCB_op_observe(self, &args);
-    OUTPUT: RETVAL
-
-SV *
-PLCB_sync(PLCB_t *self, SV *key, HV *options)
-    ALIAS:
-    endure = 1
-
-    CODE:
-    PLCB_args_t args = { PLCB_CMD_SINGLE_ENDURE };
-    args.keys = key;
-    args.cmdopts = options;
-    RETVAL = PLCB_op_endure(self, &args);
-    OUTPUT: RETVAL
-
-SV *
-PLCB_sync_multi(PLCB_t *self, SV *kv, HV *options)
-    ALIAS:
-    endure_multi = 1
-    CODE:
-    PLCB_args_t args = { PLCB_CMD_MULTI_ENDURE };
-    args.keys = kv;
-    args.cmdopts = options;
-    RETVAL = PLCB_op_endure(self, &args);
+    RETVAL = PLCB_op_remove(self, &opinfo);
     OUTPUT: RETVAL
 
 SV *
@@ -392,6 +442,37 @@ PLCB__new_viewhandle(PLCB_XS_OBJPAIR_t self, stash)
     RETVAL = plcb_vh_new(stash, self.sv, self.ptr);
     OUTPUT: RETVAL
 
+
+SV *
+PLCB__ctx_new(PLCB_t *object)
+    PREINIT:
+    SV *ctxrv = NULL;
+
+    CODE:
+    if (object->curctx) {
+        die("Previous context must be cleared explicitly");
+    }
+
+    ctxrv = new_opctx(object, 0);
+    object->curctx = newRV_inc(SvRV(ctxrv));
+    RETVAL = ctxrv;
+
+    lcb_sched_enter(object->instance);
+    OUTPUT: RETVAL
+
+void
+PLCB__ctx_wait(PLCB_t *object)
+    CODE:
+    if (!object->curctx) {
+        die("Object must have a current context associated with it");
+    }
+    lcb_sched_leave(object->instance);
+    lcb_wait3(object->instance, LCB_WAIT_NOCHECK);
+
+void
+PLCB__ctx_clear(PLCB_t *object)
+    CODE:
+    clear_opctx(object);
 
 MODULE = Couchbase PACKAGE = Couchbase    PREFIX = PLCB_
 

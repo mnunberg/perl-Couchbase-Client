@@ -1,5 +1,6 @@
 #ifndef PERL_COUCHBASE_H_
 #define PERL_COUCHBASE_H_
+#define NO_XSLOCKS
 
 #include <sys/types.h> /*for size_t*/
 #include <libcouchbase/couchbase.h>
@@ -9,6 +10,7 @@
 #include "ppport.h"
 
 #define PLCB_RET_CLASSNAME "Couchbase::Document"
+#define PLCB_OPCTX_CLASSNAME "Couchbase::OpContext"
 
 #if IVSIZE >= 8
 #define PLCB_PERL64
@@ -16,16 +18,6 @@
 #include "plcb-util.h"
 
 typedef struct PLCB_st PLCB_t;
-
-typedef enum {
-    PLCB_SYNCTYPE_SINGLE = 0,
-    PLCB_SYNCTYPE_MULTI,
-    PLCB_SYNCTYPE_ITER
-} plcb_synctype_t;
-
-#define PLCB_SYNCf_SINGLERET 0x01
-#define PLCB_SYNCf_MULTIRET 0x02
-#define PLCB_SYNCf_STOREDUR 0x03
 
 typedef enum {
     PLCB_CONVERTERS_CUSTOM = 1,
@@ -42,27 +34,7 @@ typedef enum {
     PLCB_SETTING_TIMEOUT
 } PLCB_setting_code;
 
-#define PLCB_SYNC_BASE \
-    PLCB_t *parent; /**< Parent object */ \
-    unsigned type : 2; /**< Type of context */ \
-    unsigned flags : 6; /**< Flags for context */ \
-    unsigned remaining; /**< How many operations remain for this context */ \
-    SV *errsv; /**< SV containing an error to be thrown, if any */ \
-    union { \
-        AV *ret; /**< For single operation sync objects */ \
-        HV *multiret; /**< For multi operation sync objects */ \
-    } u
-
-typedef struct {
-    PLCB_SYNC_BASE;
-} PLCB_sync_t;
-
-
-#define PLCB_ITER_ERROR -2
-
 typedef SV* PLCB_document_rv;
-
-#define plcb_sync_cast(p) (PLCB_sync_t*)(p)
 
 typedef enum {
     PLCBf_DIE_ON_ERROR          = 0x1,
@@ -87,36 +59,22 @@ typedef enum {
     PLCBf_JSON_VERIFY           = 0x400,
 } PLCB_flags_t;
 
-struct PLCB_st {
-    lcb_t instance; /*our library handle*/
-    PLCB_sync_t sync; /*object to collect results from callbacks*/
-    HV *ret_stash; /*stash with which we bless our return objects*/
-    HV *view_stash;
-    HV *design_stash;
-    HV *handle_av_stash;
-
-    PLCB_flags_t my_flags;
-
-    int connected;
-    
-    SV *cv_serialize;
-    SV *cv_deserialize;
-    SV *cv_jsonenc;
-    SV *cv_jsondec;
-    SV *cv_customenc;
-    SV *cv_customdec;
-
-    /*how many operations are pending on this object*/
-    int npending;
+enum plcb_COMMANDS {
+    PLCB_CMD_GET, PLCB_CMD_SET, PLCB_CMD_ADD, PLCB_CMD_REPLACE, PLCB_CMD_COUNTER,
+    PLCB_CMD_APPEND, PLCB_CMD_PREPEND, PLCB_CMD_REMOVE, PLCB_CMD_UNLOCK
 };
 
-/*need to include this after defining PLCB_t*/
-#include "plcb-return.h"
-#include "perl-couchbase-couch.h"
-#include "plcb-convert.h"
-#include "plcb-schedctx.h"
-#include "plcb-args.h"
-#include "plcb-commands.h"
+
+typedef enum {
+    PLCB_RETIDX_VALUE   = 0,
+    PLCB_RETIDX_ERRNUM  = 1,
+    PLCB_RETIDX_CAS     = 3,
+    PLCB_RETIDX_KEY     = 4,
+    PLCB_RETIDX_EXP     = 5,
+    PLCB_RETIDX_FMTSPEC = 6,
+    PLCB_RETIDX_PARENT  = 7,
+    PLCB_RETIDX_MAX
+} PLCB_ret_idx_t;
 
 typedef enum {
     PLCB_LF_JSON = 0x00,
@@ -134,6 +92,62 @@ typedef enum {
     PLCB_CF_UTF8 = 0x04 << 24,
     PLCB_CF_MASK = 0xFF << 24
 } PLCB_vflags;
+
+struct PLCB_st {
+    lcb_t instance; /*our library handle*/
+    HV *ret_stash; /*stash with which we bless our return objects*/
+    HV *view_stash;
+    HV *design_stash;
+    HV *handle_av_stash;
+    HV *opctx_sync_stash;
+    HV *opctx_cb_stash;
+
+    PLCB_flags_t my_flags;
+
+    int connected;
+    
+    SV *cv_serialize;
+    SV *cv_deserialize;
+    SV *cv_jsonenc;
+    SV *cv_jsondec;
+    SV *cv_customenc;
+    SV *cv_customdec;
+
+    SV *deflctx;
+    SV *curctx;
+    SV *selfobj;
+
+    /*how many operations are pending on this object*/
+    int npending;
+};
+
+
+typedef struct {
+    int cmdbase; /* Effective command passed, without flags or modifiers */
+    PLCB_t *parent;
+    AV *docav; /* The document */
+    SV *opctx; /* The context */
+    SV *cmdopts; /* Command options */
+} plcb_SINGLEOP;
+
+#define PLCB_OPCTX_IMPLICIT 0x01
+#define PLCB_OPCTX_CALLBACKS 0x02
+
+enum {
+    PLCB_OPCTX_IDX_FLAGS = 0,
+    PLCB_OPCTX_IDX_CBO,
+    PLCB_OPCTX_IDX_BACKREFS,
+    PLCB_OPCTX_IDX_EXTRA
+};
+
+typedef HV *plcb_XSCMDOPTS;
+typedef SV *plcb_XSOPCTX;
+
+/*need to include this after defining PLCB_t*/
+#include "plcb-return.h"
+#include "perl-couchbase-couch.h"
+#include "plcb-convert.h"
+#include "plcb-args.h"
 
 /* Magic bit */
 #define PLCB_CONVERT_F_MAGIC 0x80000000
@@ -163,13 +177,12 @@ void plcb_cleanup(PLCB_t *object);
 
 /*conversion functions*/
 void
-plcb_convert_storage(PLCB_t* object, SV *doc, plcb_vspec_t *vspec);
+plcb_convert_storage(PLCB_t* object, AV *doc, plcb_vspec_t *vspec);
 
 void plcb_convert_storage_free(PLCB_t *object, plcb_vspec_t *vspec);
 
 SV*
-plcb_convert_retrieval(PLCB_t *object, SV *doc,
-    const char *data, size_t data_len, uint32_t flags);
+plcb_convert_retrieval(PLCB_t *object, AV *doc, const char *data, size_t data_len, uint32_t flags);
 
 
 /**
@@ -178,13 +191,21 @@ plcb_convert_retrieval(PLCB_t *object, SV *doc,
  */
 void plcb_evloop_wait_unref(PLCB_t *obj);
 
-/** Operation functions */
-SV *PLCB_op_get(PLCB_t*,PLCB_args_t*);
-SV *PLCB_op_set(PLCB_t*,PLCB_args_t*);
-SV *PLCB_op_remove(PLCB_t*,PLCB_args_t*);
-SV *PLCB_op_observe(PLCB_t *object, PLCB_args_t *args);
-SV *PLCB_op_endure(PLCB_t *object, PLCB_args_t *args);
+/**
+ * Returns a new blessed operation context, also makes it the current
+ * context
+ */
+SV *PLCB_opctx_new(PLCB_t *);
 
+/** Operation functions */
+SV *PLCB_op_get(PLCB_t*,plcb_SINGLEOP*);
+SV *PLCB_op_set(PLCB_t*,plcb_SINGLEOP*);
+SV *PLCB_op_remove(PLCB_t*,plcb_SINGLEOP*);
+SV *PLCB_op_observe(PLCB_t *object, plcb_SINGLEOP *args);
+SV *PLCB_op_endure(PLCB_t *object, plcb_SINGLEOP *args);
+
+SV *
+PLCB_args_return(plcb_SINGLEOP *so, lcb_error_t err);
 /**
  * XS prototypes.
  */

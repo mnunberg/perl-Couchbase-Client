@@ -63,7 +63,6 @@ $MM_Options{CONFIGURE} = sub {
         callbacks
         convert
         operations
-        schedctx
         viewhandle);
     my @XS_Modules = qw(
         Couchbase View);

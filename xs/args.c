@@ -141,20 +141,6 @@ convert_valspec(plcb_argval_t *dst, SV *src)
 
 }
 
-static void
-handle_ignore_cas(PLCB_schedctx_t *ctx, SV *doc, int igncas, lcb_CMDBASE *cmd)
-{
-    if (igncas == -1) {
-        igncas = ctx->flags & PLCB_ARGITERf_IGNCAS;
-    }
-    if (igncas) {
-        cmd->cas = 0;
-        if (!doc) {
-            ctx->flags |= PLCB_ARGITERf_IGNCAS;
-        }
-    }
-}
-
 int
 plcb_extract_args(SV *sv, plcb_argval_t *values)
 {
@@ -164,20 +150,7 @@ plcb_extract_args(SV *sv, plcb_argval_t *values)
         sv = SvRV(sv);
     }
 
-    if (SvTYPE(sv) == SVt_PVAV) {
-        AV *av = (AV*)sv;
-        plcb_argval_t *cur = values;
-        I32 ii;
-        I32 maxlen = av_len(av) + 1;
-        for (cur = values; cur->key && ii < maxlen; cur++, ii++) {
-            SV *elem = *(av_fetch(av, ii, 0));
-            if (convert_valspec(cur, elem) == -1) {
-                die("Malformed element at index %d (%s)", ii, cur->key);
-            }
-            cur->sv = elem;
-        }
-
-    } else if (SvTYPE(sv) == SVt_PVHV) {
+    if (SvTYPE(sv) == SVt_PVHV) {
         HV *hv = (HV*)sv;
         SV *cur_val;
         hv_iterinit(hv);
@@ -197,16 +170,15 @@ plcb_extract_args(SV *sv, plcb_argval_t *values)
             curdst->sv = cur_val;
         }
     } else {
-        die("Unrecognized options type. Must be hash or array");
+        die("Unrecognized options type. Must be hash");
     }
     return 0;
 }
 
 static void
-load_doc_options(PLCB_t *parent, SV *doc, plcb_argval_t *values)
+load_doc_options(PLCB_t *parent, AV *ret, plcb_argval_t *values)
 {
     plcb_argval_t *cur = values;
-    AV *ret = (AV*)SvRV(doc);
 
     for (cur = values; cur->value; cur++) {
         SV **tmpsv;
@@ -238,8 +210,7 @@ load_doc_options(PLCB_t *parent, SV *doc, plcb_argval_t *values)
 }
 
 int
-PLCB_args_get(PLCB_t *object, SV *doc, SV *opts, lcb_CMDGET *gcmd,
-    PLCB_schedctx_t *ctx)
+PLCB_args_get(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDGET *gcmd)
 {
 
     UV exp = 0;
@@ -255,11 +226,9 @@ PLCB_args_get(PLCB_t *object, SV *doc, SV *opts, lcb_CMDGET *gcmd,
         {NULL}
     };
 
-    if (doc) {
-        load_doc_options(object, doc, doc_specs);
-    }
-    if (opts) {
-        plcb_extract_args(opts, opt_specs);
+    load_doc_options(object, args->docav, doc_specs);
+    if (args->cmdopts) {
+        plcb_extract_args(args->cmdopts, opt_specs);
     }
 
     if (exp) {
@@ -275,43 +244,10 @@ PLCB_args_get(PLCB_t *object, SV *doc, SV *opts, lcb_CMDGET *gcmd,
 }
 
 int
-PLCB_args_lock(PLCB_t *object, SV *doc, SV *options, lcb_CMDGET *gcmd,
-    PLCB_schedctx_t *ctx)
-{
-    PLCB_args_get(object, doc, options, gcmd, ctx);
-    gcmd->lock = 1;
-    return 0;
-}
-
-int
-PLCB_args_touch(PLCB_t *object, SV *doc, SV *options, lcb_CMDTOUCH *tcmd,
-    PLCB_schedctx_t *ctx)
-{
-    UV exp = 0;
-    plcb_argval_t doc_specs[] = {
-        PLCB_KWARG(PLCB_ARG_K_EXPIRY, EXP, &exp),
-        { NULL }
-    };
-
-    if (!doc) {
-        return 0;
-    }
-
-    load_doc_options(object, doc, doc_specs);
-
-    if (exp) {
-        PLCB_UEXP2EXP(tcmd->exptime, exp, 0);
-    }
-    (void)options;
-    return 0;
-}
-
-int
-PLCB_args_remove(PLCB_t *object, SV *doc, SV *options, lcb_CMDREMOVE *rcmd,
-    PLCB_schedctx_t *ctx)
+PLCB_args_remove(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDREMOVE *rcmd)
 {
     uint64_t cas = 0;
-    int ignore_cas = -1;
+    int ignore_cas = 0;
     plcb_argval_t doc_specs[] = {
         PLCB_KWARG(PLCB_ARG_K_CAS, CAS, &cas),
         { NULL }
@@ -320,23 +256,20 @@ PLCB_args_remove(PLCB_t *object, SV *doc, SV *options, lcb_CMDREMOVE *rcmd,
         PLCB_KWARG(PLCB_ARG_K_IGNORECAS, BOOL, &ignore_cas),
         {NULL}
     };
-    if (doc) {
-        load_doc_options(object, doc, doc_specs);
+    load_doc_options(object, args->docav, doc_specs);
+    if (args->cmdopts) {
+        plcb_extract_args(args->cmdopts, opts_specs);
     }
-    if (options) {
-        plcb_extract_args(options, opts_specs);
+    if (ignore_cas) {
+        rcmd->cas = 0;
     }
-
-    handle_ignore_cas(ctx, doc, ignore_cas, (lcb_CMDBASE*)rcmd);
     return 0;
 }
 
 int
-PLCB_args_arithmetic(PLCB_t *object, SV *doc, SV *options, lcb_CMDCOUNTER *acmd,
-    PLCB_schedctx_t *ctx)
+PLCB_args_arithmetic(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDCOUNTER *acmd)
 {
-    UV exp = 0;
-    UV delta;
+    acmd->delta = 1;
     plcb_argval_t argspecs[] = {
         PLCB_KWARG(PLCB_ARG_K_ARITH_DELTA, I64, &acmd->delta),
         PLCB_KWARG(PLCB_ARG_K_ARITH_INITIAL, U64, &acmd->initial),
@@ -344,57 +277,32 @@ PLCB_args_arithmetic(PLCB_t *object, SV *doc, SV *options, lcb_CMDCOUNTER *acmd,
         { NULL }
     };
 
-    if (options) {
-        plcb_extract_args(options, argspecs);
+    if (args->cmdopts) {
+        plcb_extract_args(args->cmdopts, argspecs);
     }
     return 0;
 }
 
 int
-PLCB_args_incr(PLCB_t *object, SV *doc, SV *options, lcb_CMDCOUNTER *acmd,
-    PLCB_schedctx_t *ctx)
-{
-    return PLCB_args_arithmetic(object, doc, options, acmd, ctx);
-}
-
-int
-PLCB_args_decr(PLCB_t *object, SV *doc, SV *options, lcb_CMDCOUNTER *acmd,
-    PLCB_schedctx_t *ctx)
-{
-    int ret = PLCB_args_incr(object, doc, options, acmd, ctx);
-    if (ret != -1) {
-        acmd->delta *= -1;
-    }
-    return ret;
-}
-
-int
-PLCB_args_unlock(PLCB_t *object, SV *doc, SV *options, lcb_CMDUNLOCK *ucmd,
-    PLCB_schedctx_t *ctx)
+PLCB_args_unlock(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDUNLOCK *ucmd)
 {
     plcb_argval_t argspecs[] = {
         PLCB_KWARG(PLCB_ARG_K_CAS, CAS, &ucmd->cas),
         { NULL }
     };
 
-    if (doc == NULL) {
-        return 0; /* No defaults to load */
-    }
-
-    load_doc_options(object, doc, argspecs);
+    load_doc_options(object, args->docav, argspecs);
     if (!ucmd->cas) {
         die("Unlock command must have CAS");
     }
-    (void)options;
     return 0;
 }
 
 int
-PLCB_args_set(PLCB_t *object, SV *doc, SV *options, lcb_CMDSTORE *scmd,
-    PLCB_schedctx_t *ctx, SV **valuesv, int cmdcode)
+PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *scmd, SV **valuesv)
 {
     UV exp = 0;
-    int ignore_cas = -1;
+    int ignore_cas = 0;
 
     plcb_argval_t doc_specs[] = {
         PLCB_KWARG(PLCB_ARG_K_VALUE, SV, valuesv),
@@ -409,61 +317,19 @@ PLCB_args_set(PLCB_t *object, SV *doc, SV *options, lcb_CMDSTORE *scmd,
         { NULL }
     };
 
-    if (ctx->cmdbase == PLCB_CMD_APPEND || ctx->cmdbase == PLCB_CMD_PREPEND) {
+    if (args->cmdbase == PLCB_CMD_APPEND || args->cmdbase == PLCB_CMD_PREPEND) {
         doc_specs[0].type = PLCB_ARG_T_PAD;
     } else {
         opt_specs[1].type = PLCB_ARG_T_PAD;
     }
 
-    if (valuesv == NULL) {
-        /* Set the defaults */
-        doc_specs[0].type = PLCB_ARG_T_PAD;
-        opt_specs[1].type = PLCB_ARG_T_PAD;
-    }
-
-    if (doc) {
-        load_doc_options(object, doc, doc_specs);
-    }
-    if (options) {
-        plcb_extract_args(options, opt_specs);
+    load_doc_options(object, args->docav, doc_specs);
+    if (args->cmdopts) {
+        plcb_extract_args(args->cmdopts, opt_specs);
     }
     scmd->exptime = exp;
-    handle_ignore_cas(ctx, doc, ignore_cas, (lcb_CMDBASE *)scmd);
-    return 0;
-}
-
-int
-PLCB_args_observe(PLCB_t *object, SV *doc, SV *options, lcb_CMDOBSERVE *ocmd,
-    PLCB_schedctx_t *ctx)
-{
-    int master_only = 0;
-    plcb_argval_t opt_specs[] = {
-        PLCB_KWARG("master_only", BOOL, &master_only),
-        { NULL }
-    };
-    if (!options) {
-        return 0;
+    if (ignore_cas) {
+        scmd->cas = 0;
     }
-    plcb_extract_args(options, opt_specs);
-    if (master_only) {
-        ocmd->cmdflags |= LCB_CMDOBSERVE_F_MASTER_ONLY;
-    }
-    return 0;
-}
-
-int
-PLCB_args_endure(PLCB_t *object, SV *doc, SV *options, lcb_CMDENDURE *dcmd,
-    PLCB_schedctx_t *ctx)
-{
-    plcb_argval_t opt_docs [] = {
-            PLCB_KWARG(PLCB_ARG_K_CAS, CAS, &dcmd->cas),
-            { NULL }
-    };
-
-    if (!doc) {
-        return 0;
-    }
-
-    load_doc_options(object, doc, opt_docs);
     return 0;
 }

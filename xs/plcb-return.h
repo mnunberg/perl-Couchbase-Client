@@ -3,20 +3,13 @@
 
 #include "plcb-util.h"
 
-typedef enum {
-    PLCB_RETIDX_VALUE   = 0,
-    PLCB_RETIDX_ERRNUM  = 1,
-    PLCB_RETIDX_ERRSTR  = 2,
-    PLCB_RETIDX_CAS     = 3,
-    PLCB_RETIDX_KEY     = 4,
-    PLCB_RETIDX_EXP     = 5,
-    PLCB_RETIDX_FMTSPEC = 6,
-    PLCB_RETIDX_MAX
-} PLCB_ret_idx_t;
-
 #define plcb_ret_isa(obj, ret) \
     (sv_isobject(ret) && \
             (SvSTASH(ret) == (obj)->ret_stash || sv_isa(ret, PLCB_RET_CLASSNAME)))
+
+#define plcb_opctx_isa(obj, ret) \
+    (sv_isobject(ret) && \
+            (SvSTASH(ret) == (obj)->opctx_sync_stash || sv_isa(ret, PLCB_OPCTX_CLASSNAME)))
 
 #define plcb_ret_set_cas(obj, ret, cas) \
     av_store(ret, PLCB_RETIDX_CAS, \
@@ -40,12 +33,7 @@ plcb_ret_set_numval(PLCB_t *obj, AV *ret, uint64_t value, uint64_t cas)
 }
 
 
-#define plcb_ret_set_err(obj, ret, err) \
-    av_store(ret, PLCB_RETIDX_ERRNUM, newSViv(err)); \
-    if(err != LCB_SUCCESS) { \
-        av_store(ret, PLCB_RETIDX_ERRSTR, \
-        newSVpv(lcb_strerror(obj->instance, err), 0)); \
-    }
+#define plcb_ret_set_err(obj, ret, err) sv_setiv(*av_fetch(ret, PLCB_RETIDX_ERRNUM, 1), err)
 
 #define plcb_ret_blessed_rv(obj, ret) \
     sv_bless(newRV_noinc( (SV*)(ret)), (obj)->ret_stash)

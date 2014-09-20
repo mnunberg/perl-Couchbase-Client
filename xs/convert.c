@@ -51,7 +51,7 @@ serialize_convert(SV *meth, SV *input, int direction)
 }
 
 static SV *
-custom_convert(SV *doc, SV *meth, SV *input, uint32_t *flags, int direction)
+custom_convert(AV *docav, SV *meth, SV *input, uint32_t *flags, int direction)
 {
     dSP;
     SV *ret;
@@ -65,7 +65,7 @@ custom_convert(SV *doc, SV *meth, SV *input, uint32_t *flags, int direction)
     input_rv = sv_2mortal(newRV_inc(input));
     flags_rv = sv_2mortal(newRV_noinc(newSVuv(*flags)));
 
-    XPUSHs(doc);
+    XPUSHs(sv_2mortal(newRV_inc( (SV *)docav)));
     XPUSHs(input_rv);
     XPUSHs(flags_rv);
 
@@ -92,7 +92,7 @@ custom_convert(SV *doc, SV *meth, SV *input, uint32_t *flags, int direction)
 }
 
 void
-plcb_convert_storage(PLCB_t *object, SV *doc, plcb_vspec_t *vspec)
+plcb_convert_storage(PLCB_t *object, AV *docav, plcb_vspec_t *vspec)
 {
     SV *pv = SvROK(vspec->value) ? SvRV(vspec->value) : vspec->value;
     uint32_t fmt = vspec->spec;
@@ -100,7 +100,7 @@ plcb_convert_storage(PLCB_t *object, SV *doc, plcb_vspec_t *vspec)
 
     if (object->cv_customenc) {
         vspec->need_free = 1;
-        vspec->value = custom_convert(doc, object->cv_customenc,
+        vspec->value = custom_convert(docav, object->cv_customenc,
             vspec->value, &vspec->flags, CONVERT_DIRECTION_OUT);
 
     } else if (fmt == PLCB_CF_JSON) {
@@ -143,7 +143,7 @@ void plcb_convert_storage_free(PLCB_t *object, plcb_vspec_t *vs)
 }
 
 SV*
-plcb_convert_retrieval(PLCB_t *object, SV *doc,
+plcb_convert_retrieval(PLCB_t *object, AV *docav,
     const char *data, size_t data_len, uint32_t flags)
 {
     SV *ret_sv, *input_sv;
@@ -157,7 +157,7 @@ plcb_convert_retrieval(PLCB_t *object, SV *doc,
     f_common == PLCB_CF_##fbase || f_legacy == PLCB_LF_##fbase
 
     if (object->cv_customdec) {
-        ret_sv = custom_convert(doc, object->cv_customdec, input_sv, &flags,
+        ret_sv = custom_convert(docav, object->cv_customdec, input_sv, &flags,
             CONVERT_DIRECTION_IN);
 
     } else if (IS_FMT(JSON)) {

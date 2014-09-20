@@ -10,6 +10,7 @@ use Couchbase::Couch::Handle;
 use Couchbase::Couch::HandleInfo;
 use Couchbase::Couch::Design;
 use Couchbase::Settings;
+use Couchbase::OpContext;
 use JSON;
 use JSON::SL;
 use Data::Dumper;
