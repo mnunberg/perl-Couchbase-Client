@@ -7,7 +7,7 @@
 
 #define PLCB_JSON_CLASSNAME "JSON"
 
-#define PLCB_COUCH_HANDLE_INFO_CLASSNAME "Couchbase::Couch::HandleInfo"
+#define PLCB_COUCH_HANDLE_INFO_CLASSNAME "Couchbase::View::HandleInfo"
 
 /**
  * Let's try to simulate DBI-like semantics for views. In this case,

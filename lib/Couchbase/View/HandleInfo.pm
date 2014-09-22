@@ -1,4 +1,4 @@
-package Couchbase::Couch::HandleInfo;
+package Couchbase::View::HandleInfo;
 # Subclass of Couchbase::Client::Return, with extra fields
 # for handling callbacks and http codes. This 'unimplements'
 # the cas method, which is not applicable to HTTP queries.
@@ -112,7 +112,7 @@ __END__
 
 =head1 NAME
 
-Couchbase::Couch::HandleInfo - Handle-oriented informational subclass of Couchbase::Client::Return
+Couchbase::View::HandleInfo - Handle-oriented informational subclass of Couchbase::Client::Return
 
 =head1 DESCRIPTION
 

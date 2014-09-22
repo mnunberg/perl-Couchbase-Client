@@ -49,7 +49,7 @@ sub TV01_create_ddoc :Test(no_plan) {
 
     my $design = $o->couch_design_get(DESIGN_NAME);
 
-    isa_ok($design, 'Couchbase::Couch::Design');
+    isa_ok($design, 'Couchbase::View::Design');
     is($design->path, '_design/blog', "Have path");
     is($design->http_code, 200, "Have HTTP 200");
     ok($design->is_ok, "Overall object OK");
@@ -118,7 +118,7 @@ sub TV03_view_query :Test(no_plan) {
     ok(!@errkeys, "No store errors");
     $res = $o->couch_view_slurp(["blog", "recent_posts"],
                                 stale => "false");
-    isa_ok($res, 'Couchbase::Couch::HandleInfo');
+    isa_ok($res, 'Couchbase::View::HandleInfo');
 
     my %rkeys = map { $_->{id}, 1 } @{ $res->value };
     is_deeply(\%rkeys, \%dkeys, "Got back the same rows");
@@ -140,7 +140,7 @@ sub TV04_vq_errors :Test(no_plan) {
     my $o = $self->cbo;
 
     my $res = $o->couch_view_slurp(["nonexist", "nonexist"]);
-    isa_ok($res, 'Couchbase::Couch::HandleInfo');
+    isa_ok($res, 'Couchbase::View::HandleInfo');
     ok(!$res->is_ok);
     is($res->http_code, 404);
 

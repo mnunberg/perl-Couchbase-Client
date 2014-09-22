@@ -4,7 +4,7 @@ Couchbase::Client::README - README for Couchbase::Client
 
 =head1 Introduction
 
-Couch::Couchbase is a Perl client for Couchbase (http://www.couchbase.org).
+View::Couchbase is a Perl client for Couchbase (http://www.couchbase.org).
 
 The couchbase client is a smart, vbucket-aware client. What this means is that
 Couchbase::Client can tap into your Couchbase cluster, with the client needing

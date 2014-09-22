@@ -1,4 +1,9 @@
-package Couchbase::Couch::Handle;
+package Couchbase::View::Row;
+use strict;
+use warnings;
+use Class::XSAccessor accessors => [qw(key value id)];
+
+package Couchbase::View::Handle;
 ##
 # This is mainly an (abstract) base class for all handle objects.
 use strict;
@@ -6,7 +11,6 @@ use warnings;
 use Couchbase;
 use Couchbase::Client::IDXConst;
 use Carp qw(cluck);
-use Data::Dumper;
 use base qw(Couchbase::View);
 
 # This does some boilerplate initialization, ensuring that our private
@@ -42,17 +46,16 @@ sub default_complete_callback {
 # This is the primary class for an iterator receiving a stream of bytes,
 # and incrementally returning a JSON object (specifically, a view row) as its
 # atomic unit.
-package Couchbase::Couch::Handle::ViewIterator;
+package Couchbase::View::Handle::ViewIterator;
 use strict;
 use warnings;
 use Constant::Generate [qw(ITERBUF JSNDEC JSNROOT)], -prefix => 'FLD_';
 use Couchbase::Client::IDXConst;
 use JSON::SL;
-use Couchbase::Couch::Handle;
-use Couchbase::Couch::ViewRow;
+use Couchbase::View::Handle;
 use Data::Dumper;
 
-use base qw(Couchbase::Couch::Handle);
+use base qw(Couchbase::View::Handle);
 
 
 sub _perl_initialize {
@@ -113,8 +116,7 @@ sub _cb_data {
     # objects for Couch
     foreach (@results) {
         my $o = $_->{Value};
-        bless $o, "Couchbase::Couch::ViewRow";
-        $o->_cbo($self->info->[COUCHIDX_CBO]);
+        bless $o, "Couchbase::View::Row";
         push @$buf, $o;
     }
 
@@ -186,12 +188,12 @@ sub remaining_json {
 # 1) Raw - Just slurp the stream of bytes and return it
 # 2) JSONized - Slurp the stream and convert it into JSON, but don't do anything else
 # 3) Resultset - Slurp the stream, and treat it as a resultset of JSON view rows
-package Couchbase::Couch::Handle::Slurpee;
+package Couchbase::View::Handle::Slurpee;
 use strict;
 use warnings;
 use JSON;
 use Couchbase::Client::IDXConst;
-use base qw(Couchbase::Couch::Handle);
+use base qw(Couchbase::View::Handle);
 
 sub slurp_raw {
     my ($self,@args) = @_;
@@ -214,16 +216,19 @@ sub slurp {
     my ($self,@args) = @_;
     $self->slurp_raw(@args);
     $self->info->_extract_view_results;
+    foreach my $row (@{ $self->info->rows }) {
+        bless $row, 'Couchbase::View::Row';
+    }
     return $self->info;
 }
 
 # This isn't used by anything (yet), but might be handy for attachments -
 # iterates through the response, but does not parse it.
-package Couchbase::Couch::Handle::RawIterator;
+package Couchbase::View::Handle::RawIterator;
 use strict;
 use warnings;
 use Couchbase::Client::IDXConst;
-use base qw(Couchbase::Couch::Handle);
+use base qw(Couchbase::View::Handle);
 
 sub _cb_data {
     my ($self,$info,$bytes) = @_;
@@ -256,7 +261,7 @@ __END__
 =head1 NAME
 
 
-Couchbase::Couch::Handle - Class for couch request handles
+Couchbase::View::Handle - Class for couch request handles
 
 =head1 DESCRIPTION
 
@@ -265,7 +270,7 @@ Emphasis will be placed on the iterating view handle, since this is the most com
 use case (technical and more 'correct' documentation will follow).
 
 The iterator is simple to use. Simply initialize it (which is done for you
-automatically by one of the L<Couchbase::Couch::Base> methods which return this
+automatically by one of the L<Couchbase::View::Base> methods which return this
 object) and step through it. When there are no more results through which to
 step, the iterator is empty.
 
@@ -274,12 +279,12 @@ normal L<Couchbase::Client> blocking API. This means that multiple iterators are
 allowed, and that you may perform modifications on the items being iterated
 upon.
 
-=head2 Couchbase::Couch::Handle::ViewIterator
+=head2 Couchbase::View::Handle::ViewIterator
 
 =head2 next()
 
 Return the next result in the iterator. The returned object is either a false
-value (indicating no more results), or a L<Couchbase::Couch::ViewRow> object.
+value (indicating no more results), or a L<Couchbase::View::ViewRow> object.
 
 If called in array/list context, a list of rows is returned; the amount of rows
 returned is dependent on how much data is currently in the row read buffer.
@@ -301,7 +306,7 @@ of the the rows which matched the query parameters
 
 =head2 info()
 
-This returns a L<Couchbase::Couch::HandleInfo> object to obtain metadata about
+This returns a L<Couchbase::View::HandleInfo> object to obtain metadata about
 the view execution. This will usually only return something meaningful after all
 rows have been fetched (but you can try!)
 

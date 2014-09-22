@@ -5,10 +5,6 @@ use warnings;
 use Couchbase;
 use Couchbase::Client::IDXConst;
 use Couchbase::Document;
-use Couchbase::Couch::Base;
-use Couchbase::Couch::Handle;
-use Couchbase::Couch::HandleInfo;
-use Couchbase::Couch::Design;
 use Couchbase::Settings;
 use Couchbase::OpContext;
 use JSON;
@@ -16,7 +12,9 @@ use JSON::SL;
 use Data::Dumper;
 use URI;
 use Storable;
-use base qw(Couchbase::Couch::Base);
+
+use Couchbase::View::Handle;
+use Couchbase::View::HandleInfo;
 
 our $_JSON = JSON->new()->allow_nonref;
 sub _js_encode { $_JSON->encode($_[0]) }
@@ -48,15 +46,15 @@ sub settings {
 # Returns a 'raw' request handle
 sub _htraw {
     my $self = $_[0];
-    return $self->_new_viewhandle(\%Couchbase::Couch::Handle::RawIterator::);
+    return $self->_new_viewhandle(\%Couchbase::View::Handle::RawIterator::);
 }
 
 # Gets a design document
 sub design_get {
     my ($self,$path) = @_;
-    my $handle = $self->_new_viewhandle(\%Couchbase::Couch::Handle::Slurpee::);
+    my $handle = $self->_new_viewhandle(\%Couchbase::View::Handle::Slurpee::);
     my $design = $handle->slurp_jsonized("GET", "_design/" . $path, "");
-    bless $design, 'Couchbase::Couch::Design';
+    bless $design, 'Couchbase::View::Design';
 }
 
 # saves a design document
@@ -66,7 +64,7 @@ sub design_put {
         $path = $design->{_id};
         $design = encode_json($design);
     }
-    my $handle = $self->_new_viewhandle(\%Couchbase::Couch::Handle::Slurpee::);
+    my $handle = $self->_new_viewhandle(\%Couchbase::View::Handle::Slurpee::);
     return $handle->slurp_jsonized("PUT", $path, $design);
 }
 
@@ -103,7 +101,7 @@ sub _process_viewpath_common {
 # slurp an entire resultset of views
 sub view_slurp {
     my ($self,$viewpath,%options) = @_;
-    my $handle = $self->_new_viewhandle(\%Couchbase::Couch::Handle::Slurpee::);
+    my $handle = $self->_new_viewhandle(\%Couchbase::View::Handle::Slurpee::);
     $viewpath = _process_viewpath_common($viewpath,%options);
     return $handle->slurp("GET", $viewpath, "");
 }
@@ -113,7 +111,7 @@ sub view_iterator {
     my $handle;
 
     $viewpath = _process_viewpath_common($viewpath, %options);
-    $handle = $self->_new_viewhandle(\%Couchbase::Couch::Handle::ViewIterator::);
+    $handle = $self->_new_viewhandle(\%Couchbase::View::Handle::ViewIterator::);
     $handle->_perl_initialize();
     $handle->prepare("GET", $viewpath, "");
     return $handle;
