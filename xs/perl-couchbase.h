@@ -36,29 +36,6 @@ typedef enum {
 
 typedef SV* PLCB_document_rv;
 
-typedef enum {
-    PLCBf_DIE_ON_ERROR          = 0x1,
-    /*conversion flags*/
-    PLCBf_USE_COMPAT_FLAGS      = 0x2,
-    PLCBf_USE_COMPRESSION       = 0x4,
-    PLCBf_USE_STORABLE          = 0x8,
-    PLCBf_USE_CONVERT_UTF8      = 0x10,
-    PLCBf_NO_CONNECT            = 0x20,
-    PLCBf_DECONVERT             = 0x40,
-    
-    /*pseudo-flags*/
-    PLCBf_COMPRESS_THRESHOLD    = 0x80,
-    PLCBf_RET_EXTENDED_FIELDS   = 0x100,
-    
-    /* Whether to treat references to string scalars
-      as strings */
-    PLCBf_DEREF_RVPV            = 0x200,
-    
-    /* Whether to verify all input for couch* related
-      storage operations for valid JSON content */
-    PLCBf_JSON_VERIFY           = 0x400,
-} PLCB_flags_t;
-
 enum plcb_COMMANDS {
     PLCB_CMD_GET, PLCB_CMD_SET, PLCB_CMD_ADD, PLCB_CMD_REPLACE, PLCB_CMD_COUNTER,
     PLCB_CMD_APPEND, PLCB_CMD_PREPEND, PLCB_CMD_REMOVE, PLCB_CMD_UNLOCK
@@ -102,8 +79,6 @@ struct PLCB_st {
     HV *opctx_sync_stash;
     HV *opctx_cb_stash;
 
-    PLCB_flags_t my_flags;
-
     int connected;
     
     SV *cv_serialize;
@@ -136,7 +111,6 @@ typedef struct {
 enum {
     PLCB_OPCTX_IDX_FLAGS = 0,
     PLCB_OPCTX_IDX_CBO,
-    PLCB_OPCTX_IDX_BACKREFS,
     PLCB_OPCTX_IDX_EXTRA
 };
 
@@ -146,13 +120,7 @@ typedef SV *plcb_XSOPCTX;
 /*need to include this after defining PLCB_t*/
 #include "plcb-return.h"
 #include "perl-couchbase-couch.h"
-#include "plcb-convert.h"
 #include "plcb-args.h"
-
-/* Magic bit */
-#define PLCB_CONVERT_F_MAGIC 0x80000000
-#define PLCB_CONVERT_MASK_FMT 0x78
-#define PLCB_CONVERT_MASK_COMP 0x0F
 
 typedef struct {
     SV *value;
@@ -162,8 +130,6 @@ typedef struct {
     const char *encoded;
     size_t len;
 } plcb_vspec_t;
-
-typedef time_t PLCB_exp_t;
 
 void plcb_callbacks_setup(PLCB_t *object);
 
@@ -210,6 +176,5 @@ PLCB_args_return(plcb_SINGLEOP *so, lcb_error_t err);
  * XS prototypes.
  */
 XS(boot_Couchbase__Client_couch);
-XS(boot_Couchbase__Client_iterator);
 
 #endif /* PERL_COUCHBASE_H_ */
