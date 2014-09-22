@@ -41,6 +41,14 @@ my @const_bases = qw(
     SETTING_U32
     SETTING_SIZE
     SETTING_TIMEOUT
+
+    OPCTXIDX_FLAGS
+    OPCTXIDX_REMAINING
+    OPCTXIDX_QUEUE
+    OPCTXIDX_CBO
+
+    OPCTXf_IMPLICIT
+    OPCTXf_WAITONE
 );
 
 constant("PLCB_$_", name => $_) for (@const_bases);

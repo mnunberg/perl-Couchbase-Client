@@ -3,7 +3,7 @@
 
 #include "plcb-util.h"
 
-#define plcb_ret_isa(obj, ret) \
+#define plcb_doc_isa(obj, ret) \
     (sv_isobject(ret) && \
             (SvSTASH(ret) == (obj)->ret_stash || sv_isa(ret, PLCB_RET_CLASSNAME)))
 
@@ -11,12 +11,12 @@
     (sv_isobject(ret) && \
             (SvSTASH(ret) == (obj)->opctx_sync_stash || sv_isa(ret, PLCB_OPCTX_CLASSNAME)))
 
-#define plcb_ret_set_cas(obj, ret, cas) \
+#define plcb_doc_set_cas(obj, ret, cas) \
     av_store(ret, PLCB_RETIDX_CAS, \
         plcb_sv_from_u64_new(cas) );
 
 static inline void
-plcb_ret_set_numval(PLCB_t *obj, AV *ret, uint64_t value, uint64_t cas)
+plcb_doc_set_numval(PLCB_t *obj, AV *ret, uint64_t value, uint64_t cas)
 {
     SV *isv = newSV(0);
 #ifdef PLCB_PERL64
@@ -29,13 +29,33 @@ plcb_ret_set_numval(PLCB_t *obj, AV *ret, uint64_t value, uint64_t cas)
     }
 #endif
     av_store(ret, PLCB_RETIDX_VALUE, isv);
-    plcb_ret_set_cas(obj, ret, &cas);
+    plcb_doc_set_cas(obj, ret, &cas);
 }
 
-
-#define plcb_ret_set_err(obj, ret, err) sv_setiv(*av_fetch(ret, PLCB_RETIDX_ERRNUM, 1), err)
+static inline void
+plcb_doc_set_err(PLCB_t *obj, AV *ret, lcb_error_t err)
+{
+    SV **ivsv = av_fetch(ret, PLCB_RETIDX_ERRNUM, 1);
+    sv_setiv(*ivsv, err);
+    (void)obj;
+}
 
 #define plcb_ret_blessed_rv(obj, ret) \
     sv_bless(newRV_noinc( (SV*)(ret)), (obj)->ret_stash)
+
+static inline int
+plcb_opctx_remaining(AV *arr, int op)
+{
+    SV *ivsv = *(av_fetch(arr, PLCB_OPCTXIDX_REMAINING, 1));
+    if (!SvIOK(ivsv)) {
+        if (op < 0) {
+            die("Cannot decrement non existent remaining count");
+        }
+        sv_setiv(ivsv, op);
+    } else {
+        SvIVX(ivsv) += op;
+    }
+    return SvIVX(ivsv);
+}
 
 #endif /*PLCB_RETURN_H_*/

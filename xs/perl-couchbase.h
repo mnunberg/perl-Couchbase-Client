@@ -42,7 +42,7 @@ enum plcb_COMMANDS {
 };
 
 
-typedef enum {
+enum {
     PLCB_RETIDX_VALUE   = 0,
     PLCB_RETIDX_ERRNUM  = 1,
     PLCB_RETIDX_CAS     = 3,
@@ -51,7 +51,15 @@ typedef enum {
     PLCB_RETIDX_FMTSPEC = 6,
     PLCB_RETIDX_PARENT  = 7,
     PLCB_RETIDX_MAX
-} PLCB_ret_idx_t;
+};
+
+enum {
+    PLCB_OPCTXIDX_FLAGS = 0,
+    PLCB_OPCTXIDX_CBO,
+    PLCB_OPCTXIDX_REMAINING,
+    PLCB_OPCTXIDX_QUEUE,
+    PLCB_OPCTXIDX_EXTRA
+};
 
 typedef enum {
     PLCB_LF_JSON = 0x00,
@@ -96,6 +104,12 @@ struct PLCB_st {
     int npending;
 };
 
+typedef struct {
+    unsigned nremaining;
+    unsigned flags;
+    SV *parent; /* PLCB_T */
+    AV *ctxqueue; /* For queued operations */
+} plcb_OPCTX;
 
 typedef struct {
     int cmdbase; /* Effective command passed, without flags or modifiers */
@@ -105,14 +119,9 @@ typedef struct {
     SV *cmdopts; /* Command options */
 } plcb_SINGLEOP;
 
-#define PLCB_OPCTX_IMPLICIT 0x01
-#define PLCB_OPCTX_CALLBACKS 0x02
-
-enum {
-    PLCB_OPCTX_IDX_FLAGS = 0,
-    PLCB_OPCTX_IDX_CBO,
-    PLCB_OPCTX_IDX_EXTRA
-};
+#define PLCB_OPCTXf_IMPLICIT 0x01
+#define PLCB_OPCTXf_CALLBACKS 0x02
+#define PLCB_OPCTXf_WAITONE 0x04
 
 typedef HV *plcb_XSCMDOPTS;
 typedef SV *plcb_XSOPCTX;

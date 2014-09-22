@@ -51,7 +51,7 @@ static void complete_callback(lcb_t instance, int cbtype, const lcb_RESPHTTP *re
         handle->flags |= PLCB_COUCHREQf_ERROR;
     }
 
-    plcb_ret_set_err(handle->parent, handle->plpriv, resp->rc);
+    plcb_doc_set_err(handle->parent, handle->plpriv, resp->rc);
 
     if ( (handle->flags & PLCB_COUCHREQf_CHUNKED) == 0) {
         sv_setiv(*( av_fetch(handle->plpriv, PLCB_COUCHIDX_HTTP, 1) ), status);
@@ -116,7 +116,7 @@ static void data_callback(lcb_t instance, int cbtype, const lcb_RESPHTTP *resp)
 
 
     if (resp->rc != LCB_SUCCESS) {
-        plcb_ret_set_err(handle->parent, handle->plpriv, resp->rc);
+        plcb_doc_set_err(handle->parent, handle->plpriv, resp->rc);
         lcb_cancel_http_request(handle->parent->instance, resp->_htreq);
 
         handle->lcb_request = NULL;
@@ -260,7 +260,7 @@ void plcb_vh_slurp(PLCB_viewhandle_t *handle,
     handle->flags = 0;
 
     if (err != LCB_SUCCESS) {
-        plcb_ret_set_err(handle->parent, handle->plpriv, err);
+        plcb_doc_set_err(handle->parent, handle->plpriv, err);
         handle->flags |= (PLCB_COUCHREQf_TERMINATED|PLCB_COUCHREQf_ERROR);
         return;
     }
@@ -288,7 +288,7 @@ void plcb_vh_iter_start(PLCB_viewhandle_t *handle,
 
     if (err != LCB_SUCCESS) {
         /* Pretend we're done, and call the data callback */
-        plcb_ret_set_err(handle->parent, handle->plpriv, err);
+        plcb_doc_set_err(handle->parent, handle->plpriv, err);
         call_to_perl(handle, PLCB_COUCHIDX_CALLBACK_COMPLETE, &PL_sv_undef,
             handle->plpriv);
     }

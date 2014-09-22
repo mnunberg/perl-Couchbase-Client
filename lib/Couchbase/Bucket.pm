@@ -105,7 +105,7 @@ sub view_slurp {
     my ($self,$viewpath,%options) = @_;
     my $handle = $self->_new_viewhandle(\%Couchbase::Couch::Handle::Slurpee::);
     $viewpath = _process_viewpath_common($viewpath,%options);
-    $handle->slurp("GET", $viewpath, "");
+    return $handle->slurp("GET", $viewpath, "");
 }
 
 sub view_iterator {

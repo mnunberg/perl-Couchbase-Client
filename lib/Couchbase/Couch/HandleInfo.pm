@@ -103,7 +103,7 @@ sub _extract_view_results {
 
 {
     no warnings 'once';
-    *rows = *Couchbase::Client::Return::value;
+    *rows = *Couchbase::Document::value;
 }
 
 1;

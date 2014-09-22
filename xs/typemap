@@ -1,3 +1,4 @@
+# vim: set noexpandtab:
 TYPEMAP
 PLCB_XS_OBJPAIR_t	T_PLCB_XS_OBJPAIR_T
 PLCB_XS_STRING_NONULL_t	T_PLCB_XS_STRING_NONULL_T
@@ -7,6 +8,7 @@ PLCB_jsondec_t*	T_PLCB_JSONDEC_T
 PLCB_iter_t *	T_PLCB_ITER_T
 PLCB_exp_t		T_PLCB_EXP_T
 PLCB_t *        T_PLCB
+plcb_OPCTX*		T_OPCTX
 
 INPUT
 T_PLCB_XS_OBJPAIR_T
@@ -22,6 +24,17 @@ T_PLCB
 		die(\"Not a valid Couchbase::Bucket\"); \
 	}
 	$var = NUM2PTR(PLCB_t*,SvIV(SvRV($arg)));
+
+T_OPCTX
+	if (!sv_isa($arg, \"Couchbase::OpContext\")) {
+		die(\"Not a valid Couchbase::OpContext\");
+	}
+	$var = NUM2PTR($type, SvIV(SvRV($arg))); \
+	if (!SvROK($var->parent)) {
+		parent = NULL;
+	} else {
+		parent = NUM2PTR(PLCB_t*,SvIV(SvRV($var->parent)));
+	}
 
 T_PLCB_XS_STRING_NONULL_T
 	if(!SvPOK($arg)) {

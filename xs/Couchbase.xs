@@ -20,16 +20,18 @@ void plcb_cleanup(PLCB_t *object)
 static SV *
 new_opctx(PLCB_t *parent, int flags)
 {
-    AV *array = newAV();
-    SV *blessed = newRV_noinc( (SV *)array);
-    SV *flagsiv = newSVuv(flags);
+    plcb_OPCTX *ctx;
+    Newxz(ctx, 1, plcb_OPCTX);
 
-    SV *dummyrv = newRV_inc(parent->selfobj);
-    sv_rvweaken(dummyrv);
-
-    av_store(array, PLCB_OPCTX_IDX_FLAGS, flagsiv);
-    av_store(array, PLCB_OPCTX_IDX_CBO, dummyrv);
+    SV *blessed = newSV(0);
+    sv_setiv(blessed, PTR2IV(ctx));
+    blessed = newRV_noinc(blessed);
     sv_bless(blessed, parent->opctx_sync_stash);
+
+    ctx->flags = flags;
+    ctx->parent = newRV_inc(parent->selfobj);
+    sv_rvweaken(ctx->parent);
+
     return blessed;
 }
 
@@ -87,7 +89,7 @@ PLCB_construct(const char *pkg, HV *hvopts)
     sv_setiv(newSVrv(blessed_obj, "Couchbase::Bucket"), PTR2IV(object));
 
     object->selfobj = SvRV(blessed_obj);
-    object->deflctx = new_opctx(object, PLCB_OPCTX_IMPLICIT);
+    object->deflctx = new_opctx(object, PLCB_OPCTXf_IMPLICIT);
 
     return blessed_obj;
 }
@@ -258,7 +260,7 @@ PLCB__cntl_get(PLCB_t *object, int setting, int type)
 static void
 init_singleop(plcb_SINGLEOP *so, PLCB_t *parent, SV *doc, SV *ctx, SV *options)
 {
-    if (!plcb_ret_isa(parent, doc)) {
+    if (!plcb_doc_isa(parent, doc)) {
         sv_dump(doc);
         die("Must pass a Couchbase::Document");
         /* Initialize the document to 0 */
@@ -268,7 +270,7 @@ init_singleop(plcb_SINGLEOP *so, PLCB_t *parent, SV *doc, SV *ctx, SV *options)
     so->opctx = ctx;
     so->parent = parent;
 
-    plcb_ret_set_err(parent, so->docav, -1);
+    plcb_doc_set_err(parent, so->docav, -1);
 
     if (options && SvTYPE(options) != SVt_NULL) {
         if (SvROK(options) == 0 || SvTYPE(SvRV(options)) != SVt_PVHV) {
@@ -289,7 +291,7 @@ init_singleop(plcb_SINGLEOP *so, PLCB_t *parent, SV *doc, SV *ctx, SV *options)
         }
         so->opctx = ctx;
     } else {
-        if (parent->curctx) {
+        if (parent->curctx && SvRV(parent->curctx) != SvRV(ctx)) {
             /* Have a current context? */
             warn("Existing batch context found. This may leak memory.");
             lcb_sched_fail(parent->instance);
@@ -305,14 +307,13 @@ SV *
 PLCB_args_return(plcb_SINGLEOP *so, lcb_error_t err)
 {
     /* Figure out what type of context we are */
-    AV *opctx_real = (AV *) SvRV(so->opctx);
-    UV flags = SvUV(*av_fetch(opctx_real, PLCB_OPCTX_IDX_FLAGS, 0));
+    plcb_OPCTX *ctx = NUM2PTR(plcb_OPCTX*, SvIV(SvRV(so->opctx)));
 
     if (err != LCB_SUCCESS) {
         /* Remove the doc's "Parent" field */
         av_store(so->docav, PLCB_RETIDX_PARENT, &PL_sv_undef);
 
-        if (flags & PLCB_OPCTX_IMPLICIT) {
+        if (ctx->flags & PLCB_OPCTXf_IMPLICIT) {
             lcb_sched_fail(so->parent->instance);
         }
 
@@ -326,7 +327,10 @@ PLCB_args_return(plcb_SINGLEOP *so, lcb_error_t err)
     /* Increment refcount for the doc itself (decremented in callback) */
     SvREFCNT_inc((SV*)so->docav);
 
-    if (flags & PLCB_OPCTX_IMPLICIT) {
+    /* Increment remaining count on the context */
+    ctx->nremaining++;
+
+    if (ctx->flags & PLCB_OPCTXf_IMPLICIT) {
         lcb_sched_leave(so->parent->instance);
         lcb_wait3(so->parent->instance, LCB_WAIT_NOCHECK);
     }
@@ -444,7 +448,7 @@ PLCB__new_viewhandle(PLCB_XS_OBJPAIR_t self, stash)
 
 
 SV *
-PLCB__ctx_new(PLCB_t *object)
+PLCB_batch(PLCB_t *object)
     PREINIT:
     SV *ctxrv = NULL;
 
@@ -460,19 +464,92 @@ PLCB__ctx_new(PLCB_t *object)
     lcb_sched_enter(object->instance);
     OUTPUT: RETVAL
 
-void
-PLCB__ctx_wait(PLCB_t *object)
-    CODE:
-    if (!object->curctx) {
-        die("Object must have a current context associated with it");
-    }
-    lcb_sched_leave(object->instance);
-    lcb_wait3(object->instance, LCB_WAIT_NOCHECK);
 
 void
 PLCB__ctx_clear(PLCB_t *object)
     CODE:
     clear_opctx(object);
+
+MODULE = Couchbase PACKAGE = Couchbase::OpContext PREFIX = PLCB_ctx_
+
+void
+PLCB_ctx_wait_all(plcb_OPCTX *ctx)
+    PREINIT:
+    PLCB_t *parent;
+
+    CODE:
+    if (!parent) {
+        die("Parent context is destroyed");
+    }
+
+    if (!parent->curctx) {
+        die("Current context is not active");
+    }
+
+    if (!ctx->nremaining) {
+        return;
+    }
+    /* Remove the 'wait_one' flag */
+    ctx->flags &= ~PLCB_OPCTXf_WAITONE;
+    lcb_sched_leave(parent->instance);
+    lcb_wait3(parent->instance, LCB_WAIT_NOCHECK);
+    clear_opctx(parent);
+
+
+SV *
+PLCB_ctx_wait_one(plcb_OPCTX *ctx)
+    PREINIT:
+    PLCB_t *parent;
+
+    CODE:
+    if (!parent) {
+        die("Parent context is destroyed");
+    }
+
+    if (ctx->ctxqueue) {
+        RETVAL = av_shift(ctx->ctxqueue);
+        if (RETVAL != &PL_sv_undef) {
+            goto GT_DONE;
+        }
+    }
+
+    if (!parent->curctx) {
+        die("Current context is not active");
+    }
+
+    if (!ctx->nremaining) {
+        clear_opctx(parent);
+        RETVAL = &PL_sv_undef;
+        SvREFCNT_inc(&PL_sv_undef);
+        goto GT_DONE;
+    }
+    if (!ctx->ctxqueue) {
+        ctx->ctxqueue = newAV();
+    }
+    ctx->flags |= PLCB_OPCTXf_WAITONE;
+    lcb_sched_leave(parent->instance);
+    lcb_wait3(parent->instance, LCB_WAIT_NOCHECK);
+    RETVAL = av_shift(ctx->ctxqueue);
+
+    GT_DONE: ;
+    OUTPUT: RETVAL
+
+SV *
+PLCB_ctx__cbo(plcb_OPCTX *ctx)
+    PREINIT:
+    PLCB_t *parent;
+    CODE:
+    (void)parent;
+    RETVAL = newRV_inc(SvRV(ctx->parent));
+    OUTPUT: RETVAL
+
+void
+PLCB_ctx_DESTROY(plcb_OPCTX *ctx)
+    PREINIT:
+    PLCB_t *parent;
+    CODE:
+    SvREFCNT_dec(ctx->parent);
+    SvREFCNT_dec(ctx->ctxqueue);
 
 MODULE = Couchbase PACKAGE = Couchbase    PREFIX = PLCB_
 
