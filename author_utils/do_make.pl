@@ -14,7 +14,7 @@ $Prefix ||= "/sources/libcouchbase/inst";
 
 system("make distclean");
 
-my $cmd = "perl Makefile.PL ";
+my $cmd = "$^X Makefile.PL ";
 $cmd .= sprintf("--incpath='-I%s/include' ", $Prefix);
 $cmd .= sprintf("--libpath='-L%s/lib' ", $Prefix);
 if ($CC) {
