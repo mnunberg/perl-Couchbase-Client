@@ -231,13 +231,11 @@ PLCB_args_get(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDGET *gcmd)
         plcb_extract_args(args->cmdopts, opt_specs);
     }
 
-    if (exp) {
-        PLCB_UEXP2EXP(gcmd->exptime, exp, 0);
-    }
-
     if (lock) {
         PLCB_UEXP2EXP(gcmd->lock, lock, 0);
         gcmd->exptime = gcmd->lock;
+    } else if (exp) {
+        gcmd->exptime = exp;
     }
 
     return 0;
