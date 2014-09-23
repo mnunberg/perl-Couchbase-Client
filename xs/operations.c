@@ -36,7 +36,7 @@ PLCB_op_get(PLCB_t *object, plcb_SINGLEOP *opinfo)
 
     PLCB_args_get(object, opinfo, &gcmd);
     key_from_so(opinfo, (lcb_CMDBASE*)&gcmd);
-    err = lcb_get3(object->instance, opinfo->docav, &gcmd);
+    err = lcb_get3(object->instance, opinfo->cookie, &gcmd);
     return PLCB_args_return(opinfo, err);
 }
 
@@ -67,7 +67,7 @@ PLCB_op_set(PLCB_t *object, plcb_SINGLEOP *opinfo)
     scmd.flags = vspec.flags;
     scmd.operation =  cmd_to_storop(opinfo->cmdbase);
 
-    err = lcb_store3(object->instance, opinfo->docav, &scmd);
+    err = lcb_store3(object->instance, opinfo->cookie, &scmd);
     plcb_convert_storage_free(object, &vspec);
     return PLCB_args_return(opinfo, err);
 }
@@ -80,7 +80,7 @@ PLCB_op_counter(PLCB_t *object, plcb_SINGLEOP *opinfo)
     
     key_from_so(opinfo, (lcb_CMDBASE *)&ccmd);
     PLCB_args_arithmetic(object, opinfo, &ccmd);
-    err = lcb_counter3(object->instance, opinfo->docav, &ccmd);
+    err = lcb_counter3(object->instance, opinfo->cookie, &ccmd);
     return PLCB_args_return(opinfo, err);
 }
 
@@ -92,7 +92,7 @@ PLCB_op_remove(PLCB_t *object, plcb_SINGLEOP *opinfo)
 
     key_from_so(opinfo, &rcmd);
     PLCB_args_remove(object, opinfo, &rcmd);
-    err = lcb_remove3(object->instance, opinfo->docav, &rcmd);
+    err = lcb_remove3(object->instance, opinfo->cookie, &rcmd);
     return PLCB_args_return(opinfo, err);
 }
 
@@ -104,6 +104,6 @@ PLCB_op_unlock(PLCB_t *object, plcb_SINGLEOP *opinfo)
 
     key_from_so(opinfo, &ucmd);
     PLCB_args_unlock(object, opinfo, &ucmd);
-    err = lcb_unlock3(object->instance, opinfo->docav, &ucmd);
+    err = lcb_unlock3(object->instance, opinfo->cookie, &ucmd);
     return PLCB_args_return(opinfo, err);
 }

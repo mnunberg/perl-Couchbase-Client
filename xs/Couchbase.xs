@@ -269,6 +269,7 @@ init_singleop(plcb_SINGLEOP *so, PLCB_t *parent, SV *doc, SV *ctx, SV *options)
     so->docav = (AV *)SvRV(doc);
     so->opctx = ctx;
     so->parent = parent;
+    so->cookie = so->docav;
 
     plcb_doc_set_err(parent, so->docav, -1);
 

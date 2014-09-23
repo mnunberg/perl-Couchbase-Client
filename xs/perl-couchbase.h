@@ -117,6 +117,7 @@ typedef struct {
     AV *docav; /* The document */
     SV *opctx; /* The context */
     SV *cmdopts; /* Command options */
+    void *cookie;
 } plcb_SINGLEOP;
 
 #define PLCB_OPCTXf_IMPLICIT 0x01
