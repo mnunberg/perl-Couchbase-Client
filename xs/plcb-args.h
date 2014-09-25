@@ -27,6 +27,9 @@ typedef enum {
     /* 32 bit integer target */
     PLCB_ARG_T_I32,
 
+    /* 32 bit unsigend target */
+    PLCB_ARG_T_U32,
+
     /* 64 bit integer target */
     PLCB_ARG_T_I64,
 
@@ -72,6 +75,7 @@ typedef struct {
 #define PLCB_ARG_K_PERSIST "persist_to"
 #define PLCB_ARG_K_REPLICATE "replicate_to"
 #define PLCB_ARG_K_VALUE "value"
+#define PLCB_ARG_K_FMT "format"
 
 #define PLCB_KWARG(s, tbase, target) \
 { s, sizeof(s)-1, PLCB_ARG_T_##tbase, target }
@@ -85,6 +89,6 @@ int PLCB_args_get(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDGET *gcmd);
 int PLCB_args_remove(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDREMOVE *rcmd);
 int PLCB_args_arithmetic(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDCOUNTER *cmd);
 int PLCB_args_unlock(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDUNLOCK *cmd);
-int PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *cmd, SV **valuesv);
+int PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *cmd, plcb_vspec_t *vspec);
 
 #endif /* PLCB_KWARGS_H_ */

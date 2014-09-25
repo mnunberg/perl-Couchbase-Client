@@ -128,11 +128,6 @@ typedef struct {
 typedef HV *plcb_XSCMDOPTS;
 typedef SV *plcb_XSOPCTX;
 
-/*need to include this after defining PLCB_t*/
-#include "plcb-return.h"
-#include "perl-couchbase-couch.h"
-#include "plcb-args.h"
-
 typedef struct {
     SV *value;
     uint32_t flags;
@@ -141,6 +136,11 @@ typedef struct {
     const char *encoded;
     size_t len;
 } plcb_vspec_t;
+
+/*need to include this after defining PLCB_t*/
+#include "plcb-return.h"
+#include "perl-couchbase-couch.h"
+#include "plcb-args.h"
 
 void plcb_callbacks_setup(PLCB_t *object);
 

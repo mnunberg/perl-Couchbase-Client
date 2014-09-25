@@ -108,6 +108,10 @@ convert_valspec(plcb_argval_t *dst, SV *src)
         *(uint64_t*)dst->value = plcb_sv_to_u64(src);
         break;
 
+    case PLCB_ARG_T_U32:
+        *(uint32_t*)dst->value = SvUV(src);
+        break;
+
     case PLCB_ARG_T_STRING:
     case PLCB_ARG_T_STRING_NN: {
         PLCB_XS_STRING_t *str = dst->value;
@@ -297,21 +301,24 @@ PLCB_args_unlock(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDUNLOCK *ucmd)
 }
 
 int
-PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *scmd, SV **valuesv)
+PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *scmd, plcb_vspec_t *vspec)
 {
     UV exp = 0;
     int ignore_cas = 0;
 
+    vspec->flags = PLCB_CF_JSON;
+
     plcb_argval_t doc_specs[] = {
-        PLCB_KWARG(PLCB_ARG_K_VALUE, SV, valuesv),
+        PLCB_KWARG(PLCB_ARG_K_VALUE, SV, &vspec->value),
         PLCB_KWARG(PLCB_ARG_K_EXPIRY, EXP, &exp),
         PLCB_KWARG(PLCB_ARG_K_CAS, CAS, &scmd->cas),
+        PLCB_KWARG(PLCB_ARG_K_FMT, U32, &vspec->spec),
         {NULL}
     };
 
     plcb_argval_t opt_specs[] = {
         PLCB_KWARG(PLCB_ARG_K_IGNORECAS, BOOL, &ignore_cas),
-        PLCB_KWARG(PLCB_ARG_K_FRAGMENT, SV, valuesv),
+        PLCB_KWARG(PLCB_ARG_K_FRAGMENT, SV, &vspec->value),
         { NULL }
     };
 
@@ -328,6 +335,10 @@ PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *scmd, SV **valu
     scmd->exptime = exp;
     if (ignore_cas) {
         scmd->cas = 0;
+    }
+
+    if (!vspec->value) {
+        die("Must have value!");
     }
     return 0;
 }

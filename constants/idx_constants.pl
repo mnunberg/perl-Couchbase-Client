@@ -18,6 +18,7 @@ my @const_bases = qw(
     RETIDX_ERRNUM
     RETIDX_KEY
     RETIDX_EXP
+    RETIDX_FMTSPEC
 
     COUCHIDX_HTTP
     COUCHIDX_CALLBACK_DATA
@@ -52,4 +53,10 @@ my @const_bases = qw(
 );
 
 constant("PLCB_$_", name => $_) for (@const_bases);
+
+
+# Also generate the ones for flags:
+my @fmt_bases = (qw(RAW JSON UTF8 STORABLE));
+constant("PLCB_CF_$_", name => "COUCHBASE_FMT_$_") for (@fmt_bases);
+
 write_output($ARGV[0]);

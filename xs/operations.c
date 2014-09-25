@@ -46,19 +46,13 @@ PLCB_op_set(PLCB_t *object, plcb_SINGLEOP *opinfo)
     lcb_error_t err = LCB_SUCCESS;
     plcb_vspec_t vspec = { 0 };
     lcb_CMDSTORE scmd = { 0 };
-    SV *value_sv;
-
-    vspec.spec = PLCB_CF_JSON;
 
     key_from_so(opinfo, (lcb_CMDBASE *)&scmd);
-    PLCB_args_set(object, opinfo, &scmd, &value_sv);
-
-    if ((vspec.value = value_sv) == NULL) {
-        die("Invalid value!");
-    }
+    PLCB_args_set(object, opinfo, &scmd, &vspec);
+    vspec.spec = PLCB_CF_JSON;
 
     plcb_convert_storage(object, opinfo->docav, &vspec);
-    if (value_sv == NULL) {
+    if (vspec.value == NULL) {
         die("Invalid value!");
     }
 
