@@ -9,3 +9,14 @@ BEGIN {
 }
 
 use Couchbase::Client::IDXConst;
+use Couchbase::Bucket;
+
+our @ERRMAP = ();
+
+1;
+
+__END__
+
+=head1 NAME
+
+Couchbase - Perl client for L<Couchbase|http://www.couchbase.com>

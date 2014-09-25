@@ -580,6 +580,13 @@ PLCB__get_errtype(int code)
     RETVAL = lcb_get_errtype(code);
     OUTPUT: RETVAL
 
+SV *
+PLCB_strerror(int code)
+    CODE:
+    RETVAL = newSVpv_share(lcb_strerror(NULL, code), 0);
+    SvREADONLY_on(RETVAL);
+    OUTPUT: RETVAL
+
 
 BOOT:
 /*XXX: DO NOT MODIFY WHITESPACE HERE. xsubpp is touchy*/
