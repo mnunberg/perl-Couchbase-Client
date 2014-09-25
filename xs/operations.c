@@ -47,9 +47,10 @@ PLCB_op_set(PLCB_t *object, plcb_SINGLEOP *opinfo)
     plcb_DOCVAL vspec = { 0 };
     lcb_CMDSTORE scmd = { 0 };
 
+    vspec.spec = PLCB_CF_JSON;
+
     key_from_so(opinfo, (lcb_CMDBASE *)&scmd);
     PLCB_args_set(object, opinfo, &scmd, &vspec);
-    vspec.spec = PLCB_CF_JSON;
 
     plcb_convert_storage(object, opinfo->docav, &vspec);
     if (vspec.value == NULL) {

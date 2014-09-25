@@ -198,6 +198,8 @@ load_doc_options(PLCB_t *parent, AV *ret, plcb_argval_t *values)
             ix = PLCB_RETIDX_EXP;
         } else if (cur->key == PLCB_ARG_K_VALUE) {
             ix = PLCB_RETIDX_VALUE;
+        } else if (cur->key == PLCB_ARG_K_FMT) {
+            ix = PLCB_RETIDX_FMTSPEC;
         } else {
             continue;
         }

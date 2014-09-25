@@ -61,7 +61,7 @@ sub format {
     if (scalar @_ == 1) {
         return $_[0]->[RETIDX_FMTSPEC]
     }
-    my $fmtspec = $_[0];
+    my $fmtspec = $_[1];
 
     if ($fmtspec !~ /^\d+$/) {
         my $numfmt = $FMT_STR2NUM{$fmtspec};

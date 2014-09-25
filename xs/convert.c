@@ -96,7 +96,6 @@ plcb_convert_storage(PLCB_t *object, AV *docav, plcb_DOCVAL *vspec)
 {
     SV *pv = SvROK(vspec->value) ? SvRV(vspec->value) : vspec->value;
     uint32_t fmt = vspec->spec;
-    uint32_t compat_flags = 0;
 
     if (object->cv_customenc) {
         GT_CUSTOM_CONVERT:
@@ -104,22 +103,22 @@ plcb_convert_storage(PLCB_t *object, AV *docav, plcb_DOCVAL *vspec)
         vspec->value = custom_convert(docav, object->cv_customenc, vspec->value, &vspec->flags, CONVERT_OUT);
 
     } else if (fmt == PLCB_CF_JSON) {
-        compat_flags = PLCB_LF_JSON;
+        vspec->flags = PLCB_LF_JSON|PLCB_CF_JSON;
         vspec->need_free = 1;
         vspec->value = serialize_convert(object->cv_jsonenc, vspec->value, CONVERT_OUT);
 
     } else if (fmt == PLCB_CF_STORABLE) {
-        compat_flags = PLCB_CF_STORABLE;
+        vspec->flags = PLCB_CF_STORABLE | PLCB_LF_STORABLE;
         vspec->need_free = 1;
-        vspec->value = serialize_convert( object->cv_serialize, vspec->value, CONVERT_OUT);
+        vspec->value = serialize_convert(object->cv_serialize, vspec->value, CONVERT_OUT);
 
     } else if (fmt == PLCB_CF_RAW) {
-        compat_flags = PLCB_CF_RAW;
+        vspec->flags = PLCB_CF_RAW | PLCB_LF_RAW;
         if (SvTYPE(pv) != SVt_PV) {
             die("Raw conversion requires string value!");
         }
     } else if (vspec->spec == PLCB_CF_UTF8) {
-        compat_flags = PLCB_CF_UTF8;
+        vspec->flags = PLCB_CF_UTF8 | PLCB_LF_UTF8;
         sv_utf8_upgrade(pv);
 
     } else {
@@ -136,7 +135,6 @@ plcb_convert_storage(PLCB_t *object, AV *docav, plcb_DOCVAL *vspec)
     } else {
         vspec->encoded = SvPV(vspec->value, vspec->len);
     }
-    vspec->flags |= compat_flags;
 }
 
 void plcb_convert_storage_free(PLCB_t *object, plcb_DOCVAL *vs)
