@@ -14,6 +14,7 @@ include "perl-couchbase.h";
 
 my @const_bases = qw(
     RETIDX_VALUE
+    RETIDX_PARENT
     RETIDX_CAS
     RETIDX_ERRNUM
     RETIDX_KEY

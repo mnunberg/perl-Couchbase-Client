@@ -13,7 +13,7 @@ use Class::XSAccessor::Array {
     accessors => {
         id => RETIDX_KEY,
         expiry => RETIDX_EXP,
-        cas => RETIDX_CAS,
+        _cas => RETIDX_CAS,
         value => RETIDX_VALUE,
         errnum => RETIDX_ERRNUM
     }
@@ -49,6 +49,14 @@ sub errstr {
     return $s;
 }
 
+sub copy {
+    my $self = shift;
+    bless my $cp = [@$self], 'Couchbase::Document';
+
+    $cp->_cas(0);
+    $cp->[RETIDX_PARENT] = undef;
+    return $cp;
+}
 
 our %FMT_STR2NUM = (
     utf8 => COUCHBASE_FMT_UTF8,
