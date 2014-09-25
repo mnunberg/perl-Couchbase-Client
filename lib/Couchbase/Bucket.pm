@@ -289,6 +289,9 @@ use the C<is_ok> method to check if no errors occurred).
 
 =head3 get($doc)
 
+=head3 get_and_touch($doc)
+
+
 Retrieve a document from the cluster. C<$doc> is an L<Couchbase::Document>. If the
 operation is successful, the value of the item will be accessible via its C<value>
 field.
@@ -299,6 +302,10 @@ field.
     if ($doc->is_ok) {
         printf("Got value: %s\n", $doc->value);
     }
+
+
+The C<get_and_touch> variant will also update (or clear) the expiration time of
+the item. See L<"Document Expiration"> for more details.
 
 
 =head3 insert($doc)
@@ -312,6 +319,24 @@ These three methods will set the value of the document on the server. C<insert>
 will only succeed if the item does B<not> exist, C<replace> will only succeed if the
 item B<already> exists, and C<upsert> will unconditionally write the new value
 regardless of it existing or not.
+
+
+=head4 Storage Format
+
+By default, the document is serialized and stored as JSON. This allows proper
+integration with other optional functionality of the cluster (such as views and
+N1QL queries). You may also store items in other formats which may then be
+transparently serialized and deserialized as needed.
+
+To specify the storage format for a document, specify the `format` setting
+in the L<Couchbase::Document> object, like so:
+
+    use Couchbase::Document;
+    my $doc = Couchbase::Document->new('foo', \1234, { format => COUCHBASE_FMT_STORABLE);
+
+
+This version of the client uses so-called "Common Flags", allowing seamless integration
+with Couchbase clients written in other languages.
 
 
 =head4 CAS Operations
@@ -330,10 +355,61 @@ modified by another application), set the C<ignore_cas> option to a true value i
 the C<$options> hashref.
 
 
+=head4 Durability Requirements
+
+Mutation operations in couchbase are considered successful once they are stored
+in the master node's cache for a given key. Sometimes extra redundancy and
+reliability is required, where an application should only proceed once the data
+has been replicated to a certain number of nodes and possibly persisted to their
+disks. Use the C<persist_to> and C<replicate_to> options to specify the specific
+durability requirements:
+
+=over
+
+=item C<persist_to>
+
+Wait until the item has been persisted (written to non-volatile storage) of this
+many nodes. A value of I<1> means the master node, where a value of 2 or higher
+means the master node I<and> C<n-1> replica nodes.
+
+
+=item C<replicate_to>
+
+Wait until the item has been replicated to the RAM of this many replica nodes.
+Your bucket must have at least this many replicas configured B<and> online for
+this option to function.
+
+=back
+
+You may specify a I<negative> value for either C<persist_to> or C<replicate_to>
+to indicate that a "best-effort" behavior is desired, meaning that replication
+and persistence should take effect on as many nodes as are currently online,
+which may be less than the number of replicas the bucket was configured with.
+
+You may request replication without persistence by simply setting C<replicate_to=0>.
+
+
+=head4 Document Expiration
+
+In many use cases it may be desirable to have the document automatically
+deleted after a certain period of time has elapsed (think about session management).
+You can specify when the document should be deleted, either as an offset from now
+in seconds (up to 30 days), or as Unix timestamp.
+
+The expiration is considered a property of the document and is thus configurable
+via the L<Couchbase::Document>'s C<expiry> method.
+
+
 =head3 remove($doc, $options)
 
 Remove an item from the cluster. The operation will fail if the item does not exist,
 or if the item's L<CAS|"CAS Operations"> has been modified.
+
+
+=head3 touch($doc, $options)
+
+Update the item's expiration time. This is more efficient than L<get_and_touch> as it
+does not return the item's value across the network.
 
 
 =head2 Client Settings
