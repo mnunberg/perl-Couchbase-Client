@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Couchbase;
-use Couchbase::Client::IDXConst;
+use Couchbase::_GlueConstants;
 use Couchbase::Document;
 use Couchbase::Settings;
 use Couchbase::OpContext;

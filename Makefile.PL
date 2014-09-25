@@ -85,10 +85,10 @@ $MM_Options{CONFIGURE} = sub {
 ################################################################################
 ### These scripts generate constants                                         ###
 ################################################################################
-foreach ([qw(error Errors)], [qw(idx IDXConst)]) {
+foreach ([qw(error Constants)], [qw(idx _GlueConstants)]) {
     my ($script,$genpm) = @$_;
     $script = "constants/$script" . "_constants.pl";
-    $genpm = '$(INST_LIB)/Couchbase/Client/' . "$genpm" . "_const.pm";
+    $genpm = '$(INST_LIB)/Couchbase/' . "$genpm" . "_const.pm";
     $MM_Options{PL_FILES}->{$script} = $genpm;
 }
 

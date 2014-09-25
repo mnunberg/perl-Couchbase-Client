@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use Test::More;
 use base qw(Couchbase::Test::Common);
-use Couchbase::Client::Errors;
+use Couchbase::Constants;
 use Couchbase::MockServer;
 use Time::HiRes qw(sleep);
 use Data::Dumper;

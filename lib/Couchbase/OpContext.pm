@@ -1,7 +1,7 @@
 package Couchbase::OpContext;
 use strict;
 use warnings;
-use Couchbase::Client::IDXConst;
+use Couchbase::_GlueConstants;
 use Data::Dumper;
 
 our $AUTOLOAD;

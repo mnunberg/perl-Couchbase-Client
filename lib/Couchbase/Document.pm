@@ -2,8 +2,8 @@ package Couchbase::Document;
 use strict;
 use warnings;
 
-use Couchbase::Client::IDXConst;
-use Couchbase::Client::Errors;
+use Couchbase::_GlueConstants;
+use Couchbase::Constants;
 use Couchbase;
 use base qw(Exporter);
 

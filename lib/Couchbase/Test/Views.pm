@@ -4,7 +4,7 @@ use warnings;
 use base qw(Couchbase::Test::Common);
 use Test::More;
 use Couchbase::Client;
-use Couchbase::Client::Errors;
+use Couchbase::Constants;
 use Data::Dumper;
 use Class::XSAccessor {
     accessors => [ qw(cbo) ]

@@ -3,7 +3,7 @@ use strict;
 use warnings;
 use base qw(Couchbase::Test::Common);
 use Test::More;
-use Couchbase::Client::Errors;
+use Couchbase::Constants;
 use Data::Dumper;
 
 use Class::XSAccessor {

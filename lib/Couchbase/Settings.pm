@@ -5,7 +5,7 @@ use warnings;
 use Data::Dumper;
 
 use Couchbase;
-use Couchbase::Client::IDXConst;
+use Couchbase::_GlueConstants;
 
 my %KEYMAP = (
     operation_timeout => [ 0x00, SETTING_TIMEOUT ],

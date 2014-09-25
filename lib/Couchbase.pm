@@ -8,7 +8,7 @@ BEGIN {
     XSLoader::load('Couchbase', $VERSION);
 }
 
-use Couchbase::Client::IDXConst;
+use Couchbase::_GlueConstants;
 use Couchbase::Bucket;
 
 our @ERRMAP = ();

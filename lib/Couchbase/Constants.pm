@@ -1,8 +1,8 @@
-package Couchbase::Client::Errors;
+package Couchbase::Constants;
 use strict;
 use warnings;
 use base qw(Exporter);
-require Couchbase::Client::Errors_const;
+require Couchbase::Constants_const;
 our @EXPORT;
 
 
@@ -21,7 +21,7 @@ __END__
 
 =head1 NAME
 
-Couchbase::Client::Errors - Error definitions for Couchbase
+Couchbase::Constants - Error definitions for Couchbase
 
 =head1 DESCRIPTION
 

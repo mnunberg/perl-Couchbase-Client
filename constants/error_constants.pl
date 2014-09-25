@@ -5,7 +5,7 @@ BEGIN {
 }
 
 use ExtUtils::H2PM;
-module "Couchbase::Client::Errors";
+module "Couchbase::Constants";
 use_export;
 
 include "sys/types.h";

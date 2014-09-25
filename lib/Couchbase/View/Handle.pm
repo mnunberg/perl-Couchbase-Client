@@ -9,7 +9,7 @@ package Couchbase::View::Handle;
 use strict;
 use warnings;
 use Couchbase;
-use Couchbase::Client::IDXConst;
+use Couchbase::_GlueConstants;
 use Carp qw(cluck);
 use base qw(Couchbase::View);
 
@@ -50,7 +50,7 @@ package Couchbase::View::Handle::ViewIterator;
 use strict;
 use warnings;
 use Constant::Generate [qw(ITERBUF JSNDEC JSNROOT)], -prefix => 'FLD_';
-use Couchbase::Client::IDXConst;
+use Couchbase::_GlueConstants;
 use JSON::SL;
 use Couchbase::View::Handle;
 use Data::Dumper;
@@ -192,7 +192,7 @@ package Couchbase::View::Handle::Slurpee;
 use strict;
 use warnings;
 use JSON;
-use Couchbase::Client::IDXConst;
+use Couchbase::_GlueConstants;
 use base qw(Couchbase::View::Handle);
 
 sub slurp_raw {
@@ -227,7 +227,7 @@ sub slurp {
 package Couchbase::View::Handle::RawIterator;
 use strict;
 use warnings;
-use Couchbase::Client::IDXConst;
+use Couchbase::_GlueConstants;
 use base qw(Couchbase::View::Handle);
 
 sub _cb_data {

@@ -10,7 +10,7 @@ use strict;
 use warnings;
 
 use Couchbase::Document;
-use Couchbase::Client::IDXConst;
+use Couchbase::_GlueConstants;
 use JSON;
 use base qw(Couchbase::Document);
 

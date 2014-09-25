@@ -5,7 +5,7 @@ BEGIN {
 }
 
 use ExtUtils::H2PM;
-module "Couchbase::Client::IDXConst";
+module "Couchbase::_GlueConstants";
 use_export;
 
 
