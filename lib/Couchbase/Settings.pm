@@ -14,7 +14,10 @@ my %KEYMAP = (
     durability_timeout => [ 0x0D, SETTING_TIMEOUT ],
     durability_interval => [ 0x0E, SETTING_TIMEOUT ],
     http_timeout => [ 0x0F, SETTING_TIMEOUT ],
-    config_total_timeout => [ 0x12, SETTING_TIMEOUT ]
+    config_total_timeout => [ 0x12, SETTING_TIMEOUT ],
+    config_node_timeout => [ 0x1B, SETTING_TIMEOUT ],
+    # Read only
+    certpath => [ 0x22, SETTING_STRING ]
     ## ...
 );
 
