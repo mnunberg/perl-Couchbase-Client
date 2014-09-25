@@ -85,7 +85,11 @@ callback_common(lcb_t instance, int cbtype, const lcb_RESPBASE *resp)
     case LCB_CALLBACK_REMOVE:
     case LCB_CALLBACK_UNLOCK:
     case LCB_CALLBACK_STORE:
-        plcb_doc_set_cas(parent, resobj, &resp->cas);
+    case LCB_CALLBACK_ENDURE:
+        if (resp->cas) {
+            plcb_doc_set_cas(parent, resobj, &resp->cas);
+        }
+
         if (cbtype == LCB_CALLBACK_STORE &&
                 chain_endure(parent, resobj, (const lcb_RESPSTORE *)resp)) {
             return; /* Will be handled already */
@@ -97,16 +101,13 @@ callback_common(lcb_t instance, int cbtype, const lcb_RESPBASE *resp)
         const lcb_RESPCOUNTER *cresp = (const lcb_RESPCOUNTER*)resp;
         plcb_doc_set_numval(parent, resobj, cresp->value, resp->cas);
         break;
-
-    case LCB_CALLBACK_ENDURE:
-        plcb_doc_set_err(parent, resobj, resp->rc);
-        break;
     }
 
     default:
         abort();
         break;
     }
+
 
     ctx->nremaining--;
 

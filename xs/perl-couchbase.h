@@ -37,6 +37,9 @@ enum {
 
 enum {
     PLCB_CMD_GET,
+    PLCB_CMD_GAT,
+    PLCB_CMD_TOUCH,
+    PLCB_CMD_LOCK,
     PLCB_CMD_SET,
     PLCB_CMD_ADD,
     PLCB_CMD_REPLACE,
@@ -183,6 +186,7 @@ SV *PLCB_op_set(PLCB_t*,plcb_SINGLEOP*);
 SV *PLCB_op_remove(PLCB_t*,plcb_SINGLEOP*);
 SV *PLCB_op_observe(PLCB_t *object, plcb_SINGLEOP *args);
 SV *PLCB_op_endure(PLCB_t *object, plcb_SINGLEOP *args);
+SV *PLCB_op_unlock(PLCB_t *object, plcb_SINGLEOP *args);
 
 SV *
 PLCB_args_return(plcb_SINGLEOP *so, lcb_error_t err);

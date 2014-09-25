@@ -218,30 +218,31 @@ load_doc_options(PLCB_t *parent, AV *ret, plcb_argval_t *values)
 int
 PLCB_args_get(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDGET *gcmd)
 {
+    if (args->cmdbase == PLCB_CMD_LOCK) {
+        UV lockexp;
+        plcb_argval_t opt_specs[] = {
+            PLCB_KWARG(PLCB_ARG_K_LOCK, EXP, &lockexp),
+            {NULL}
+        };
 
-    UV exp = 0;
-    UV lock = 0;
-
-    plcb_argval_t doc_specs [] = {
-        PLCB_KWARG(PLCB_ARG_K_EXPIRY, EXP, &exp),
-        {NULL}
-    };
-
-    plcb_argval_t opt_specs[] = {
-        PLCB_KWARG(PLCB_ARG_K_LOCK, EXP, &lock),
-        {NULL}
-    };
-
-    load_doc_options(object, args->docav, doc_specs);
-    if (args->cmdopts) {
+        if (!args->cmdopts) {
+            die("get_and_lock must have " PLCB_ARG_K_LOCK);
+        }
         plcb_extract_args(args->cmdopts, opt_specs);
-    }
+        if (!lockexp) {
+            die("get_and_lock must have " PLCB_ARG_K_LOCK);
+        }
+        gcmd->lock = 1;
+        gcmd->exptime = lockexp;
 
-    if (lock) {
-        PLCB_UEXP2EXP(gcmd->lock, lock, 0);
-        gcmd->exptime = gcmd->lock;
-    } else if (exp) {
-        gcmd->exptime = exp;
+    } else if (args->cmdbase == PLCB_CMD_GAT || args->cmdbase == PLCB_CMD_TOUCH) {
+        UV exp = 0;
+        plcb_argval_t doc_specs[] = {
+                PLCB_KWARG(PLCB_ARG_K_EXPIRY, EXP, &exp),
+                {NULL}
+        };
+        load_doc_options(object, args->docav, doc_specs);
+        ((lcb_CMDBASE*) gcmd)->exptime = exp;
     }
 
     return 0;

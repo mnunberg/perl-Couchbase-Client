@@ -36,7 +36,11 @@ PLCB_op_get(PLCB_t *object, plcb_SINGLEOP *opinfo)
 
     PLCB_args_get(object, opinfo, &gcmd);
     key_from_so(opinfo, (lcb_CMDBASE*)&gcmd);
-    err = lcb_get3(object->instance, opinfo->cookie, &gcmd);
+    if (opinfo->cmdbase == PLCB_CMD_TOUCH) {
+        err = lcb_touch3(object->instance, opinfo->cookie, (lcb_CMDTOUCH*)&gcmd);
+    } else {
+        err = lcb_get3(object->instance, opinfo->cookie, &gcmd);
+    }
     return PLCB_args_return(opinfo, err);
 }
 

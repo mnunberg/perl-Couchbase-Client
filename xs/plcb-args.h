@@ -71,7 +71,7 @@ typedef struct {
 #define PLCB_ARG_K_ARITH_DELTA "delta"
 #define PLCB_ARG_K_ARITH_INITIAL "initial"
 #define PLCB_ARG_K_ARITH_CREATE "create"
-#define PLCB_ARG_K_LOCK "lock_timeout"
+#define PLCB_ARG_K_LOCK "lock_duration"
 #define PLCB_ARG_K_PERSIST "persist_to"
 #define PLCB_ARG_K_REPLICATE "replicate_to"
 #define PLCB_ARG_K_VALUE "value"

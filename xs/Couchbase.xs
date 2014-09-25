@@ -376,9 +376,15 @@ PLCB_DESTROY(PLCB_t *object)
     Safefree(object);
 
 SV *
-PLCB_get(PLCB_t *self, SV *doc, ...)
+PLCB__get(PLCB_t *self, SV *doc, ...)
+    ALIAS:
+    get = PLCB_CMD_GET
+    get_and_touch = PLCB_CMD_GAT
+    get_and_lock = PLCB_CMD_LOCK
+    touch = PLCB_CMD_TOUCH
+
     PREINIT:
-    plcb_SINGLEOP opinfo = { PLCB_CMD_GET };
+    plcb_SINGLEOP opinfo = { ix };
     dPLCB_INPUTS
 
     CODE:
@@ -419,6 +425,19 @@ PLCB_remove(PLCB_t *self, SV *doc, ...)
     init_singleop(&opinfo, self, doc, ctx, options);
     
     RETVAL = PLCB_op_remove(self, &opinfo);
+    OUTPUT: RETVAL
+
+
+SV *
+PLCB_unlock(PLCB_t *self, SV *doc, ...)
+    PREINIT:
+    plcb_SINGLEOP opinfo = { PLCB_CMD_UNLOCK };
+    dPLCB_INPUTS
+
+    CODE:
+    FILL_EXTRA_PARAMS()
+    init_singleop(&opinfo, self, doc, ctx, options);
+    RETVAL = PLCB_op_unlock(self, &opinfo);
     OUTPUT: RETVAL
 
 SV *
