@@ -58,4 +58,11 @@ plcb_opctx_remaining(AV *arr, int op)
     return SvIVX(ivsv);
 }
 
+#define PLCB_MKDURABILITY(persist_to, replicate_to) \
+    persist_to | (replicate_to << 8)
+
+#define PLCB_GETDURABILITY(cur, persist_to, replicate_to) \
+    persist_to = cur & 0xff; \
+    replicate_to = ( cur >> 8 )  & 0xff
+
 #endif /*PLCB_RETURN_H_*/

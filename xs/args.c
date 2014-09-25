@@ -304,7 +304,10 @@ int
 PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *scmd, plcb_DOCVAL *vspec)
 {
     UV exp = 0;
+    SV *dur_sv = NULL;
+
     int ignore_cas = 0;
+    int persist_to = 0, replicate_to = 0;
 
     vspec->flags = PLCB_CF_JSON;
 
@@ -319,6 +322,8 @@ PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *scmd, plcb_DOCV
     plcb_argval_t opt_specs[] = {
         PLCB_KWARG(PLCB_ARG_K_IGNORECAS, BOOL, &ignore_cas),
         PLCB_KWARG(PLCB_ARG_K_FRAGMENT, SV, &vspec->value),
+        PLCB_KWARG(PLCB_ARG_K_PERSIST, INT, &persist_to),
+        PLCB_KWARG(PLCB_ARG_K_REPLICATE, INT, &replicate_to),
         { NULL }
     };
 
@@ -332,9 +337,17 @@ PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *scmd, plcb_DOCV
     if (args->cmdopts) {
         plcb_extract_args(args->cmdopts, opt_specs);
     }
+
     scmd->exptime = exp;
     if (ignore_cas) {
         scmd->cas = 0;
+    }
+
+    dur_sv = *av_fetch(args->docav, PLCB_RETIDX_OPTIONS, 1);
+    if (SvIOK(dur_sv)) {
+        SvUVX(dur_sv) = PLCB_MKDURABILITY(persist_to, replicate_to);
+    } else {
+        sv_setuv(dur_sv, PLCB_MKDURABILITY(persist_to, replicate_to));
     }
 
     if (!vspec->value) {
