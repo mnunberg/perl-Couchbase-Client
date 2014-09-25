@@ -1,22 +1,21 @@
 package Couchbase::Bucket;
+
 use strict;
 use warnings;
+
+use JSON;
+use URI;
+use Storable;
 
 use Couchbase;
 use Couchbase::_GlueConstants;
 use Couchbase::Document;
 use Couchbase::Settings;
 use Couchbase::OpContext;
-use JSON;
-use JSON::SL;
-use Data::Dumper;
-use URI;
-use Storable;
-
 use Couchbase::View::Handle;
 use Couchbase::View::HandleInfo;
 
-our $_JSON = JSON->new()->allow_nonref;
+my $_JSON = JSON->new()->allow_nonref;
 sub _js_encode { $_JSON->encode($_[0]) }
 sub _js_decode { $_JSON->decode($_[0]) }
 
