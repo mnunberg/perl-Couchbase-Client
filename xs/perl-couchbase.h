@@ -4,6 +4,7 @@
 
 #include <sys/types.h> /*for size_t*/
 #include <libcouchbase/couchbase.h>
+#include <libcouchbase/api3.h>
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
