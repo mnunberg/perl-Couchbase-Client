@@ -62,7 +62,7 @@ typedef struct {
     plcb_argtype_t type;
     void * const value;
     SV *sv;
-} plcb_argval_t;
+} plcb_OPTION;
 
 #define PLCB_ARG_K_CAS "cas"
 #define PLCB_ARG_K_IGNORECAS "ignore_cas"
@@ -83,7 +83,7 @@ typedef struct {
 #define PLCB_PADARG() { "", 0, PLCB_ARG_T_PAD, NULL }
 
 int
-plcb_extract_args(SV *sv, plcb_argval_t *values);
+plcb_extract_args(SV *sv, plcb_OPTION *values);
 
 int PLCB_args_get(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDGET *gcmd);
 int PLCB_args_remove(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDREMOVE *rcmd);

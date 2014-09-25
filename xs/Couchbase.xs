@@ -55,7 +55,7 @@ PLCB_construct(const char *pkg, HV *hvopts)
     struct lcb_create_st cr_opts = { 0 };
     SV *blessed_obj;
     PLCB_t *object;
-    plcb_argval_t options[] = {
+    plcb_OPTION options[] = {
         PLCB_KWARG("connstr", CSTRING, &cr_opts.v.v3.connstr),
         PLCB_KWARG("password", CSTRING, &cr_opts.v.v3.passwd),
         { NULL }

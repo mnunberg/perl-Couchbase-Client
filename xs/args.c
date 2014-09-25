@@ -5,10 +5,10 @@
 
 #include "perl-couchbase.h"
 
-static plcb_argval_t *
-find_valspec(plcb_argval_t *values, const char *key, size_t nkey)
+static plcb_OPTION *
+find_valspec(plcb_OPTION *values, const char *key, size_t nkey)
 {
-    plcb_argval_t *ret;
+    plcb_OPTION *ret;
     for (ret = values; ret->key; ret++) {
         if (nkey != ret->nkey) {
             continue;
@@ -21,7 +21,7 @@ find_valspec(plcb_argval_t *values, const char *key, size_t nkey)
 }
 
 static int
-convert_valspec(plcb_argval_t *dst, SV *src)
+convert_valspec(plcb_OPTION *dst, SV *src)
 {
     switch (dst->type) {
     case PLCB_ARG_T_PAD:
@@ -146,7 +146,7 @@ convert_valspec(plcb_argval_t *dst, SV *src)
 }
 
 int
-plcb_extract_args(SV *sv, plcb_argval_t *values)
+plcb_extract_args(SV *sv, plcb_OPTION *values)
 {
     char *cur_key;
     I32 klen;
@@ -160,7 +160,7 @@ plcb_extract_args(SV *sv, plcb_argval_t *values)
         hv_iterinit(hv);
 
         while ( (cur_val = hv_iternextsv(hv, &cur_key, &klen)) ) {
-            plcb_argval_t *curdst = find_valspec(values, cur_key, klen);
+            plcb_OPTION *curdst = find_valspec(values, cur_key, klen);
 
             if (!curdst) {
                 warn("Unrecognized key '%.*s'", (int)klen, cur_key);
@@ -180,9 +180,9 @@ plcb_extract_args(SV *sv, plcb_argval_t *values)
 }
 
 static void
-load_doc_options(PLCB_t *parent, AV *ret, plcb_argval_t *values)
+load_doc_options(PLCB_t *parent, AV *ret, plcb_OPTION *values)
 {
-    plcb_argval_t *cur = values;
+    plcb_OPTION *cur = values;
 
     for (cur = values; cur->value; cur++) {
         SV **tmpsv;
@@ -220,7 +220,7 @@ PLCB_args_get(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDGET *gcmd)
 {
     if (args->cmdbase == PLCB_CMD_LOCK) {
         UV lockexp;
-        plcb_argval_t opt_specs[] = {
+        plcb_OPTION opt_specs[] = {
             PLCB_KWARG(PLCB_ARG_K_LOCK, EXP, &lockexp),
             {NULL}
         };
@@ -237,7 +237,7 @@ PLCB_args_get(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDGET *gcmd)
 
     } else if (args->cmdbase == PLCB_CMD_GAT || args->cmdbase == PLCB_CMD_TOUCH) {
         UV exp = 0;
-        plcb_argval_t doc_specs[] = {
+        plcb_OPTION doc_specs[] = {
                 PLCB_KWARG(PLCB_ARG_K_EXPIRY, EXP, &exp),
                 {NULL}
         };
@@ -253,11 +253,11 @@ PLCB_args_remove(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDREMOVE *rcmd)
 {
     uint64_t cas = 0;
     int ignore_cas = 0;
-    plcb_argval_t doc_specs[] = {
+    plcb_OPTION doc_specs[] = {
         PLCB_KWARG(PLCB_ARG_K_CAS, CAS, &cas),
         { NULL }
     };
-    plcb_argval_t opts_specs[] = {
+    plcb_OPTION opts_specs[] = {
         PLCB_KWARG(PLCB_ARG_K_IGNORECAS, BOOL, &ignore_cas),
         {NULL}
     };
@@ -275,7 +275,7 @@ int
 PLCB_args_arithmetic(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDCOUNTER *acmd)
 {
     acmd->delta = 1;
-    plcb_argval_t argspecs[] = {
+    plcb_OPTION argspecs[] = {
         PLCB_KWARG(PLCB_ARG_K_ARITH_DELTA, I64, &acmd->delta),
         PLCB_KWARG(PLCB_ARG_K_ARITH_INITIAL, U64, &acmd->initial),
         PLCB_KWARG(PLCB_ARG_K_EXPIRY, EXP, &acmd->exptime),
@@ -291,7 +291,7 @@ PLCB_args_arithmetic(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDCOUNTER *acmd)
 int
 PLCB_args_unlock(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDUNLOCK *ucmd)
 {
-    plcb_argval_t argspecs[] = {
+    plcb_OPTION argspecs[] = {
         PLCB_KWARG(PLCB_ARG_K_CAS, CAS, &ucmd->cas),
         { NULL }
     };
@@ -314,7 +314,7 @@ PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *scmd, plcb_DOCV
 
     vspec->flags = PLCB_CF_JSON;
 
-    plcb_argval_t doc_specs[] = {
+    plcb_OPTION doc_specs[] = {
         PLCB_KWARG(PLCB_ARG_K_VALUE, SV, &vspec->value),
         PLCB_KWARG(PLCB_ARG_K_EXPIRY, EXP, &exp),
         PLCB_KWARG(PLCB_ARG_K_CAS, CAS, &scmd->cas),
@@ -322,7 +322,7 @@ PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *scmd, plcb_DOCV
         {NULL}
     };
 
-    plcb_argval_t opt_specs[] = {
+    plcb_OPTION opt_specs[] = {
         PLCB_KWARG(PLCB_ARG_K_IGNORECAS, BOOL, &ignore_cas),
         PLCB_KWARG(PLCB_ARG_K_FRAGMENT, SV, &vspec->value),
         PLCB_KWARG(PLCB_ARG_K_PERSIST, INT, &persist_to),
