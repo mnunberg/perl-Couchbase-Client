@@ -222,7 +222,6 @@ static SV *
 PLCB__cntl_get(PLCB_t *object, int setting, int type)
 {
     lcb_error_t err;
-    void *p = NULL;
     union {
         float floatval;
         int intval;
@@ -360,6 +359,9 @@ PLCB_connect(PLCB_t *object)
 
 void
 PLCB__set_converters(PLCB_t *object, int type, CV *encode, CV *decode)
+
+SV *
+PLCB__get_converters(PLCB_t *object, int type)
 
 void
 PLCB__cntl_set(PLCB_t *object, int setting, int type, SV *value)

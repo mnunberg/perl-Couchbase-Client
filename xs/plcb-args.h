@@ -89,6 +89,6 @@ int PLCB_args_get(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDGET *gcmd);
 int PLCB_args_remove(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDREMOVE *rcmd);
 int PLCB_args_arithmetic(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDCOUNTER *cmd);
 int PLCB_args_unlock(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDUNLOCK *cmd);
-int PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *cmd, plcb_vspec_t *vspec);
+int PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *cmd, plcb_DOCVAL *vspec);
 
 #endif /* PLCB_KWARGS_H_ */

@@ -92,7 +92,7 @@ custom_convert(AV *docav, SV *meth, SV *input, uint32_t *flags, int direction)
 }
 
 void
-plcb_convert_storage(PLCB_t *object, AV *docav, plcb_vspec_t *vspec)
+plcb_convert_storage(PLCB_t *object, AV *docav, plcb_DOCVAL *vspec)
 {
     SV *pv = SvROK(vspec->value) ? SvRV(vspec->value) : vspec->value;
     uint32_t fmt = vspec->spec;
@@ -139,7 +139,7 @@ plcb_convert_storage(PLCB_t *object, AV *docav, plcb_vspec_t *vspec)
     vspec->flags |= compat_flags;
 }
 
-void plcb_convert_storage_free(PLCB_t *object, plcb_vspec_t *vs)
+void plcb_convert_storage_free(PLCB_t *object, plcb_DOCVAL *vs)
 {
     if (vs->need_free) {
         SvREFCNT_dec(vs->value);

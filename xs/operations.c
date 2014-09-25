@@ -44,7 +44,7 @@ SV*
 PLCB_op_set(PLCB_t *object, plcb_SINGLEOP *opinfo)
 {
     lcb_error_t err = LCB_SUCCESS;
-    plcb_vspec_t vspec = { 0 };
+    plcb_DOCVAL vspec = { 0 };
     lcb_CMDSTORE scmd = { 0 };
 
     key_from_so(opinfo, (lcb_CMDBASE *)&scmd);

@@ -301,7 +301,7 @@ PLCB_args_unlock(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDUNLOCK *ucmd)
 }
 
 int
-PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *scmd, plcb_vspec_t *vspec)
+PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *scmd, plcb_DOCVAL *vspec)
 {
     UV exp = 0;
     int ignore_cas = 0;

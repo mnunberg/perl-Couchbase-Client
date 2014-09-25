@@ -20,28 +20,32 @@
 
 typedef struct PLCB_st PLCB_t;
 
-typedef enum {
+enum {
     PLCB_CONVERTERS_CUSTOM = 1,
     PLCB_CONVERTERS_JSON,
     PLCB_CONVERTERS_STORABLE
-} PLCB_converters_t;
+};
 
-typedef enum {
+enum {
     PLCB_SETTING_INT,
     PLCB_SETTING_UINT,
     PLCB_SETTING_U32,
     PLCB_SETTING_SIZE,
     PLCB_SETTING_STRING,
     PLCB_SETTING_TIMEOUT
-} PLCB_setting_code;
-
-typedef SV* PLCB_document_rv;
-
-enum plcb_COMMANDS {
-    PLCB_CMD_GET, PLCB_CMD_SET, PLCB_CMD_ADD, PLCB_CMD_REPLACE, PLCB_CMD_COUNTER,
-    PLCB_CMD_APPEND, PLCB_CMD_PREPEND, PLCB_CMD_REMOVE, PLCB_CMD_UNLOCK
 };
 
+enum {
+    PLCB_CMD_GET,
+    PLCB_CMD_SET,
+    PLCB_CMD_ADD,
+    PLCB_CMD_REPLACE,
+    PLCB_CMD_COUNTER,
+    PLCB_CMD_APPEND,
+    PLCB_CMD_PREPEND,
+    PLCB_CMD_REMOVE,
+    PLCB_CMD_UNLOCK
+};
 
 enum {
     PLCB_RETIDX_VALUE   = 0,
@@ -62,7 +66,7 @@ enum {
     PLCB_OPCTXIDX_EXTRA
 };
 
-typedef enum {
+enum {
     PLCB_LF_JSON = 0x00,
     PLCB_LF_STORABLE = 0x01 << 3,
     PLCB_LF_RAW = 0x03 << 3,
@@ -77,7 +81,7 @@ typedef enum {
     PLCB_CF_RAW = 0x03 << 24,
     PLCB_CF_UTF8 = 0x04 << 24,
     PLCB_CF_MASK = 0xFF << 24
-} PLCB_vflags;
+};
 
 struct PLCB_st {
     lcb_t instance; /*our library handle*/
@@ -121,13 +125,7 @@ typedef struct {
     void *cookie;
 } plcb_SINGLEOP;
 
-#define PLCB_OPCTXf_IMPLICIT 0x01
-#define PLCB_OPCTXf_CALLBACKS 0x02
-#define PLCB_OPCTXf_WAITONE 0x04
-
-typedef HV *plcb_XSCMDOPTS;
-typedef SV *plcb_XSOPCTX;
-
+/* Temporary structure used for encoding/storing values */
 typedef struct {
     SV *value;
     uint32_t flags;
@@ -135,7 +133,11 @@ typedef struct {
     short need_free;
     const char *encoded;
     size_t len;
-} plcb_vspec_t;
+} plcb_DOCVAL;
+
+#define PLCB_OPCTXf_IMPLICIT 0x01
+#define PLCB_OPCTXf_CALLBACKS 0x02
+#define PLCB_OPCTXf_WAITONE 0x04
 
 /*need to include this after defining PLCB_t*/
 #include "plcb-return.h"
@@ -154,9 +156,9 @@ void plcb_cleanup(PLCB_t *object);
 
 /*conversion functions*/
 void
-plcb_convert_storage(PLCB_t* object, AV *doc, plcb_vspec_t *vspec);
+plcb_convert_storage(PLCB_t* object, AV *doc, plcb_DOCVAL *vspec);
 
-void plcb_convert_storage_free(PLCB_t *object, plcb_vspec_t *vspec);
+void plcb_convert_storage_free(PLCB_t *object, plcb_DOCVAL *vspec);
 
 SV*
 plcb_convert_retrieval(PLCB_t *object, AV *doc, const char *data, size_t data_len, uint32_t flags);
@@ -183,9 +185,8 @@ SV *PLCB_op_endure(PLCB_t *object, plcb_SINGLEOP *args);
 
 SV *
 PLCB_args_return(plcb_SINGLEOP *so, lcb_error_t err);
-/**
- * XS prototypes.
- */
-XS(boot_Couchbase__Client_couch);
+
+/* Declare these ahead of time */
+XS(boot_Couchbase__View);
 
 #endif /* PERL_COUCHBASE_H_ */
