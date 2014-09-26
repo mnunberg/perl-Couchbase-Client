@@ -1,65 +1,32 @@
 #ifndef PLCB_KWARGS_H_
 #define PLCB_KWARGS_H_
 
-typedef enum {
-
-    /* Reference to hash */
-    PLCB_ARG_T_HV = 1,
-
-    /* Reference to array */
-    PLCB_ARG_T_AV,
-
-    PLCB_ARG_T_SV,
-
-    PLCB_ARG_T_CV,
-
-    PLCB_ARG_T_RV,
-
-    /* Expiration value (UV) */
-    PLCB_ARG_T_EXP,
-
-    /* Like an expiration value, but for a 'time_t*' pointer */
-    PLCB_ARG_T_EXPTT,
-
-    /* CAS value */
-    PLCB_ARG_T_CAS,
-
-    /* 32 bit integer target */
-    PLCB_ARG_T_I32,
-
-    /* 32 bit unsigend target */
-    PLCB_ARG_T_U32,
-
-    /* 64 bit integer target */
-    PLCB_ARG_T_I64,
-
-    PLCB_ARG_T_U64,
-
-    /* Boolean value (integer target) */
-    PLCB_ARG_T_BOOL,
-
-    /* simple 'int' type */
-    PLCB_ARG_T_INT,
-
-    /* String value, (const char**, STRLEN*) */
-    PLCB_ARG_T_STRING,
-
-    /* Like a string, but ensure it's not empty */
-    PLCB_ARG_T_STRING_NN,
-
-    /* A NUL-terminated string */
-    PLCB_ARG_T_CSTRING,
-
-    PLCB_ARG_T_CSTRING_NN,
-
-    /* Consume an element but ignore the argument */
-    PLCB_ARG_T_PAD
-} plcb_argtype_t;
+enum {
+    PLCB_ARG_T_HV = 1, /**< HASHREF. Pass HV** */
+    PLCB_ARG_T_AV, /**< ARRAYREF. Pass AV** */
+    PLCB_ARG_T_SV, /**< Any SV. Pass SV** */
+    PLCB_ARG_T_CV, /**< CODE ref. Pass CV** */
+    PLCB_ARG_T_RV, /**< Any reference type. Pass SV** */
+    PLCB_ARG_T_EXP, /**< Non-negative expiry, Pass UV* */
+    PLCB_ARG_T_EXPTT, /**< time_t expiration. Pass time_t* */
+    PLCB_ARG_T_CAS, /**< lcb_U64 */
+    PLCB_ARG_T_I32, /**< I32, int32_t */
+    PLCB_ARG_T_U32, /**< U32, uint32_t */
+    PLCB_ARG_T_I64, /**< lcb_S64 */
+    PLCB_ARG_T_U64, /**< lcb_U64 */
+    PLCB_ARG_T_BOOL, /**< evaluates value to boolean. Result as int* */
+    PLCB_ARG_T_INT, /**< Integer value, as int* */
+    PLCB_ARG_T_STRING, /**< Converts an SV to a string. Output in PLCB_XS_STRING_t */
+    PLCB_ARG_T_STRING_NN, /**< Like T_STRING, but ensures it's not empty */
+    PLCB_ARG_T_CSTRING, /**< Places a NUL-terminated string pointer in a char** */
+    PLCB_ARG_T_CSTRING_NN, /**< Like T_CSTRING, but ensures the string is not empty */
+    PLCB_ARG_T_PAD /**< Consume this option but don't parse it */
+};
 
 typedef struct {
     const char *key;
     size_t nkey;
-    plcb_argtype_t type;
+    int type;
     void * const value;
     SV *sv;
 } plcb_OPTION;
