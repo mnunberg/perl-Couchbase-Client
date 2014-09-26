@@ -16,15 +16,22 @@ cmd_to_storop(int cmd)
 static void
 key_from_so(plcb_SINGLEOP *so, lcb_CMDBASE *cmd)
 {
-    const char *key;
-    lcb_SIZE nkey;
+    const char *key = NULL;
+    STRLEN nkey = 0;
 
     SV **tmpsv = av_fetch(so->docav, PLCB_RETIDX_KEY, 0);
-    if (!tmpsv) {
-        die("Cannot pass document without key");
+    if (so->cmdbase == PLCB_CMD_STATS) {
+        if (!tmpsv) {
+            return;
+        }
+        key = SvPV(*tmpsv, nkey);
+    } else {
+        if (tmpsv == NULL) {
+            die("Cannot pass document without key");
+        }
+        plcb_get_str_or_die(*tmpsv, key, nkey, "Invalid key");
     }
 
-    plcb_get_str_or_die(*tmpsv, key, nkey, "Invalid key");
     LCB_CMD_SET_KEY(cmd, key, nkey);
 }
 
@@ -51,13 +58,11 @@ PLCB_op_set(PLCB_t *object, plcb_SINGLEOP *opinfo)
     plcb_DOCVAL vspec = { 0 };
     lcb_CMDSTORE scmd = { 0 };
 
-    vspec.spec = PLCB_CF_JSON;
-
     key_from_so(opinfo, (lcb_CMDBASE *)&scmd);
     PLCB_args_set(object, opinfo, &scmd, &vspec);
-
     plcb_convert_storage(object, opinfo->docav, &vspec);
-    if (vspec.value == NULL) {
+
+    if (vspec.encoded == NULL) {
         die("Invalid value!");
     }
 
@@ -104,5 +109,20 @@ PLCB_op_unlock(PLCB_t *object, plcb_SINGLEOP *opinfo)
     key_from_so(opinfo, &ucmd);
     PLCB_args_unlock(object, opinfo, &ucmd);
     err = lcb_unlock3(object->instance, opinfo->cookie, &ucmd);
+    return PLCB_args_return(opinfo, err);
+}
+
+SV*
+PLCB_op_stats(PLCB_t *object, plcb_SINGLEOP *opinfo)
+{
+    lcb_CMDSTATS scmd = { 0 };
+    lcb_error_t err = LCB_SUCCESS;
+    key_from_so(opinfo, &scmd);
+
+    if (opinfo->cmdbase == PLCB_CMD_KEYSTATS) {
+        scmd.cmdflags = LCB_CMDSTATS_F_KV;
+    }
+
+    err = lcb_stats3(object->instance, opinfo->cookie, &scmd);
     return PLCB_args_return(opinfo, err);
 }

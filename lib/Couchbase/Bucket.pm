@@ -21,19 +21,90 @@ sub _js_decode { $_JSON->decode($_[0]) }
 
 sub new {
     my ($pkg, $connstr, $opts) = @_;
-    $opts ||= {};
-    die("Must have connection string") unless $connstr;
+    my %options = ($opts ? %$opts : ());
 
-    my %options = (connstr => $connstr);
-
-    if ($opts->{password}) {
-        $options{password} = $opts->{password};
+    if (ref $connstr eq 'HASH') {
+        %options = (%options, %$connstr);
+    } else {
+        $options{connstr} = $connstr;
     }
+
+    die "Must have connection string" unless $options{connstr};
     my $self = $pkg->construct(\%options);
+
     $self->connect();
     $self->_set_converters(CONVERTERS_JSON, \&_js_encode, \&_js_decode);
     $self->_set_converters(CONVERTERS_STORABLE, \&Storable::freeze, \&Storable::thaw);
     return $self;
+}
+
+sub __statshelper {
+    my ($doc, $server, $key, $value) = @_;
+    if (!$doc->value || ref $doc->value ne 'HASH') {
+        $doc->value({});
+    }
+    ($doc->value->{$server} ||= {})->{$key} = $value;
+}
+
+sub _dispatch_stats {
+    my ($self, $mname, $key, $options, $ctx) = @_;
+    my $doc;
+
+    if (ref $key eq 'Couchbase::Document') {
+        $doc = $key;
+    } else {
+        $doc = Couchbase::StatsResult->new($key || "");
+    }
+
+    {
+        no strict 'refs';
+        $self->$mname($doc, $options, $ctx);
+    }
+
+    return $doc;
+}
+
+sub stats {
+    my ($self, @args) = @_;
+    $self->_dispatch_stats("_stats", @args);
+}
+
+sub keystats {
+    my ($self, @args) = @_;
+    $self->_dispatch_stats("_keystats", @args);
+}
+
+sub transform {
+    my ($self, $doc, $xfrm) = @_;
+    my $tmo = $self->settings()->{operation_timeout} / 1_000_000;
+    my $now = time();
+    my $end = $now + $tmo;
+
+    while ($now < $end) {
+        # Try to perform the mutation
+        my $rv = $xfrm->(\$doc->value);
+
+        if (!$rv) {
+            last;
+        }
+
+        $self->replace($doc);
+
+        if ($doc->is_cas_mismatch) {
+            $self->get($doc);
+        } else {
+            last;
+        }
+    }
+
+    return $doc;
+}
+
+sub transform_id {
+    my ($self, $id, $xfrm) = @_;
+    my $doc = Couchbase::Document->new($id);
+    $self->get($doc);
+    return $self->transform($doc, $xfrm);
 }
 
 sub settings {

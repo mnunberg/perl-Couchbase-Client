@@ -56,6 +56,33 @@ chain_endure(PLCB_t *obj, AV *resobj, const lcb_RESPSTORE *resp)
     return 1;
 }
 
+static void
+stats_helper(AV *resobj, const lcb_RESPSTATS *sresp)
+{
+    dSP;
+    ENTER;
+    SAVETMPS;
+    PUSHMARK(SP);
+
+    XPUSHs(sv_2mortal(newRV_inc((SV*)resobj)));
+    XPUSHs(sv_2mortal(newSVpv(sresp->server, 0)));
+    XPUSHs(sv_2mortal(newSVpvn(sresp->key, sresp->nkey)));
+    if (sresp->value) {
+        XPUSHs(sv_2mortal(newSVpvn(sresp->value, sresp->nvalue)));
+    }
+
+    PUTBACK;
+    call_pv("Couchbase::Bucket::__statshelper", G_DISCARD|G_EVAL);
+    SPAGAIN;
+
+    if (SvTRUE(ERRSV)) {
+        warn("Got error in stats helper: %s", SvPV_nolen(ERRSV));
+    }
+
+    FREETMPS;
+    LEAVE;
+}
+
 /* This callback is only ever called for single operation, single key results */
 static void
 callback_common(lcb_t instance, int cbtype, const lcb_RESPBASE *resp)
@@ -63,7 +90,6 @@ callback_common(lcb_t instance, int cbtype, const lcb_RESPBASE *resp)
     AV *resobj = (AV *) resp->cookie;
     SV *ctxrv = *av_fetch(resobj, PLCB_RETIDX_PARENT, 0);
     PLCB_t *parent = (PLCB_t *) lcb_get_cookie(instance);
-
     plcb_OPCTX *ctx = NUM2PTR(plcb_OPCTX*, SvIV(SvRV(ctxrv)));
 
     plcb_doc_set_err(parent, resobj, resp->rc);
@@ -103,6 +129,15 @@ callback_common(lcb_t instance, int cbtype, const lcb_RESPBASE *resp)
         break;
     }
 
+    case LCB_CALLBACK_STATS: {
+        const lcb_RESPSTATS *sresp = (const void *)resp;
+        if (sresp->server) {
+            stats_helper(resobj, sresp);
+            return;
+        }
+        break;
+    }
+
     default:
         abort();
         break;
@@ -132,4 +167,5 @@ plcb_callbacks_setup(PLCB_t *object)
     lcb_install_callback3(o, LCB_CALLBACK_COUNTER, callback_common);
     lcb_install_callback3(o, LCB_CALLBACK_UNLOCK, callback_common);
     lcb_install_callback3(o, LCB_CALLBACK_ENDURE, callback_common);
+    lcb_install_callback3(o, LCB_CALLBACK_STATS, callback_common);
 }

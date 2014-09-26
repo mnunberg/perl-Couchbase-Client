@@ -33,7 +33,7 @@ sub _accept_harakiri {
     my $begin_time = time();
     my $max_wait = 5;
     my $got_accept = 0;
-    
+
     while(time - $begin_time < $max_wait) {
         my $sock = $self->harakiri_socket->accept();
         if($sock) {
@@ -63,9 +63,9 @@ sub _do_run {
     my $self = shift;
     my @command;
     push @command, "java", "-jar", $self->jarfile;
-    
+
     my $buckets_arg = "--buckets=";
-    
+
     foreach my $bucket (@{$self->buckets}) {
         my ($name,$password,$type) = @{$bucket}{qw(name password type)};
         $name ||= "";
@@ -77,25 +77,25 @@ sub _do_run {
         my $spec = join(":", $name, $password, $type);
         $buckets_arg .= $spec . ",";
     }
-    
+
     $buckets_arg =~ s/,$//g;
-    
+
     push @command, $buckets_arg;
-    
+
     push @command, "--port=0";
-    
+
     if($self->nodes) {
         push @command, "--nodes=" . $self->nodes;
     }
-    
+
     my $sock = IO::Socket::INET->new(Listen => 5);
     $self->harakiri_socket($sock);
     my $port = $self->harakiri_socket->sockport;
     log_infof("Listening on %d for harakiri", $port);
     push @command, "--harakiri-monitor=localhost:$port";
-    
+
     my $pid = fork();
-    
+
     if($pid) {
         #Parent: setup harakiri monitoring socket
         sleep(0.05);
@@ -107,7 +107,7 @@ sub _do_run {
         $self->pid($pid);
         $self->_accept_harakiri();
     } else {
-        
+
         setpgrp(0, 0);
         log_warnf("Executing %s", join(" ", @command));
         exec(@command);
@@ -122,7 +122,7 @@ sub new {
         log_warn("Returning cached instance");
         return $INSTANCE;
     }
-    
+
     unless(exists $opts{jarfile}) {
         die("Must have path to JAR");
     }
@@ -178,7 +178,7 @@ sub DESTROY {
     log_debugf("Waiting for process to terminate");
     waitpid($self->pid, 0);
     log_infof("Reaped PID %d, status %d", $self->pid, $? >> 8);
-    
+
 }
 
 1;

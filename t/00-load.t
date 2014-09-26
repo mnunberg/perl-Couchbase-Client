@@ -4,7 +4,8 @@ use warnings;
 use Test::More;
 
 BEGIN {
-    use_ok('Couchbase::Client');
-    use_ok('Couchbase::Client::Async');
+    use_ok('Couchbase::Bucket');
+    use_ok('Couchbase::Document');
+    use_ok('Couchbase::Constants');
 }
 done_testing();

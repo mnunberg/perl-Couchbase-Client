@@ -251,20 +251,21 @@ PLCB_args_get(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDGET *gcmd)
 int
 PLCB_args_remove(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDREMOVE *rcmd)
 {
-    uint64_t cas = 0;
     int ignore_cas = 0;
     plcb_OPTION doc_specs[] = {
-        PLCB_KWARG(PLCB_ARG_K_CAS, CAS, &cas),
+        PLCB_KWARG(PLCB_ARG_K_CAS, CAS, &rcmd->cas),
         { NULL }
     };
     plcb_OPTION opts_specs[] = {
         PLCB_KWARG(PLCB_ARG_K_IGNORECAS, BOOL, &ignore_cas),
         {NULL}
     };
+
     load_doc_options(object, args->docav, doc_specs);
     if (args->cmdopts) {
         plcb_extract_args(args->cmdopts, opts_specs);
     }
+
     if (ignore_cas) {
         rcmd->cas = 0;
     }
@@ -285,6 +286,10 @@ PLCB_args_arithmetic(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDCOUNTER *acmd)
     if (args->cmdopts) {
         plcb_extract_args(args->cmdopts, argspecs);
     }
+
+    if (argspecs[1].sv && argspecs[1].sv != &PL_sv_undef) {
+        acmd->create = 1;
+    }
     return 0;
 }
 
@@ -303,17 +308,15 @@ PLCB_args_unlock(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDUNLOCK *ucmd)
     return 0;
 }
 
+#define is_append(cmd) (cmd) == PLCB_CMD_APPEND || (cmd) == PLCB_CMD_PREPEND
+
 int
 PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *scmd, plcb_DOCVAL *vspec)
 {
     UV exp = 0;
     SV *dur_sv = NULL;
-
     int ignore_cas = 0;
     int persist_to = 0, replicate_to = 0;
-
-    vspec->flags = PLCB_CF_JSON;
-
     plcb_OPTION doc_specs[] = {
         PLCB_KWARG(PLCB_ARG_K_VALUE, SV, &vspec->value),
         PLCB_KWARG(PLCB_ARG_K_EXPIRY, EXP, &exp),
@@ -321,7 +324,6 @@ PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *scmd, plcb_DOCV
         PLCB_KWARG(PLCB_ARG_K_FMT, U32, &vspec->spec),
         {NULL}
     };
-
     plcb_OPTION opt_specs[] = {
         PLCB_KWARG(PLCB_ARG_K_IGNORECAS, BOOL, &ignore_cas),
         PLCB_KWARG(PLCB_ARG_K_FRAGMENT, SV, &vspec->value),
@@ -330,9 +332,11 @@ PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *scmd, plcb_DOCV
         { NULL }
     };
 
-    if (args->cmdbase == PLCB_CMD_APPEND || args->cmdbase == PLCB_CMD_PREPEND) {
+    if (is_append(args->cmdbase)) {
         doc_specs[0].type = PLCB_ARG_T_PAD;
+        vspec->spec = PLCB_CF_UTF8;
     } else {
+        vspec->spec = PLCB_CF_JSON;
         opt_specs[1].type = PLCB_ARG_T_PAD;
     }
 
@@ -353,8 +357,14 @@ PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *scmd, plcb_DOCV
         sv_setuv(dur_sv, PLCB_MKDURABILITY(persist_to, replicate_to));
     }
 
-    if (!vspec->value) {
+    if (vspec->value == NULL || SvTYPE(vspec->value) == SVt_NULL) {
         die("Must have value!");
+    }
+
+    if (is_append(args->cmdbase)) {
+        if (vspec->spec != PLCB_CF_UTF8 && vspec->spec != PLCB_CF_RAW) {
+            die("append and prepend must use 'raw' or 'utf8' formats");
+        }
     }
     return 0;
 }

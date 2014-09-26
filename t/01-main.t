@@ -2,6 +2,7 @@
 use Dir::Self;
 use lib __DIR__ . "../lib";
 use lib __DIR__ . "../";
+use Carp::Always;
 
 $Log::Fu::LINE_PREFIX = '#';
 
@@ -24,15 +25,11 @@ Couchbase::Test::Common->Initialize(
 
 use Couchbase::Test::ClientSync;
 use Couchbase::Test::Settings;
-use Couchbase::Test::Interop;
 use Couchbase::Test::Netfail;
 use Couchbase::Test::Views;
-use Couchbase::Test::Compat;
 
 Couchbase::Test::ClientSync->runtests();
-Couchbase::Test::Settings->runtests();
-Couchbase::Test::Interop->runtests();
-Couchbase::Test::Netfail->runtests();
-Couchbase::Test::Views->runtests();
-Couchbase::Test::Compat->runtests();
+#Couchbase::Test::Settings->runtests();
+#Couchbase::Test::Netfail->runtests();
+#Couchbase::Test::Views->runtests();
 #Test::Class->runtests();

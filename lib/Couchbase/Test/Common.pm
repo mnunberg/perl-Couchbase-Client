@@ -9,13 +9,9 @@ use Class::XSAccessor {
     accessors => [qw(mock res_buckets)]
 };
 
-my $have_confua = eval {
-    require Couchbase::Config::UA; 1;
-};
-
 our $Mock;
-our $RealServer = $ENV{PLCB_TEST_REAL_SERVER};
-our $MemdPort = $ENV{PLCB_TEST_MEMD_PORT};
+my $RealServer = $ENV{PLCB_TEST_SERVER};
+my $RealPasswd = $ENV{PLCB_TEST_PASSWORD};
 
 sub SKIP_CLASS {
     my ($cls,$msg) = @_;
@@ -40,21 +36,7 @@ sub mock_init
     $self->{mock} = $Mock;
 }
 
-sub fetch_config {
-    my $self = shift;
-    if(!$have_confua) {
-        return;
-    }
-    my $confua = Couchbase::Config::UA->new(
-        $self->common_options->{server},
-        username => $self->common_options->{username},
-        password => $self->common_options->{password}
-    );
-    my $defpool = $confua->list_pools();
-    $confua->pool_info($defpool);
-    my $buckets = $confua->list_buckets($defpool);
-    $self->res_buckets($buckets);
-}
+sub fetch_config { }
 
 use constant {
     BUCKET_MEMCACHED => 1,
@@ -95,23 +77,12 @@ sub common_options {
     }
 
     if($bucket->{password}) {
-        $opthash->{username} = "some_user";
         $opthash->{password} = $bucket->{password};
     }
-    $opthash->{server} = "127.0.0.1:" . $self->mock->port;
-    $opthash->{bucket} = $bucket->{name};
+    $opthash->{connstr} = sprintf("http://localhost:%s/%s",
+                                  $self->mock->port, $bucket->{name});
+    print Dumper($opthash);
     return $opthash;
-}
-
-sub memd_options {
-    if(!$MemdPort) {
-        die("Cannot find Memcached port");
-    }
-    my ($hostname) = split(/:/, $RealServer->{server});
-    $hostname .= ":$MemdPort";
-    return {
-        servers => [ $hostname ]
-    };
 }
 
 sub make_cbo {
@@ -135,16 +106,11 @@ my $init_pid = $$;
 sub Initialize {
     my ($cls,%opts) = @_;
     if($RealServer && (!ref $RealServer) ) {
-        my @kvpairs = split(/,/, $RealServer);
-        $RealServer = {};
-        foreach my $pair (@kvpairs) {
-            my ($k,$v) = split(/=/, $pair);
-            $RealServer->{$k} = $v if $k =~
-                /server|bucket|username|password|memd_port/;
-        }
-        $RealServer->{server} ||= "localhost:8091";
-        $RealServer->{bucket} ||= "default";
-        $MemdPort ||= delete $RealServer->{memd_port};
+        my $connstr = $RealServer;
+        $RealServer = {
+            connstr => $connstr,
+            password => $RealPasswd
+        };
     } else {
         eval {
             $Mock = Couchbase::MockServer->new(%opts);

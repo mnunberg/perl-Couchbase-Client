@@ -264,7 +264,7 @@ init_singleop(plcb_SINGLEOP *so, PLCB_t *parent, SV *doc, SV *ctx, SV *options)
         die("Must pass a Couchbase::Document");
         /* Initialize the document to 0 */
     }
-
+    so->docrv = doc;
     so->docav = (AV *)SvRV(doc);
     so->opctx = ctx;
     so->parent = parent;
@@ -280,7 +280,7 @@ init_singleop(plcb_SINGLEOP *so, PLCB_t *parent, SV *doc, SV *ctx, SV *options)
         so->cmdopts = options;
     }
 
-    if (ctx != &PL_sv_undef) {
+    if (ctx && SvTYPE(ctx) != SVt_NULL) {
         if (!plcb_opctx_isa(parent, ctx)) {
             die("ctx must be undef or a Couchbase::OpContext object");
         }
@@ -307,6 +307,8 @@ SV *
 PLCB_args_return(plcb_SINGLEOP *so, lcb_error_t err)
 {
     /* Figure out what type of context we are */
+    int haserr = 0;
+    SV *retval;
     plcb_OPCTX *ctx = NUM2PTR(plcb_OPCTX*, SvIV(SvRV(so->opctx)));
 
     if (err != LCB_SUCCESS) {
@@ -317,26 +319,41 @@ PLCB_args_return(plcb_SINGLEOP *so, lcb_error_t err)
             lcb_sched_fail(so->parent->instance);
         }
 
-        die("Couldn't schedule operation. Code 0x%x (%s)\n", err, lcb_strerror(NULL, err));
-        return NULL;
+        warn("Couldn't schedule operation. Code 0x%x (%s)\n", err, lcb_strerror(NULL, err));
+        haserr = 1;
+        goto GT_RET;
     }
 
     /* Increment refcount for the parent */
     av_store(so->docav, PLCB_RETIDX_PARENT, newRV_inc(SvRV(so->opctx)));
-
     /* Increment refcount for the doc itself (decremented in callback) */
     SvREFCNT_inc((SV*)so->docav);
-
     /* Increment remaining count on the context */
     ctx->nremaining++;
 
     if (ctx->flags & PLCB_OPCTXf_IMPLICIT) {
         lcb_sched_leave(so->parent->instance);
         lcb_wait3(so->parent->instance, LCB_WAIT_NOCHECK);
+        /* See if we have an error */
+        if (plcb_doc_get_err(so->docav) != LCB_SUCCESS) {
+            haserr = 1;
+        }
     }
 
-    SvREFCNT_inc(&PL_sv_undef);
-    return &PL_sv_undef;
+    GT_RET:
+    if (ctx->flags & PLCB_OPCTXf_IMPLICIT) {
+        if (haserr) {
+            retval = &PL_sv_no;
+        } else {
+            retval = &PL_sv_yes;
+        }
+    } else {
+        retval = so->opctx;
+        SvREFCNT_inc(so->opctx);
+    }
+
+    SvREFCNT_inc(retval);
+    return retval;
 }
 
 #define dPLCB_INPUTS \
@@ -400,6 +417,8 @@ PLCB__store(PLCB_t *self, SV *doc, ...)
     upsert = PLCB_CMD_SET
     insert = PLCB_CMD_ADD
     replace = PLCB_CMD_REPLACE
+    append_bytes = PLCB_CMD_APPEND
+    prepend_bytes = PLCB_CMD_PREPEND
 
     PREINIT:
     plcb_SINGLEOP opinfo = { 0 };
@@ -439,6 +458,35 @@ PLCB_unlock(PLCB_t *self, SV *doc, ...)
     init_singleop(&opinfo, self, doc, ctx, options);
     RETVAL = PLCB_op_unlock(self, &opinfo);
     OUTPUT: RETVAL
+
+SV *
+PLCB_counter(PLCB_t *self, SV *doc, ...)
+    PREINIT:
+    plcb_SINGLEOP opinfo = { PLCB_CMD_COUNTER };
+    dPLCB_INPUTS;
+    CODE:
+    FILL_EXTRA_PARAMS()
+    init_singleop(&opinfo, self, doc, ctx, options);
+    RETVAL = PLCB_op_counter(self, &opinfo);
+    OUTPUT: RETVAL
+
+
+SV *
+PLCB__stats_common(PLCB_t *self, SV *doc, ...)
+    ALIAS:
+    _stats = PLCB_CMD_STATS
+    _keystats = PLCB_CMD_KEYSTATS
+
+    PREINIT:
+    plcb_SINGLEOP opinfo = { ix };
+    dPLCB_INPUTS
+
+    CODE:
+    FILL_EXTRA_PARAMS()
+    init_singleop(&opinfo, self, doc, ctx, options);
+    RETVAL = PLCB_op_stats(self, &opinfo);
+    OUTPUT: RETVAL
+
 
 SV *
 PLCB_cluster_nodes(PLCB_t *object)

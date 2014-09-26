@@ -47,7 +47,9 @@ enum {
     PLCB_CMD_APPEND,
     PLCB_CMD_PREPEND,
     PLCB_CMD_REMOVE,
-    PLCB_CMD_UNLOCK
+    PLCB_CMD_UNLOCK,
+    PLCB_CMD_STATS,
+    PLCB_CMD_KEYSTATS
 };
 
 enum {
@@ -126,6 +128,7 @@ typedef struct {
     AV *docav; /* The document */
     SV *opctx; /* The context */
     SV *cmdopts; /* Command options */
+    SV *docrv; /* Reference for the document */
     void *cookie;
 } plcb_SINGLEOP;
 
@@ -183,10 +186,12 @@ SV *PLCB_opctx_new(PLCB_t *);
 /** Operation functions */
 SV *PLCB_op_get(PLCB_t*,plcb_SINGLEOP*);
 SV *PLCB_op_set(PLCB_t*,plcb_SINGLEOP*);
+SV* PLCB_op_counter(PLCB_t *object, plcb_SINGLEOP *opinfo);
 SV *PLCB_op_remove(PLCB_t*,plcb_SINGLEOP*);
 SV *PLCB_op_observe(PLCB_t *object, plcb_SINGLEOP *args);
 SV *PLCB_op_endure(PLCB_t *object, plcb_SINGLEOP *args);
 SV *PLCB_op_unlock(PLCB_t *object, plcb_SINGLEOP *args);
+SV *PLCB_op_stats(PLCB_t *object, plcb_SINGLEOP *args);
 
 SV *
 PLCB_args_return(plcb_SINGLEOP *so, lcb_error_t err);

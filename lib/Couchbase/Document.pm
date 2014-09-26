@@ -22,9 +22,13 @@ use Class::XSAccessor::Array {
 sub is_ok { $_[0]->[RETIDX_ERRNUM] == COUCHBASE_SUCCESS }
 sub is_not_found { $_[0]->[RETIDX_ERRNUM] == COUCHBASE_KEY_ENOENT }
 sub is_cas_mismatch { $_[0]->[RETIDX_ERRNUM] == COUCHBASE_KEY_EEXISTS }
-
+sub is_already_exists { $_[0]->[RETIDX_ERRNUM] == COUCHBASE_KEY_EEXISTS }
 sub new {
     my ($pkg, $id, $doc, $options) = @_;
+    if (ref $id && $id->isa($pkg)) {
+        return $id->copy();
+    }
+
     my $rv = bless [], $pkg;
     $rv->id($id);
     $rv->value($doc);
@@ -65,11 +69,18 @@ our %FMT_STR2NUM = (
     json => COUCHBASE_FMT_JSON
 );
 
+our %FMT_NUM2STR = reverse(%FMT_NUM2STR);
+
 sub format {
+    my ($self, $fmtspec) = @_;
     if (scalar @_ == 1) {
-        return $_[0]->[RETIDX_FMTSPEC]
+        my ($fmt_s, $fmt_i) = (undef, $self->[RETIDX_FMTSPEC]);
+        if (wantarray) {
+            $fmt_s = $FMT_NUM2STR{$fmt_i};
+            return ($fmt_s, $fmt_i);
+        }
+        return $fmt_i;
     }
-    my $fmtspec = $_[1];
 
     if ($fmtspec !~ /^\d+$/) {
         my $numfmt = $FMT_STR2NUM{$fmtspec};
@@ -80,5 +91,16 @@ sub format {
     }
     $_[0]->[RETIDX_FMTSPEC] = $fmtspec;
 }
+
+package Couchbase::StatsResult;
+use strict;
+use warnings;
+use base qw(Couchbase::Document);
+
+
+package Couchbase::ObserveResult;
+use strict;
+use warnings;
+use base qw(Couchbase::Document);
 
 1;

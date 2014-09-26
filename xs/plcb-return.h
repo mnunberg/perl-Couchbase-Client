@@ -4,12 +4,12 @@
 #include "plcb-util.h"
 
 #define plcb_doc_isa(obj, ret) \
-    (sv_isobject(ret) && \
-            (SvSTASH(ret) == (obj)->ret_stash || sv_isa(ret, PLCB_RET_CLASSNAME)))
+    (sv_isobject(ret) && (SvSTASH(ret) == (obj)->ret_stash || \
+            sv_derived_from(ret, PLCB_RET_CLASSNAME)))
 
 #define plcb_opctx_isa(obj, ret) \
-    (sv_isobject(ret) && \
-            (SvSTASH(ret) == (obj)->opctx_sync_stash || sv_isa(ret, PLCB_OPCTX_CLASSNAME)))
+    (sv_isobject(ret) && (SvSTASH(ret) == (obj)->opctx_sync_stash || \
+                    sv_derived_from(ret, PLCB_OPCTX_CLASSNAME)))
 
 #define plcb_doc_set_cas(obj, ret, cas) \
     av_store(ret, PLCB_RETIDX_CAS, \
@@ -38,6 +38,15 @@ plcb_doc_set_err(PLCB_t *obj, AV *ret, lcb_error_t err)
     SV **ivsv = av_fetch(ret, PLCB_RETIDX_ERRNUM, 1);
     sv_setiv(*ivsv, err);
     (void)obj;
+}
+static inline lcb_error_t
+plcb_doc_get_err(AV *ret)
+{
+    SV **ivsv = av_fetch(ret, PLCB_RETIDX_ERRNUM, 0);
+    if (ivsv == NULL || SvIOK(*ivsv) == 0) {
+        return LCB_ERROR;
+    }
+    return SvIVX(*ivsv);
 }
 
 #define plcb_ret_blessed_rv(obj, ret) \
