@@ -17,8 +17,8 @@ my %KEYMAP = (
     config_total_timeout => [ 0x12, SETTING_TIMEOUT ],
     config_node_timeout => [ 0x1B, SETTING_TIMEOUT ],
     # Read only
-    certpath => [ 0x22, SETTING_STRING ]
-    ## ...
+    certpath => [ 0x22, SETTING_STRING ],
+    bucket => [ 0x30, SETTING_STRING ]
 );
 
 sub TIEHASH {

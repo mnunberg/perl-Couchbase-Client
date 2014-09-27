@@ -187,6 +187,10 @@ sub view_iterator {
     return $handle;
 }
 
+sub bucket {
+    shift->settings->{bucket};
+}
+
 1;
 
 __END__
