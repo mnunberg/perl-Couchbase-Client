@@ -320,6 +320,7 @@ sub T12_observe :Test(no_plan) {
     my $obsret = $cb->observe($doc);
     my @m = grep { $_->{master} } @{$obsret->value};
     ok($m[0]);
+    is($cb->get_bucket_config->nreplicas+1, scalar @{$obsret->value});
 
 
     # Try again, with master_only
