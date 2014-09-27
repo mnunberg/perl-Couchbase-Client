@@ -310,4 +310,22 @@ sub T11_expiry :Test(no_plan) {
     # Restore the expiry:
     $doc->expiry(1);
 }
+
+sub T12_observe :Test(no_plan) {
+    my $self = shift;
+    my $cb = $self->cbo;
+    my $doc = Couchbase::Document->new("Hello", "World");
+    $cb->upsert($doc);
+
+    my $obsret = $cb->observe($doc);
+    my @m = grep { $_->{master} } @{$obsret->value};
+    ok($m[0]);
+
+
+    # Try again, with master_only
+    $obsret = $cb->observe($doc, {master_only=>1});
+    ok($obsret->is_ok);
+    is(1, scalar @{$obsret->value});
+    ok($obsret->value->[0]->{master});
+}
 1;

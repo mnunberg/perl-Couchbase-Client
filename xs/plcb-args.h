@@ -43,6 +43,7 @@ typedef struct {
 #define PLCB_ARG_K_REPLICATE "replicate_to"
 #define PLCB_ARG_K_VALUE "value"
 #define PLCB_ARG_K_FMT "format"
+#define PLCB_ARG_K_MASTERONLY "master_only"
 
 #define PLCB_KWARG(s, tbase, target) \
 { s, sizeof(s)-1, PLCB_ARG_T_##tbase, target }
@@ -57,5 +58,6 @@ int PLCB_args_remove(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDREMOVE *rcmd);
 int PLCB_args_arithmetic(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDCOUNTER *cmd);
 int PLCB_args_unlock(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDUNLOCK *cmd);
 int PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *cmd, plcb_DOCVAL *vspec);
+int PLCB_args_observe(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDOBSERVE *cmd);
 
 #endif /* PLCB_KWARGS_H_ */

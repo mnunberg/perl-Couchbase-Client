@@ -38,40 +38,15 @@ sub mock_init
 
 sub fetch_config { }
 
-use constant {
-    BUCKET_MEMCACHED => 1,
-    BUCKET_COUCHBASE => 2,
-    BUCKET_DEFAULT => 3
-};
-
 sub common_options {
-    my ($self,$bucket_type) = @_;
+    my ($self) = @_;
 
     if($RealServer) {
         return { %$RealServer };
     }
     my $mock = $self->mock;
     my $opthash = {};
-
-    if(!$bucket_type) {
-        $bucket_type = BUCKET_DEFAULT;
-    } elsif ($bucket_type =~ /mem/) {
-        $bucket_type = BUCKET_MEMCACHED;
-    } elsif ($bucket_type =~ /couch/) {
-        $bucket_type = BUCKET_COUCHBASE;
-    } else {
-        warn("No such bucket type $bucket_type");
-        $bucket_type = BUCKET_DEFAULT;
-    }
-
     my $bucket = $self->mock->buckets->[0] or die "No buckets!";
-    if($bucket_type == BUCKET_MEMCACHED) {
-        $bucket = (grep $_->{type} eq 'memcache',
-                        @{$mock->buckets})[0];
-    } elsif ($bucket == BUCKET_COUCHBASE) {
-        $bucket = (grep { (!$_->{type}) || $_->{type} eq 'couchbase' }
-                        @{$mock->buckets})[0];
-    }
     if(!$bucket) {
         die("Can't find common options for bucket (@_)");
     }
@@ -83,13 +58,6 @@ sub common_options {
                                   $self->mock->port, $bucket->{name});
     print Dumper($opthash);
     return $opthash;
-}
-
-sub make_cbo {
-    my $self = shift;
-    my %options = %{ $self->common_options };
-    $options{compress_threshold} = 100;
-    return Couchbase::Client->new(\%options);
 }
 
 sub k2v {

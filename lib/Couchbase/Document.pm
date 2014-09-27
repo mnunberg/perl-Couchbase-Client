@@ -32,6 +32,7 @@ sub new {
     my $rv = bless [], $pkg;
     $rv->id($id);
     $rv->value($doc);
+    $rv->format(COUCHBASE_FMT_JSON);
 
     if ($options) {
         while (my ($k,$v) = each %$options) {
@@ -69,14 +70,14 @@ our %FMT_STR2NUM = (
     json => COUCHBASE_FMT_JSON
 );
 
-our %FMT_NUM2STR = reverse(%FMT_NUM2STR);
+our %FMT_NUM2STR = reverse(%FMT_STR2NUM);
 
 sub format {
     my ($self, $fmtspec) = @_;
     if (scalar @_ == 1) {
         my ($fmt_s, $fmt_i) = (undef, $self->[RETIDX_FMTSPEC]);
         if (wantarray) {
-            $fmt_s = $FMT_NUM2STR{$fmt_i};
+            $fmt_s = $FMT_NUM2STR{$fmt_i} || "UNKNOWN";
             return ($fmt_s, $fmt_i);
         }
         return $fmt_i;
@@ -90,6 +91,22 @@ sub format {
         $fmtspec = $numfmt;
     }
     $_[0]->[RETIDX_FMTSPEC] = $fmtspec;
+}
+
+# This doesn't really mean anything special, but is akin to what's used in Python:
+sub as_hash {
+    my $self = shift;
+    my ($fmt_s, $fmt_i) = $self->format;
+    my %h = (
+        id => $self->id,
+        value => $self->value,
+        status => $self->errnum,
+        'status (string)' => $self->errstr,
+        format => sprintf("0x%X (%s)", $fmt_i, $fmt_s),
+        expiry => $self->expiry,
+        CAS => sprintf("0x%X", $self->_cas)
+    );
+    return \%h;
 }
 
 package Couchbase::StatsResult;

@@ -49,7 +49,8 @@ enum {
     PLCB_CMD_REMOVE,
     PLCB_CMD_UNLOCK,
     PLCB_CMD_STATS,
-    PLCB_CMD_KEYSTATS
+    PLCB_CMD_KEYSTATS,
+    PLCB_CMD_OBSERVE,
 };
 
 enum {
@@ -192,6 +193,7 @@ SV *PLCB_op_observe(PLCB_t *object, plcb_SINGLEOP *args);
 SV *PLCB_op_endure(PLCB_t *object, plcb_SINGLEOP *args);
 SV *PLCB_op_unlock(PLCB_t *object, plcb_SINGLEOP *args);
 SV *PLCB_op_stats(PLCB_t *object, plcb_SINGLEOP *args);
+SV *PLCB_op_observe(PLCB_t *object, plcb_SINGLEOP *args);
 
 SV *
 PLCB_args_return(plcb_SINGLEOP *so, lcb_error_t err);

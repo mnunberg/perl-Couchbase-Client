@@ -20,7 +20,7 @@ if (! -e $jarfile) {
 Couchbase::Test::Common->Initialize(
     jarfile => $jarfile,
     nodes => 5,
-    buckets => [{name => "default", type => "memcache"}],
+    buckets => [{name => "default", type => "couchbase"}],
 );
 
 use Couchbase::Test::ClientSync;

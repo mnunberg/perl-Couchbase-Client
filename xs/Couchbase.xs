@@ -494,6 +494,17 @@ PLCB__stats_common(PLCB_t *self, SV *doc, ...)
 
 
 SV *
+PLCB__observe(PLCB_t *self, SV *doc, ...)
+    PREINIT:
+    plcb_SINGLEOP opinfo = { PLCB_CMD_OBSERVE };
+    dPLCB_INPUTS
+    CODE:
+    FILL_EXTRA_PARAMS()
+    init_singleop(&opinfo, self, doc, ctx, options);
+    RETVAL = PLCB_op_observe(self, &opinfo);
+    OUTPUT: RETVAL
+
+SV *
 PLCB_cluster_nodes(PLCB_t *object)
     PREINIT:
     AV *retav;

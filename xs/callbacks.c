@@ -57,26 +57,47 @@ chain_endure(PLCB_t *obj, AV *resobj, const lcb_RESPSTORE *resp)
 }
 
 static void
-stats_helper(AV *resobj, const lcb_RESPSTATS *sresp)
+call_helper(AV *resobj, int cbtype, const lcb_RESPBASE *resp)
 {
     dSP;
+    const char *methname;
+
     ENTER;
     SAVETMPS;
     PUSHMARK(SP);
 
     XPUSHs(sv_2mortal(newRV_inc((SV*)resobj)));
-    XPUSHs(sv_2mortal(newSVpv(sresp->server, 0)));
-    XPUSHs(sv_2mortal(newSVpvn(sresp->key, sresp->nkey)));
-    if (sresp->value) {
-        XPUSHs(sv_2mortal(newSVpvn(sresp->value, sresp->nvalue)));
+
+
+    if (cbtype == LCB_CALLBACK_STATS) {
+        const lcb_RESPSTATS *sresp = (const void *)resp;
+
+        /** Call as statshelper($doc,$server,$key,$value); */
+        XPUSHs(sv_2mortal(newSVpv(sresp->server, 0)));
+        XPUSHs(sv_2mortal(newSVpvn(sresp->key, sresp->nkey)));
+        if (sresp->value) {
+            XPUSHs(sv_2mortal(newSVpvn(sresp->value, sresp->nvalue)));
+        }
+        methname = "Couchbase::Bucket::__statshelper";
+
+    } else if (cbtype == LCB_CALLBACK_OBSERVE) {
+        const lcb_RESPOBSERVE *oresp = (const void *)resp;
+
+        /** Call as obshelper($doc,$status,$cas,$ismaster) */
+        XPUSHs(sv_2mortal(newSVuv(oresp->status)));
+        XPUSHs(sv_2mortal(plcb_sv_from_u64_new(&oresp->cas)));
+        XPUSHs(oresp->ismaster ? &PL_sv_yes : &PL_sv_no);
+        methname = "Couchbase::Bucket::__obshelper";
+    } else {
+        return;
     }
 
     PUTBACK;
-    call_pv("Couchbase::Bucket::__statshelper", G_DISCARD|G_EVAL);
+    call_pv(methname, G_DISCARD|G_EVAL);
     SPAGAIN;
 
     if (SvTRUE(ERRSV)) {
-        warn("Got error in stats helper: %s", SvPV_nolen(ERRSV));
+        warn("Got error in %s: %s", methname, SvPV_nolen(ERRSV));
     }
 
     FREETMPS;
@@ -132,7 +153,15 @@ callback_common(lcb_t instance, int cbtype, const lcb_RESPBASE *resp)
     case LCB_CALLBACK_STATS: {
         const lcb_RESPSTATS *sresp = (const void *)resp;
         if (sresp->server) {
-            stats_helper(resobj, sresp);
+            call_helper(resobj, cbtype, (const lcb_RESPBASE *)sresp);
+            return;
+        }
+        break;
+    }
+    case LCB_CALLBACK_OBSERVE: {
+        const lcb_RESPOBSERVE *oresp = (const lcb_RESPOBSERVE*)resp;
+        if (oresp->nkey) {
+            call_helper(resobj, cbtype, (const lcb_RESPBASE*)oresp);
             return;
         }
         break;
@@ -168,4 +197,5 @@ plcb_callbacks_setup(PLCB_t *object)
     lcb_install_callback3(o, LCB_CALLBACK_UNLOCK, callback_common);
     lcb_install_callback3(o, LCB_CALLBACK_ENDURE, callback_common);
     lcb_install_callback3(o, LCB_CALLBACK_STATS, callback_common);
+    lcb_install_callback3(o, LCB_CALLBACK_OBSERVE, callback_common);
 }

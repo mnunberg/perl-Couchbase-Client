@@ -46,6 +46,20 @@ sub __statshelper {
     ($doc->value->{$server} ||= {})->{$key} = $value;
 }
 
+sub __obshelper {
+    my ($doc,$status,$cas,$ismaster) = @_;
+    my $obj = {
+        status => $status,
+        cas => $cas,
+        master=> $ismaster
+    };
+    if (ref $doc->value ne 'ARRAY') {
+        $doc->value([$obj]);
+    } else {
+        push @{$doc->value}, $obj;
+    }
+}
+
 sub _dispatch_stats {
     my ($self, $mname, $key, $options, $ctx) = @_;
     my $doc;
@@ -72,6 +86,16 @@ sub stats {
 sub keystats {
     my ($self, @args) = @_;
     $self->_dispatch_stats("_keystats", @args);
+}
+
+sub observe {
+    my ($self,$doc,@args) = @_;
+
+    my $newdoc = Couchbase::Document->new($doc);
+    $newdoc->_cas(0);
+    $newdoc->expiry(0);
+    $self->_observe($newdoc,@args);
+    return $newdoc;
 }
 
 sub transform {

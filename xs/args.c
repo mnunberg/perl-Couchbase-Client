@@ -308,6 +308,24 @@ PLCB_args_unlock(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDUNLOCK *ucmd)
     return 0;
 }
 
+int
+PLCB_args_observe(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDOBSERVE *cmd)
+{
+    int master_only = 0;
+    plcb_OPTION argspecs[] = {
+            PLCB_KWARG(PLCB_ARG_K_MASTERONLY, BOOL, &master_only),
+            {NULL}
+    };
+
+    if (args->cmdopts) {
+        plcb_extract_args(args->cmdopts, argspecs);
+    }
+    if (master_only) {
+        cmd->cmdflags |= LCB_CMDOBSERVE_F_MASTER_ONLY;
+    }
+    return 0;
+}
+
 #define is_append(cmd) (cmd) == PLCB_CMD_APPEND || (cmd) == PLCB_CMD_PREPEND
 
 int

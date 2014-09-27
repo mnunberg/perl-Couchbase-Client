@@ -126,3 +126,28 @@ PLCB_op_stats(PLCB_t *object, plcb_SINGLEOP *opinfo)
     err = lcb_stats3(object->instance, opinfo->cookie, &scmd);
     return PLCB_args_return(opinfo, err);
 }
+
+SV*
+PLCB_op_observe(PLCB_t *object, plcb_SINGLEOP *opinfo)
+{
+    lcb_CMDOBSERVE obscmd = { 0 };
+    lcb_MULTICMD_CTX *mctx;
+    lcb_error_t err = LCB_SUCCESS;
+
+    key_from_so(opinfo, &obscmd);
+    PLCB_args_observe(object, opinfo, &obscmd);
+
+    mctx = lcb_observe3_ctxnew(object->instance);
+    if (!mctx) {
+        err = LCB_CLIENT_ENOMEM;
+        goto GT_DONE;
+    }
+
+    err = mctx->addcmd(mctx, (lcb_CMDBASE*)&obscmd);
+    if (err == LCB_SUCCESS) {
+        err = mctx->done(mctx, opinfo->cookie);
+    }
+
+    GT_DONE:
+    return PLCB_args_return(opinfo, err);
+}
