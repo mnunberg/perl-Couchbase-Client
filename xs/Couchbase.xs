@@ -231,9 +231,11 @@ PLCB__cntl_get(PLCB_t *object, int setting, int type)
         const char *strval;
     } u;
 
+    memset(&u, 0, sizeof u);
+
     err = lcb_cntl(object->instance, LCB_CNTL_GET, setting, &u);
     if (err != LCB_SUCCESS) {
-        warn("Couldn't set setting=%d, type=%d: %s", setting, type, lcb_strerror(NULL, err));
+        warn("Couldn't get setting=%d, type=%d: %s", setting, type, lcb_strerror(NULL, err));
         SvREFCNT_inc(&PL_sv_undef);
         return &PL_sv_undef;
     }
@@ -249,7 +251,7 @@ PLCB__cntl_get(PLCB_t *object, int setting, int type)
     } else if (type == PLCB_SETTING_TIMEOUT) {
         return newSVnv((float)u.u32val / 1000000.0);
     } else if (type == PLCB_SETTING_STRING) {
-        return newSVpvn(u.strval, 0);
+        return newSVpv(u.strval ? u.strval : "", 0);
     } else {
         die("Unknown type %d", type);
         return NULL;
