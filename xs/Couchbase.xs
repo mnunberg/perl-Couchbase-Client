@@ -292,12 +292,15 @@ init_singleop(plcb_SINGLEOP *so, PLCB_t *parent, SV *doc, SV *ctx, SV *options)
         so->opctx = ctx;
     } else {
         if (parent->curctx && SvRV(parent->curctx) != SvRV(ctx)) {
-            /* Have a current context? */
-            warn("Existing batch context found. This may leak memory.");
+            plcb_OPCTX *oldctx = NUM2PTR(plcb_OPCTX*, SvIVX(SvRV(parent->curctx)));
+            if (oldctx->nremaining) {
+                warn("Existing batch context found. This may leak memory. Have %d items remaining", oldctx->nremaining);
+            }
             lcb_sched_fail(parent->instance);
             clear_opctx(parent);
         }
 
+        assert(parent->curctx == NULL);
         so->opctx = parent->deflctx;
         lcb_sched_enter(parent->instance);
     }
