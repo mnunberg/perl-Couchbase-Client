@@ -114,7 +114,7 @@ plcb_convert_storage(PLCB_t *object, AV *docav, plcb_DOCVAL *vspec)
 
     } else if (fmt == PLCB_CF_RAW) {
         vspec->flags = PLCB_CF_RAW | PLCB_LF_RAW;
-        if (SvTYPE(pv) != SVt_PV) {
+        if (!SvPOK(pv)) {
             die("Raw conversion requires string value!");
         }
     } else if (vspec->spec == PLCB_CF_UTF8) {
