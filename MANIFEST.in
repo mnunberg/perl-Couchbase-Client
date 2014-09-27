@@ -4,23 +4,16 @@ MANIFEST.SKIP
 Makefile.PL
 README.pod
 
-lib/Couchbase/Client/README.pod
-
-
-
-
 ################################################################################
 ### Base Perl API                                                            ###
 ################################################################################
-lib/Couchbase/Client.pm
-lib/Couchbase/Client/Return.pm
-lib/Couchbase/Client/Errors.pm
-lib/Couchbase/Client/IDXConst.pm
-
-################################################################################
-### Perl Memcached Compat                                                    ###
-################################################################################
-lib/Couchbase/Client/Compat.pm
+lib/Couchbase.pm
+lib/Couchbase/Bucket.pm
+lib/Couchbase/Document.pm
+lib/Couchbase/OpContext.pm
+lib/Couchbase/Constants.pm
+lib/Couchbase/_GlueConstants.pm
+lib/Couchbase/Settings.pm
 
 ################################################################################
 ### Testing API                                                              ###
@@ -28,21 +21,15 @@ lib/Couchbase/Client/Compat.pm
 lib/Couchbase/MockServer.pm
 lib/Couchbase/Test/ClientSync.pm
 lib/Couchbase/Test/Common.pm
-lib/Couchbase/Test/Compat.pm
 lib/Couchbase/Test/Settings.pm
-lib/Couchbase/Test/Interop.pm
 lib/Couchbase/Test/Netfail.pm
 lib/Couchbase/Test/Views.pm
 
 ################################################################################
 ### Views Perl API                                                           ###
 ################################################################################
-lib/Couchbase/Couch/Base.pm
-lib/Couchbase/Couch/Design.pm
-lib/Couchbase/Couch/Handle.pm
-lib/Couchbase/Couch/HandleInfo.pm
-lib/Couchbase/Couch/ViewRow.pm
-
+lib/Couchbase/View/Handle.pm
+lib/Couchbase/View/HandleInfo.pm
 
 ################################################################################
 ################################################################################
@@ -52,43 +39,26 @@ lib/Couchbase/Couch/ViewRow.pm
 xs/perl-couchbase.h
 xs/plcb-util.h
 xs/plcb-return.h
-xs/plcb-convert.h
-xs/plcb-commands.h
-xs/plcb-multi.h
 xs/ppport.h
 xs/typemap
-xs/lcb_10_compat.h
 
 xs/callbacks.c
 xs/convert.c
-xs/ctor.c
 
 ################################################################################
 ### Basic C Client Support                                                   ###
 ################################################################################
 xs/args.c
-xs/Client.xs
-xs/Client_multi.xs
-xs/Iterator_get.xs
-xs/observe.c
+xs/operations.c
+xs/Couchbase.xs
 xs/plcb-args.h
-
-################################################################################
-### Async C Support                                                          ###
-################################################################################
-xs/perl-couchbase-async.h
-xs/Async.xs
-xs/async_base.c
-xs/async_callbacks.c
-xs/async_events.c
-
 
 ################################################################################
 ### Views C Support                                                          ###
 ################################################################################
 xs/perl-couchbase-couch.h
-xs/couch_handle.c
-xs/Couch_request_handle.xs
+xs/viewhandle.c
+xs/View.xs
 
 ################################################################################
 ### Examples                                                                 ###
@@ -105,7 +75,6 @@ eg/memd_async.pl
 ################################################################################
 t/00-load.t
 t/01-main.t
-t/02-compat.t
 t/tmp/CouchbaseMock.jar
 
 # libcouchbase
@@ -122,6 +91,4 @@ constants/print_constants.pl
 
 src/Makefile.PL
 src/libcouchbase.pm
-
 src/libcouchbase-__LIBCOUCHBASE_RELEASE__.tar.gz
-src/libevent-__LIBEVENT_RELEASE__.tar.gz
