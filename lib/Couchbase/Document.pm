@@ -46,7 +46,7 @@ sub new {
 
 sub errstr {
     my $self = shift;
-    my $rc = $self->errnum;
+    my $rc = $self->errnum || 0;
     my $s = $Couchbase::ErrorMap[$rc];
     if (! $s) {
         $s = $Couchbase::ErrorMap[$rc] = Couchbase::strerror($rc);
@@ -100,8 +100,7 @@ sub as_hash {
     my %h = (
         id => $self->id,
         value => $self->value,
-        status => $self->errnum,
-        'status (string)' => $self->errstr,
+        status => sprintf("Code: 0x0%X. Description: %s", $self->errnum, $self->errstr),
         format => sprintf("0x%X (%s)", $fmt_i, $fmt_s),
         expiry => $self->expiry,
         CAS => sprintf("0x%X", $self->_cas || 0)
