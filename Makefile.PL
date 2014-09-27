@@ -65,7 +65,7 @@ $MM_Options{CONFIGURE} = sub {
         operations
         viewhandle);
     my @XS_Modules = qw(
-        Couchbase View);
+        Couchbase View BucketConfig);
 
     foreach (@XS_Modules, @C_Modules) {
         my $obj = $_ . $Config{obj_ext};

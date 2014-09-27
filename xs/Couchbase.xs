@@ -1,5 +1,6 @@
 #include "perl-couchbase.h"
 #include "plcb-util.h"
+#include <libcouchbase/vbucket.h>
 
 static int PLCB_connect(PLCB_t* self);
 
@@ -533,6 +534,40 @@ PLCB__new_viewhandle(PLCB_XS_OBJPAIR_t self, stash)
     OUTPUT: RETVAL
 
 
+lcbvb_CONFIG *
+PLCB_get_bucket_config(PLCB_t *object)
+    PREINIT:
+    lcbvb_CONFIG *orig, *cp;
+    lcb_error_t err;
+    char *tmpstr;
+
+    CODE:
+    err = lcb_cntl(object->instance, LCB_CNTL_GET, LCB_CNTL_VBCONFIG, &orig);
+    if (err != LCB_SUCCESS) {
+        die("Couldn't get config: %s", lcb_strerror(NULL, err));
+    }
+    if (orig == NULL) {
+        die("Client does not have a config yet");
+    }
+    tmpstr = lcbvb_save_json(orig);
+    if (!tmpstr) {
+        die("Couldn't get JSON dump");
+    }
+    cp = lcbvb_create();
+    if (!cp) {
+        free(tmpstr);
+        die("Couldn't allocate new config");
+    }
+    if (0 != lcbvb_load_json(cp, tmpstr)) {
+        const char *err = lcbvb_get_error(cp);
+        free(tmpstr);
+        lcbvb_destroy(cp);
+        die("Couldn't load new config: %s", err);
+    }
+    free(tmpstr);
+    RETVAL = cp;
+    OUTPUT: RETVAL
+
 SV *
 PLCB_batch(PLCB_t *object)
     PREINIT:
@@ -683,6 +718,7 @@ PUTBACK; \
 bootfunc(aTHX_ cv); \
 SPAGAIN;
 {
-    PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__View)
+    PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__View);
+    PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__BucketConfig);
 }
 #undef PLCB_BOOTSTRAP_DEPENDENCY

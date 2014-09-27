@@ -5,10 +5,9 @@ PLCB_XS_STRING_NONULL_t	T_PLCB_XS_STRING_NONULL_T
 PLCB_XS_STRING_t	T_PLCB_XS_STRING_T
 PLCB_viewhandle_t *	T_PLCB_COUCH_HANDLE_T
 PLCB_jsondec_t*	T_PLCB_JSONDEC_T
-PLCB_iter_t *	T_PLCB_ITER_T
-PLCB_exp_t		T_PLCB_EXP_T
 PLCB_t *        T_PLCB
 plcb_OPCTX*		T_OPCTX
+lcbvb_CONFIG *	T_VBC
 
 INPUT
 T_PLCB_XS_OBJPAIR_T
@@ -35,6 +34,12 @@ T_OPCTX
 	} else {
 		parent = NUM2PTR(PLCB_t*,SvIV(SvRV($var->parent)));
 	}
+
+T_VBC
+	if (!sv_isa($arg, \"Couchbase::BucketConfig\")) {
+		die(\"Not a valid Couchbase::BucketConfig\");
+	}
+	$var = NUM2PTR($type, SvIV(SvRV($arg)));
 
 T_PLCB_XS_STRING_NONULL_T
 	if(!SvPOK($arg)) {
@@ -78,3 +83,7 @@ T_PLCB_ITER_T
 
 T_PLCB_EXP_T
 	$var = plcb_exp_from_sv($arg);
+
+OUTPUT
+T_VBC
+	sv_setref_pv($arg, \"Couchbase::BucketConfig\", (void*)$var);

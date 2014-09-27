@@ -11,6 +11,7 @@ use_export;
 
 include "sys/types.h";
 include "perl-couchbase.h";
+include "libcouchbase/vbucket.h";
 
 my @const_bases = qw(
     RETIDX_VALUE
@@ -60,5 +61,7 @@ constant("PLCB_$_", name => $_) for (@const_bases);
 # Also generate the ones for flags:
 my @fmt_bases = (qw(RAW JSON UTF8 STORABLE));
 constant("PLCB_CF_$_", name => "COUCHBASE_FMT_$_") for (@fmt_bases);
+constant("LCBVB_SVCTYPE_$_", name => "SVCTYPE_$_") for (qw(DATA VIEWS MGMT));
+constant("LCBVB_SVCMODE_$_", name => "SVCMODE_$_") for (qw(PLAIN SSL));
 
 write_output($ARGV[0]);

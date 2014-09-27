@@ -22,4 +22,5 @@ xs/Client_multi.c
 xs/Couch_request_handle.c
 xs/Iterator_get.c
 xs/View.c
+xs/BucketConfig.c
 pm_to_blib

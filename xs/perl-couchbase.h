@@ -200,5 +200,6 @@ PLCB_args_return(plcb_SINGLEOP *so, lcb_error_t err);
 
 /* Declare these ahead of time */
 XS(boot_Couchbase__View);
+XS(boot_Couchbase__BucketConfig);
 
 #endif /* PERL_COUCHBASE_H_ */
