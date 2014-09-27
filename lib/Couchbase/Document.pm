@@ -104,9 +104,15 @@ sub as_hash {
         'status (string)' => $self->errstr,
         format => sprintf("0x%X (%s)", $fmt_i, $fmt_s),
         expiry => $self->expiry,
-        CAS => sprintf("0x%X", $self->_cas)
+        CAS => sprintf("0x%X", $self->_cas || 0)
     );
     return \%h;
+}
+
+sub _data_printer {
+    my $self = shift;
+    my $r = bless $self->as_hash, "Couchbase::Document::_PrettyDummy";
+    Data::Printer::p($r);
 }
 
 package Couchbase::StatsResult;
