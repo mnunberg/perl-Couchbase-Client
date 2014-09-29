@@ -1,6 +1,0 @@
-[submodule "Config"]
-	path = Config
-	url = git://github.com/mnunberg/perl-Couchbase-Config.git
-[submodule "VBucket"]
-	path = VBucket
-	url = git://github.com/mnunberg/perl-Couchbase-VBucket.git
