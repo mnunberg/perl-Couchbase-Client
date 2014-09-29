@@ -14,7 +14,7 @@ my $params = {
     COUCHBASE_MOCK_JARURL => 'http://files.couchbase.com/maven2/org/couchbase/mock/CouchbaseMock/0.8-SNAPSHOT/CouchbaseMock-0.8-20140621.030439-1.jar',
 
     #version numbers for libcouchbase and libvbucket
-    LIBCOUCHBASE_RELEASE => '2.3.2',
+    LIBCOUCHBASE_RELEASE => '2.4.2',
 };
 
 

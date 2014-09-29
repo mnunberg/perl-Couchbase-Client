@@ -26,7 +26,6 @@ my $Sharepath = File::Spec->catfile(
     'auto', 'share', 'dist', 'Couchbase-Client', 'Library');
 
 require ExtUtils::Liblist;
-my $NO_CLIB_TESTS = 0;
 
 my $LIBCOUCHBASE = "libcouchbase";
 
@@ -139,12 +138,6 @@ sub create_buildscript_invocation {
         ' ' . chomp_arch($Config{ldflags});
 
     my $java_arg = $PLCBTopLevel::HaveJava ? "--have-java" : "";
-
-    my $no_test_args = "";
-    if ($NO_CLIB_TESTS) {
-        $no_test_args = "--no-tests";
-    }
-
     my @lines = (
 
         #begin long commandline invocation:
@@ -166,8 +159,6 @@ sub create_buildscript_invocation {
 
         "\t".sprintf(" --rpath=%s",
                 $mm->quote_literal($mm->{LD_RUN_PATH})) . "\\",
-
-        "\t $no_test_args ". "\\",
 
         "\t".join(" ", @$deps),
 
@@ -329,20 +320,6 @@ sub MM_Configure {
         print STDERR "You have selected not to build and install the bundled\n".
                     "dependencies. Couchbase::Client will not be built\n";
         exit(0);
-    }
-
-
-    $errmsg = "\n".
-              "Some C libraries have tests associated with them. Running these\n".
-              "tests may help identify some issues on your platform.\n".
-              "\n".
-              "Do you want to run these tests?";
-
-    $NO_CLIB_TESTS = prompt($errmsg, 'y');
-    if ($NO_CLIB_TESTS ne 'y') {
-        $NO_CLIB_TESTS = 1;
-    } else {
-        $NO_CLIB_TESTS = 0;
     }
 
     print STDERR "Will build: @to_build\n\n...";

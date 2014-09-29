@@ -18,8 +18,7 @@ GetOptions(
     'env-ldflags=s' => \my $ENV_LDFLAGS,
     'env-libs=s'  => \my $ENV_LIBS,
     'rpath=s'     => \my $RPATH,
-    'have-java'   => \my $HAVE_JAVA,
-    'no-tests'    => \my $NO_RUN_TESTS,
+    'have-java'   => \my $HAVE_JAVA
 );
 
 use lib __DIR__;
@@ -34,24 +33,7 @@ if($ENV{PLCB_BUILD_NOISY}) {
     $BUILD_SILENT = "";
 }
 
-my $RUN_TESTS = 1;
-
-if(exists $ENV{PLCB_RUN_TESTS}) {
-    $RUN_TESTS = $ENV{PLCB_RUN_TESTS};
-}
-
-if ($NO_RUN_TESTS) {
-    print STDERR "Test execution disabled from command line\n";
-    $RUN_TESTS = 0;
-}
-
-if($^O =~ /solaris/) {
-    print STDERR "Tests disabled on solaris\n";
-    $RUN_TESTS = 0;
-}
-
 my %DEPS = map {  ( $_, $_ ) } @ARGV;
-
 sub runcmd {
     my $cmd = join(" ", @_);
     print STDERR "[EXECUTING]:\n\t$cmd\n";
@@ -129,8 +111,12 @@ my @COMMON_OPTIONS = (
 "--prefix=$BuildPrefix",
 qw(
 --silent
---without-docs)
-);
+--disable-tools
+--disable-examples
+--disable-tests
+--disable-plugins
+--disable-libuv
+--disable-tests));
 
 sub should_build {
     my $name = shift;
@@ -158,11 +144,6 @@ sub lib_is_built {
         @COMMON_OPTIONS,
     );
 
-    if($^O =~ /solaris/) {
-        print STDERR "Disabling tools (won't compile on solaris)\n";
-        push @libcouchbase_options, '--disable-tools';
-    }
-
     my $mockpath = File::Spec->catfile(
         __DIR__, 't', 'tmp', 'CouchbaseMock.jar');
 
@@ -177,7 +158,6 @@ sub lib_is_built {
 
     runcmd("./configure", @libcouchbase_options) unless -e 'Makefile';
     runcmd("$MAKEPROG install");
-    runcmd("$MAKEPROG check -s") if $RUN_TESTS;
 }
 
 exit(0);
