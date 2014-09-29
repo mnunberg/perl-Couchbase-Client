@@ -161,7 +161,6 @@ WriteMakefile(
     },
 
     PREREQ_PM => {
-        'Array::Assign'     => 0,
         'Class::XSAccessor' => 1.11,
 
         'JSON'              => 2.53,
