@@ -2,8 +2,9 @@ package Couchbase::Document;
 use strict;
 use warnings;
 
-use Couchbase::_GlueConstants;
+use Couchbase::Core;
 use Couchbase::Constants;
+use Couchbase::_GlueConstants;
 use Couchbase;
 use base qw(Exporter);
 

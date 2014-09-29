@@ -718,6 +718,7 @@ PUTBACK; \
 bootfunc(aTHX_ cv); \
 SPAGAIN;
 {
+    plcb_define_constants();
     PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__View);
     PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__BucketConfig);
 }

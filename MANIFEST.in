@@ -44,6 +44,7 @@ xs/typemap
 
 xs/callbacks.c
 xs/convert.c
+xs/constants.c
 
 ################################################################################
 ### Basic C Client Support                                                   ###
@@ -84,10 +85,6 @@ inc/Devel/CheckLib.pm
 PLCB_ConfUtil.pm
 PLCB_Config.pm
 build_libraries.pl
-
-constants/idx_constants.pl
-constants/error_constants.pl
-constants/print_constants.pl
 
 src/Makefile.PL
 src/libcouchbase.pm

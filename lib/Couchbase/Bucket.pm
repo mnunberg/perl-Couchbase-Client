@@ -7,7 +7,7 @@ use JSON;
 use URI;
 use Storable;
 
-use Couchbase;
+use Couchbase::Core;
 use Couchbase::_GlueConstants;
 use Couchbase::Document;
 use Couchbase::Settings;

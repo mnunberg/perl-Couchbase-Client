@@ -198,6 +198,8 @@ SV *PLCB_op_observe(PLCB_t *object, plcb_SINGLEOP *args);
 SV *
 PLCB_args_return(plcb_SINGLEOP *so, lcb_error_t err);
 
+void plcb_define_constants(void);
+
 /* Declare these ahead of time */
 XS(boot_Couchbase__View);
 XS(boot_Couchbase__BucketConfig);

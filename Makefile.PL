@@ -61,6 +61,7 @@ $MM_Options{CONFIGURE} = sub {
     my @C_Modules = qw(
         args
         callbacks
+        constants
         convert
         operations
         viewhandle);
@@ -80,16 +81,6 @@ $MM_Options{CONFIGURE} = sub {
         $xs = "$xs.xs";
         $MM_Options{XS}->{$xs} = $c;
     }
-}
-
-################################################################################
-### These scripts generate constants                                         ###
-################################################################################
-foreach ([qw(error Constants)], [qw(idx _GlueConstants)]) {
-    my ($script,$genpm) = @$_;
-    $script = "constants/$script" . "_constants.pl";
-    $genpm = '$(INST_LIB)/Couchbase/' . "$genpm" . "_const.pm";
-    $MM_Options{PL_FILES}->{$script} = $genpm;
 }
 
 ################################################################################
@@ -138,6 +129,7 @@ WriteMakefile(
     AUTHOR              => q{M. Nunberg <mnunberg@haskalah.org>},
     VERSION_FROM        => 'lib/Couchbase.pm',
     ABSTRACT_FROM       => 'lib/Couchbase.pm',
+    VERSION_FROM        => 'lib/Couchbase/Core.pm',
 
     ($ExtUtils::MakeMaker::VERSION >= 6.3002
       ? ('LICENSE'=> 'perl')
@@ -149,12 +141,6 @@ WriteMakefile(
     },
 
     BUILD_REQUIRES => {
-        'ExtUtils::H2PM'    => 0.08,
-
-        #This is really a dependency of ExtUtils::H2PM, but we need a
-        #version which honors the CFLAGS environment variable.
-        'ExtUtils::CBuilder' => 0.280203,
-
         #Need this to extract tarballs
         'Archive::Extract' => 0,
         'Archive::Tar' => 0,

@@ -1,22 +1,17 @@
 package Couchbase;
-our $VERSION = '2.0.0_1';
-1;
+use strict;
+use warnings;
 
-BEGIN {
-    require XSLoader;
-    our $VERSION = '2.0.0_1';
-    XSLoader::load('Couchbase', $VERSION);
-}
-
-use Couchbase::_GlueConstants;
-use Couchbase::Bucket;
+use Couchbase::Core;
 
 our @ERRMAP = ();
+our $VERSION = $Couchbase::Core::VERSION;
 
 package Couchbase::Cluster;
 use strict;
 use warnings;
 use URI;
+use Couchbase::Bucket;
 
 sub q2hash($) {
     my $s = shift || '';
@@ -50,6 +45,8 @@ sub new {
 }
 
 sub open_bucket {
+    require Couchbase::Bucket;
+
     my ($self, $bucket_spec, $options) = @_;
     # Inject the URI into the connection string, merging them
     $bucket_spec = sprintf("%s://XXX/%s", $self->{connstr}->{scheme}, $bucket_spec);
