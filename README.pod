@@ -1,220 +1,46 @@
 =head1 NAME
 
-Couchbase::Client::README - README for Couchbase::Client
+Couchbase::README - README for Couchbase::Client
 
 =head1 Introduction
 
-View::Couchbase is a Perl client for Couchbase (http://www.couchbase.org).
+Couchbase is a Perl client for Couchbase (http://www.couchbase.org). This
+I<replaces> the older L<Couchbase::Client>
 
-The couchbase client is a smart, vbucket-aware client. What this means is that
-Couchbase::Client can tap into your Couchbase cluster, with the client needing
-to be able to access (initially) only a single entry point.
+Installing this module depends on the C<libcouchbase> library
+(L<http://couchbase.com/communities/c>,
+L<http://packages.couchbase.com/clients/c/index.html>). You must
+have at least version I<2.4.2> installed. The library should exist in your
+current compiler's search path (this is usually the case if you've used
+the default installation methods). Inspect the C<author_utils/do_make.pl>
+script in the source repository for ways to link against a custom install
+prefix.
 
-This is only a simple overview of the capabilities of this module. For full
-module documentation, see L<http://search.cpan.org/dist/Couchbase-Client/lib/Couchbase/Client.pm>
 
-The module provides:
+ Using this library will mainly deal with the L<Couchbase::Bucket> class,
+ so have a look there!
 
-=head2 Synchronous Interface: Couchbase::Client
 
-This is the simplest and most tested interface. The methods are self-explanatory.
-Additionally, the return type is complex and detailed, allowing error reporting
-for any unexpected conditions (something severely lacking in any Memcache client
-implementation).
 
-I Will be using L<Devel::REPL | http://search.cpan.org/dist/Devel-REPL/lib/Devel/REPL.pm>
-to emulate an interactive shell (the actual script to launch the shell is in
-C<eg/re.pl>), where necessary
+=head2 SUPPORT
 
-=head3 Creating a new object
+Support for this module is provided by the author. You can find him on
+the C<#libcouchbase> IRC channel on the freenode network under the name
+C<mordy_> (number of trailing underscores may vary depending on his
+network).
 
-    use Couchbase::Client;
-    my $cbo = Couchbase::Client->new({ server => "localhost" });
+You can also try to file a bug in the github repository
+(L<https://github.com/mnunberg/perl-Couchbase-Client).
 
 
-=head3 Set a Value
+=head2 CONTRIBUTING
 
-    my $ret = $cbo->set(a_key => "a_value");
 
-Almost every single Couchbase operation returns the common
-C<Couchbase::Client::Return> object:
+This module is primarily authored in XS. The C<xs> directory contains
+the relevant C source code.
 
-    $ret # =>
-    bless( [
-        undef,
-        0,
-        undef,
-        "12952738923228168704"
-      ], 'Couchbase::Client::Return' )
 
-You may inspect and access the object using its methods:
-
-    $ret->is_ok
-    #=> 1
-
-    $ret->cas
-    # => 12952738923228168704
-
-=head3 Get a Value
-
-Now, get the key back again:
-
-    $ret = $cbo->get("a_key");
-    $ret->value
-    #=> "a_value"
-
-=head3 Object References
-
-Transparently store references:
-
-    $cbo->set("an object", ["Hello", "World"]);
-    $ret = $cbo->get("an object");
-
-And get them back again..
-
-    $cbo->get("an object")->value
-    #=> [ "Hello", "World" ]
-
-
-=head3 Arithmetic
-
-If the counter does not yet exist, we will need to create it
-
-    $cbo->arithmetic(
-        "my counter",
-        +1, # desired change,
-        0, # initial value
-    )->value
-    #=> 1
-    # results are returned for arithmetic operations
-
-
-now, increment it by 1
-
-    $cbo->incr("my counter")->value
-    #=> 2
-
-increment by 10
-
-    $cbo->incr("my counter", 10)->value
-    #=> 12
-
-decrement by 1
-
-    $cbo->decr("my counter")->value
-    #=> 11
-
-=head3 Optimistic Locking
-
-Use CAS to sure your data is consistent:
-
-    $ret = $cbo->get("a_key");
-
-    $ret->value #=> "a_value";
-    $ret->cas #=> 7712708499878511104
-
-    $cbo->cas("a_key", "a different value", $ret->cas);
-    #=> OK
-
-    $ret = $cbo->cas("a_key", "yet another value", $ret->cas);
-    $ret->errstr #=> "Key exists (with a different CAS value)"
-
-
-
-Try updating the key again, but using the CAS from the first operation:
-
-
-
-=head3 Pessimistic Locking
-
-If you have keys that will likely be objects of contention, you can use
-pessimistic locking (i.e. mutual-exclusion) by using the C<lock> and C<unlock>
-methods
-
-
-    $lockret = $cbo->lock("foo", 10);
-    if ($lockret->errnum == COUCHBASE_ETMPFAIL) {
-        # something else is locking it.. maybe retry?
-    }
-    # lock() returns the value as well, just like get()
-
-    my $value = frob($lockret->value);
-    # Set the value. We must use the CAS from the lock operation.
-
-    my $rv = $cbo->set("foo", $value, { cas => $lockret->cas });
-    $cbo->unlock("foo", $rv->cas);
-
-
-=head2 Legacy Interface: Couchbase::Client::Compat
-
-Drop-in replacement for Cache::Memcached and Cache::Memcached::Fast.
-
-I can't say it's 100% compatible yet, but the basic methods have been implemented.
-Internally it just wraps around the new interface
-
-=head2 Asynchronous Framework for Perl: Couchbase::Client::Async
-
-Provides the necessary functions and utilities needed to make a POE, IO::Async,
-etc. client for Couchbase.
-
-=head2 Couch View Interface: Couchbase::Couch
-
-Provides the methods to interface with Couch endpoints, create, modify, and use
-design documents and views.
-
-=head2 Mock Server Interface: Couchbase::MockServer
-
-Interface to the Java C<CouchbaseMock.jar>. This is a work in progress.
-
-=head2 Extra Components
-
-=head3 Couchbase::Config - REST API module
-
-This module will probably be a dependency for full testing, but will not necessarily
-be part of this distribution. It's currently available as a separate repository
-on github.
-
-=head3 Couchbase::VBucket - VBucket server mapping module
-
-Just a little utility module. May be useful for testing.
-
-=head1 Installation
-
-C<Couchbase::Client> depends on C<libcouchbase>. You may either use the bundled
-C<libcouchbase> (which is the default installation mode), or using a user/system
-installed C<libcouchbase>.
-
-In any event, the process consists of doing something like:
-
-    perl Makefile.PL
-    make
-    make test
-    make install
-
-Of course, the C<test> target is optional.
-
-=head2 Using Embedded Libraries
-
-This option is normally only available if using a pre-made CPAN distribution.
-The Git repository does not contain the actual C<libcouchbase> source code, so
-there are some extra steps needed. These are documented in the C<HACKING.POD>
-file in the root of this distribution.
-
-
-=head2 Using an Existing libcouchbase
-
-If C<libcouchbase> is already installed, the script should detect this. If it
-doesn't, you may need to pass some extra arguments to C<Makefile.PL>. For example
-if your C<libcouchbase> is installed as C</sources/lcb/inst>, you'd do
-
-    perl Makefile.PL --dynamic --incpath -I/sources/lcb/inst/include --libpath -L/sources/lcb/inst/lib
-
-where the C<--incpath> and C<--libpath> parameters specify extra compiler/linker
-flags to use.
-
-
-=head2 Support
-
-You may file a bug at the Couchbase JIRA, at L<http://www.couchbase.com/issues>,
-specifying the I<Couchbase Perl Client Library> project. You may also find support in
-the C<#libcouchbase> channel on L<irc.freenode.net>.
+To run the tests you will need a copy of C<CouchbaseMock.jar> in the C<t/tmp>
+directory. You may obtain this by glancing into the source code of libcouchbase
+itself and downloading from the URL. Here's an example from the 2.4.2 version:
+L<https://github.com/couchbase/libcouchbase/blob/2.4.2/Makefile.am#L241>
