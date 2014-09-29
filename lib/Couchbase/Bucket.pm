@@ -67,7 +67,7 @@ sub _dispatch_stats {
     if (ref $key eq 'Couchbase::Document') {
         $doc = $key;
     } else {
-        $doc = Couchbase::StatsResult->new($key || "");
+        $doc = Couchbase::Document->new($key || "");
     }
 
     {
@@ -259,7 +259,7 @@ Couchbase::Bucket - Couchbase Cluster data access
 
     # Get multiple items at once
     my $batch = $cb->batch;
-    map { $batch->get(Couchbase::Document->new("user:$_") } (qw(foo bar baz));
+    $batch->get(Couchbase::Document->new("user:$_")) for (qw(foo bar baz));
 
     while (($doc = $batch->wait_one)) {
         if ($doc->is_ok) {
@@ -526,3 +526,87 @@ Set a high timeout for a specified operation:
         local $cb->settings->{operation_timeout} = 20; # 20 seconds
         $cb->get($doc);
     }
+
+
+
+
+=head2 ADVANCED DATA ACCESS
+
+
+=head3 counter($doc, { delta=>n1, initial=n2 })
+
+This method treats the stored value as a number (i.e. a string which can
+be parsed as a number, such as C<"42">) and atomically modifies its value
+based on the parameters passed.
+
+
+The options are:
+
+=over
+
+=item C<delta>
+
+the amount by which the current value should be modified. If the value for this option
+is I<negative> then the counter will be decremented
+
+
+=item C<initial>
+
+The initial value to assign to the item on the server if it does not yet exist.
+If this option is not specified and the item on the server does not exist then
+the operation will fail.
+
+
+=back
+
+
+=head3 append_bytes($doc, { fragment => "string" })
+
+=head3 prepend_bytes($doc, { fragment => "string"} )
+
+These two methods concatenate the C<fragment> value and the existing value on
+the server. They are equivalent to doing the following:
+
+
+
+    # Append:
+    $doc->value($doc->value . '_suffix');
+    $doc->format('utf8');
+    $cb->replace($doc);
+
+    # Prepend:
+    #doc->value('prefix_' . $doc->value);
+    $doc->format('utf8');
+    $cb->replace($doc);
+
+
+The C<fragment> option I<must> be specified, and the value is I<not> updated
+in the original document.
+
+Also note that these methods do a raw I<string-based> concatenation, and
+will thus only produce desired results if the existing value is a plain
+string. This is in contrast to C<COUCHBASE_FMT_JSON> where a string
+is stored enclosed in quotation marks.
+
+Thus a JSON string may be stored as C<"foo">, and appending to it
+will yield C<"foo"bar>, which is typically not what you want.
+
+
+=head2 BATCH OPERATIONS
+
+Batch operations allow more efficient utilization of the network
+by reducing latency and increasing the number of commands
+sent at a single time to the server.
+
+Batch operations are executed by creating an L<Couchbase::OpContext>;
+associating commands with the conext, and waiting for the
+commands to complete.
+
+
+To create a new context, use the C<batch> method
+
+
+=head3 batch()
+
+Returns a new L<Couchbase::OpContext> which may be used to schedule
+operations.
