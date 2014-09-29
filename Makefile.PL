@@ -2,16 +2,11 @@
 package PLCBTopLevel;
 use strict;
 use warnings;
+
 use ExtUtils::MakeMaker;
-use Dir::Self;
 use Getopt::Long;
-use Config;
 use File::Spec;
 use Config;
-use lib __DIR__;
-use PLCB_ConfUtil;
-use lib 'inc';
-use Devel::CheckLib;
 use Data::Dumper;
 
 $ENV{LD_RUN_PATH} ||= "";
@@ -165,10 +160,6 @@ WriteMakefile(
     clean               => { FILES => 'Couchbase-* COMPILER_FLAGS log.test-*' },
     %MM_Options,
 );
-
-
-#Write a list of compiler flags for our constants scripts.
-PLCB_ConfUtil::write_tmpflags($Constants_INC);
 
 package MY;
 use Config;
