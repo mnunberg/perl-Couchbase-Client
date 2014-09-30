@@ -1,3 +1,6 @@
+=for HTML <a href="https://travis-ci.org/mnunberg/perl-Couchbase-Client"><img src="https://travis-ci.org/mnunberg/perl-Couchbase-Client.svg?branch=sdk20"></a>
+
+
 =head1 NAME
 
 Couchbase::README - README for Couchbase::Client
