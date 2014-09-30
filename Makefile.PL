@@ -85,31 +85,8 @@ $MM_Options{CONFIGURE} = sub {
 if($ENV{PLCB_BUILD_AUTHOR}) {
     $MM_Options{OPTIMIZE} = '-Wdeclaration-after-statement -Werror -std=gnu89';
 }
-
 # Extra stuff - add compiler flags here
 # $MM_Options{OPTIMIZE} .= ' -Wall';
-
-################################################################################
-### Check for Java                                                           ###
-################################################################################
-print STDERR "Checking for working Java (for tests)\n. Running java -version\n";
-$HaveJava = (system("java -version") == 0);
-if(!$HaveJava) {
-    my $promptval = prompt(
-        "java was not found in your path. You must have java to properly\n".
-        "test Couchbase::Client. Java is not a runtime dependency and this\n".
-        "module will likely function properly without it, but will be untested\n".
-        "on your specific installation.\n\n".
-        "Abort installation?", "n");
-
-    if($promptval =~ /^y/i) {
-        print STDERR "You have request to abort the installation.\n".
-                        "Makefile.PL will now exit\n";
-        exit(0);
-    }
-}
-
-use Log::Fu;
 
 $MM_Options{NEEDS_LINKING} = 1;
 
@@ -130,20 +107,8 @@ WriteMakefile(
       ? ('LICENSE'=> 'perl')
       : ()),
 
-    CONFIGURE_REQUIRES => {
-        'Dir::Self' => 0,
-        'Log::Fu'           => 0.25,
-    },
-
-    BUILD_REQUIRES => {
-        #Need this to extract tarballs
-        'Archive::Extract' => 0,
-        'Archive::Tar' => 0,
-    },
-
     PREREQ_PM => {
         'Class::XSAccessor' => 1.11,
-
         'JSON'              => 2.53,
         'JSON::SL'          => '1.0.1'
     },
