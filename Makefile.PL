@@ -1,5 +1,4 @@
 #!/usr/bin/perl
-package PLCBTopLevel;
 use strict;
 use warnings;
 
@@ -7,34 +6,22 @@ use ExtUtils::MakeMaker;
 use Getopt::Long;
 use File::Spec;
 use Config;
-use Data::Dumper;
 
 $ENV{LD_RUN_PATH} ||= "";
 
-#$Verbose = 99;
-
 GetOptions(
-    'dynamic' => \my $UseDynamic,
-    'bundled' => \my $UseBundled,
-    'incpath=s' => \our $U_IncPath,
-    'libpath=s' => \our $U_LibPath
+    'incpath=s' => \my $U_IncPath,
+    'libpath=s' => \my $U_LibPath
 ) or die <<EOD;
 OPTIONS:
 --incpath=CPPFLAGS
 --libpath=LDFLAGS
 EOD
 
-#my $mm = ExtUtils::MakeMaker->new();
-
 our (@LIBS,$INC);
-our $MM_TopLevel;
-our $Constants_INC = "";
-our $HaveJava = 0;
 
 push @LIBS, $U_LibPath if $U_LibPath;
 $INC = $U_IncPath || "";
-$Constants_INC = $INC;
-
 
 push @LIBS, '-lcouchbase';
 
@@ -43,39 +30,24 @@ my %MM_Options = (
     LIBS => [ join(' ', @LIBS) || '' ],
 );
 
-$MM_Options{CONFIGURE} = sub {
-    my ($cls,$h) = @_;
-    $MM_TopLevel = $h;
-    return $h;
-};
-
 ################################################################################
 ### Our C Source Files                                                       ###
 ################################################################################
-{
-    my @C_Modules = qw(
-        args
-        callbacks
-        constants
-        convert
-        operations
-        viewhandle);
-    my @XS_Modules = qw(
-        Couchbase View BucketConfig);
+my @C_Modules = qw(args callbacks constants convert operations viewhandle);
+my @XS_Modules = qw(Couchbase View BucketConfig);
 
-    foreach (@XS_Modules, @C_Modules) {
-        my $obj = $_ . $Config{obj_ext};
-        push @{ $MM_Options{OBJECT} }, File::Spec->catfile('xs', $obj);
-    }
+foreach (@XS_Modules, @C_Modules) {
+    my $obj = $_ . $Config{obj_ext};
+    push @{ $MM_Options{OBJECT} }, File::Spec->catfile('xs', $obj);
+}
 
-    $MM_Options{OBJECT} = join(' ', @{$MM_Options{OBJECT}});
+$MM_Options{OBJECT} = join(' ', @{$MM_Options{OBJECT}});
 
-    foreach my $xs (@XS_Modules) {
-        $xs = File::Spec->catfile('xs', $xs);
-        my $c = "$xs.c";
-        $xs = "$xs.xs";
-        $MM_Options{XS}->{$xs} = $c;
-    }
+foreach my $xs (@XS_Modules) {
+    $xs = File::Spec->catfile('xs', $xs);
+    my $c = "$xs.c";
+    $xs = "$xs.xs";
+    $MM_Options{XS}->{$xs} = $c;
 }
 
 ################################################################################
@@ -130,7 +102,6 @@ package MY;
 use Config;
 use strict;
 use warnings;
-use Data::Dumper;
 
 #thanks rafl!
 sub const_cccmd {
@@ -143,13 +114,4 @@ sub const_cccmd {
         $ret .= ' -o $@';
     }
     return $ret;
-}
-
-sub libscan {
-    my ($self,$path) = @_;
-    if($path =~ /\.pl$/i || $path =~ /PLCB_Conf/ || $path =~ /HACKING/) {
-        return "";
-    } else {
-        return $path;
-    }
 }
