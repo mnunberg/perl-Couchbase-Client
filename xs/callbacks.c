@@ -78,7 +78,7 @@ call_helper(AV *resobj, int cbtype, const lcb_RESPBASE *resp)
         if (sresp->value) {
             XPUSHs(sv_2mortal(newSVpvn(sresp->value, sresp->nvalue)));
         }
-        methname = "Couchbase::Bucket::__statshelper";
+        methname = PLCB_STATS_PLHELPER;
 
     } else if (cbtype == LCB_CALLBACK_OBSERVE) {
         const lcb_RESPOBSERVE *oresp = (const void *)resp;
@@ -87,7 +87,7 @@ call_helper(AV *resobj, int cbtype, const lcb_RESPBASE *resp)
         XPUSHs(sv_2mortal(newSVuv(oresp->status)));
         XPUSHs(sv_2mortal(plcb_sv_from_u64_new(&oresp->cas)));
         XPUSHs(oresp->ismaster ? &PL_sv_yes : &PL_sv_no);
-        methname = "Couchbase::Bucket::__obshelper";
+        methname = PLCB_OBS_PLHELPER;
     } else {
         return;
     }

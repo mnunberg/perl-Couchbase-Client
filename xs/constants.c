@@ -8,10 +8,10 @@
 void
 plcb_define_constants(void)
 {
-    HV *priv_stash = gv_stashpv("Couchbase::_GlueConstants", GV_ADD);
-    HV *pub_stash = gv_stashpv("Couchbase::Constants", GV_ADD);
-    AV *our_public = get_av("Couchbase::Constants::EXPORT", GV_ADD);
-    AV *our_private = get_av("Couchbase::_GlueConstants::EXPORT", GV_ADD);
+    HV *priv_stash = gv_stashpv(PLCB_PRIV_CONSTANTS_PKG, GV_ADD);
+    HV *pub_stash = gv_stashpv(PLCB_PUB_CONSTANTS_PKG, GV_ADD);
+    AV *our_public = get_av(PLCB_PUB_CONSTANTS_PKG "::EXPORT", GV_ADD);
+    AV *our_private = get_av(PLCB_PRIV_CONSTANTS_PKG "::EXPORT", GV_ADD);
 
     #define ADD_PUBLIC(n, v) \
         newCONSTSUB(pub_stash, n, newSViv(v)); \

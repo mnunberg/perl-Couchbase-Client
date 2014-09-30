@@ -10,8 +10,13 @@
 #include "XSUB.h"
 #include "ppport.h"
 
+#define PLCB_BKT_CLASSNAME "Couchbase::Bucket"
 #define PLCB_RET_CLASSNAME "Couchbase::Document"
 #define PLCB_OPCTX_CLASSNAME "Couchbase::OpContext"
+#define PLCB_PUB_CONSTANTS_PKG "Couchbase::Constants"
+#define PLCB_PRIV_CONSTANTS_PKG "Couchbase::_GlueConstants"
+#define PLCB_OBS_PLHELPER "Couchbase::Bucket::__obshelper"
+#define PLCB_STATS_PLHELPER "Couchbase::Bucket::__statshelper"
 
 #if IVSIZE >= 8
 #define PLCB_PERL64

@@ -87,7 +87,7 @@ PLCB_construct(const char *pkg, HV *hvopts)
     get_stash_assert(PLCB_OPCTX_CLASSNAME, opctx_sync_stash);
 
     blessed_obj = newSV(0);
-    sv_setiv(newSVrv(blessed_obj, "Couchbase::Bucket"), PTR2IV(object));
+    sv_setiv(newSVrv(blessed_obj, PLCB_BKT_CLASSNAME), PTR2IV(object));
 
     object->selfobj = SvRV(blessed_obj);
     object->deflctx = new_opctx(object, PLCB_OPCTXf_IMPLICIT);
@@ -264,7 +264,7 @@ init_singleop(plcb_SINGLEOP *so, PLCB_t *parent, SV *doc, SV *ctx, SV *options)
 {
     if (!plcb_doc_isa(parent, doc)) {
         sv_dump(doc);
-        die("Must pass a Couchbase::Document");
+        die("Must pass a " PLCB_RET_CLASSNAME);
         /* Initialize the document to 0 */
     }
     so->docrv = doc;
@@ -285,7 +285,7 @@ init_singleop(plcb_SINGLEOP *so, PLCB_t *parent, SV *doc, SV *ctx, SV *options)
 
     if (ctx && SvTYPE(ctx) != SVt_NULL) {
         if (!plcb_opctx_isa(parent, ctx)) {
-            die("ctx must be undef or a Couchbase::OpContext object");
+            die("ctx must be undef or a %s object", PLCB_OPCTX_CLASSNAME);
         }
         if (parent->curctx && SvRV(ctx) != SvRV(parent->curctx)) {
             sv_dump(parent->curctx);
