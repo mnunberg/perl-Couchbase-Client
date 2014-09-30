@@ -30,7 +30,7 @@ C<mordy_> (number of trailing underscores may vary depending on his
 network).
 
 You can also try to file a bug in the github repository
-(L<https://github.com/mnunberg/perl-Couchbase-Client).
+(L<https://github.com/mnunberg/perl-Couchbase-Client>).
 
 
 =head2 CONTRIBUTING
