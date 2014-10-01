@@ -90,7 +90,9 @@ WriteMakefile(
         #functionality
 
         'Test::More'        => 0,
-        'Test::Class'       => 0.36
+        'Test::Class'       => 0.36,
+        'Log::Fu'           => 0,
+        'Dir::Self'         => 0
     },
 
     dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },

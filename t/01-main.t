@@ -2,21 +2,24 @@
 use Dir::Self;
 use lib __DIR__ . "../lib";
 use lib __DIR__ . "../";
-use Carp::Always;
+BEGIN {
+    eval {
+        require Carp::Always;
+        Carp::Always->import();
+    };
+}
 
 $Log::Fu::LINE_PREFIX = '#';
 
-my $config = do 'PLCB_Config.pm';
-use Couchbase::Test::Common;
-my $TEST_PORT;
-
-my $jarurl = $config->{COUCHBASE_MOCK_JARURL};
+my $jarurl = 'http://files.couchbase.com/maven2/org/couchbase/mock/CouchbaseMock/0.8-SNAPSHOT/CouchbaseMock-0.8-20140621.030439-1.jar';
 my $jarfile = __DIR__ . "/tmp/CouchbaseMock.jar";
+
 if (! -e $jarfile) {
     warn("Can't find JAR. Downloading.. $jarurl");
     system("wget -O $jarfile $jarurl");
 }
 
+use Couchbase::Test::Common;
 Couchbase::Test::Common->Initialize(
     jarfile => $jarfile,
     nodes => 5,
