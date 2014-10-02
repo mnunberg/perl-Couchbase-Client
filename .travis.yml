@@ -4,7 +4,7 @@ language: perl
 
 branches:
   only:
-    - sdk20
+    - master
 
 before_install:
   - sudo rm -rf /etc/apt/sources.list.d/*
