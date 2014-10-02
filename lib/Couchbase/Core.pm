@@ -1,7 +1,7 @@
-our $VERSION = '2.0.0_1';
+our $VERSION;
 BEGIN {
     require XSLoader;
-    our $VERSION = '2.0.0_1';
+    $VERSION = '2.0.0_2';
     XSLoader::load('Couchbase', $VERSION);
 }
 
