@@ -51,7 +51,7 @@ Couchbase::OpContext - Operation context
     }
 
 
-=head2 DESCRIPTION
+=head1 DESCRIPTION
 
 The C<OpContext> class is used to schedule multiple operations and
 send them over the network as a single group.
@@ -65,6 +65,7 @@ to the cluster and waited for.
 Once all operations have been completed, the batch object is no longer valid
 and must be recreated using the C<batch()> method on L<Couchbase::Bucket>.
 
+=head2 METHODS
 
 =head3 wait_all()
 

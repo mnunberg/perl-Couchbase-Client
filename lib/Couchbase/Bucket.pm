@@ -270,7 +270,7 @@ Couchbase::Bucket - Couchbase Cluster data access
     }
 
 
-=head2 DESCRIPTION
+=head1 DESCRIPTION
 
 Couchbase::Bucket is the main module for L<Couchbase> and represents a data
 connection to the cluster.
@@ -575,7 +575,7 @@ the server. They are equivalent to doing the following:
     $cb->replace($doc);
 
     # Prepend:
-    #doc->value('prefix_' . $doc->value);
+    $doc->value('prefix_' . $doc->value);
     $doc->format('utf8');
     $cb->replace($doc);
 

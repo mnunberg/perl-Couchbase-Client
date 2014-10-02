@@ -136,12 +136,15 @@ Couchbase::Document - Object represnting an item in the cluster.
     my $doc = Couchbase::Document->new("id_string", ["content"]);
 
 
-=head2 DESCRIPTION
+=head1 DESCRIPTION
 
 A document is the basic unit of the API and corresponds with an item as it is
 stored in the cluster. A newly created document exists only locally in the
 application, and must be submitted to the cluster via one of the methods in
 L<Couchbase::Bucket>
+
+
+=head2 CONSTRUCTORS
 
 
 =head3 new($id)
