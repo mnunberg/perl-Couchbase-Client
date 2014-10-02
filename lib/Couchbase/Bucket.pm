@@ -404,7 +404,10 @@ field.
 
 
 The C<get_and_touch> variant will also update (or clear) the expiration time of
-the item. See L<"Document Expiration"> for more details.
+the item. See L<"Document Expiration"> for more details:
+
+    my $doc = Couchbase::Document->new("id", { expiry => 300 });
+    $cb->get_and_touch($doc); # Expires in 5 minutes
 
 
 =head3 insert($doc)
@@ -412,6 +415,29 @@ the item. See L<"Document Expiration"> for more details.
 =head3 replace($doc, $options)
 
 =head3 upsert($doc, $options)
+
+
+    my $doc = Couchbase::Document->new(
+        "mutation_method_names",
+        [ "insert", "replace", "upsert"],
+        { expiry => 3600 }
+    );
+
+    # Store a new item into the cluster, failing if it exists:
+    $cb->insert($doc);
+
+    # Unconditionally overwrite the value:
+    $cb->upsert($doc);
+
+    # Only replace an existing value
+    $cb->replace($doc);
+
+    # Ignore any kind of race conditions:
+    $cb->replace($doc, { ignore_cas => 1 });
+
+    # Store the document, wait until it has been persisted
+    # on at least 2 nodes
+    $cb->replace($doc, { persist_to => 2 });
 
 
 These three methods will set the value of the document on the server. C<insert>
@@ -504,6 +530,16 @@ via the L<Couchbase::Document>'s C<expiry> method.
 Remove an item from the cluster. The operation will fail if the item does not exist,
 or if the item's L<CAS|"CAS Operations"> has been modified.
 
+    my $doc = Couchbase::Document->new("KILL ME PLEASE");
+    $cb->remove($doc);
+    if ($doc->is_ok) {
+        print "Deleted document OK!\n";
+    } elsif ($doc->is_not_found) {
+        print "Document already deleted!\n"
+    } elseif ($doc->is_cas_mismatch) {
+        print "Someone modified our document before we tried to delete it!\n";
+    }
+
 
 =head3 touch($doc, $options)
 
@@ -534,6 +570,15 @@ Set a high timeout for a specified operation:
 
 
 =head3 counter($doc, { delta=>n1, initial=n2 })
+
+
+    sub example_hit_counter {
+        my $page_name = shift;
+        my $doc = Couchbase::Document->new("page:$page_name");
+        $cb->counter($doc, { initial => 1, amount => 1 });
+    }
+
+
 
 This method treats the stored value as a number (i.e. a string which can
 be parsed as a number, such as C<"42">) and atomically modifies its value
@@ -610,3 +655,79 @@ To create a new context, use the C<batch> method
 
 Returns a new L<Couchbase::OpContext> which may be used to schedule
 operations.
+
+
+=head2 VIEW (MAPREDUCE) QUERIES
+
+
+=head3 view_slurp("design/view", %options)
+
+Queries and returns the results of a view. The first argument may be provided
+either as a string of C<"$design/$view"> or as a two-element array reference
+containing the design and view respectively.
+
+The returned object contains various status information about the query. The
+rows themselves may be found inside the C<rows> accessor:
+
+    my $rv = $cb->view_slurp("beer/brewery_beers", limit => 5);
+    foreach my $row @{ $rv->rows } {
+        printf("Got row for key %s with document id %s\n", $row->key, $row->id);
+    }
+
+
+=head3 view_iterator("design/view", %options)
+
+This works in much the same way as the C<view_slurp()> method does, except
+that it returns responses incrementally, which is handy if you expect the
+query to return a large amount of results:
+
+
+    my $iter = $cb->view_iterator("beer/brewery_beers");
+    while (my $row = $iter->next) {
+        printf("Got row for key %s with document id %s\n", $row->key, $row->id);
+    }
+
+
+=head2 INFORMATIONAL METHODS
+
+These methods return various sorts of into about the cluster or specific
+items
+
+
+=head3 stats()
+
+=head3 stats("spec")
+
+Retrieves cluster statistics from each server. The return value
+is an L<Couchbase::Document> with its C<value> field containing a hashref
+of hashrefs, like so:
+
+    # Dump all the stats, per server:
+    my $results = $cb->stats()->value;
+    while (my ($server,$stats) = each %$results) {
+        while (my ($statkey, $statval) = each %$stats) {
+            printf("Server %s: %s=%s\n", $server, $statkey, $statval);
+        }
+    }
+
+
+=head3 keystats($id)
+
+Returns metadata about a specific document ID. The metadata is returned
+in the same manner as in the C<stats()> method. This will solicit each server
+which is either a master or replica for the item to respond with information
+such as the I<cas>, I<expiration time>, and I<persistence state> of the item.
+
+This method should be used for informative purposes only, as its output
+and availability may change in the future.
+
+
+=head3 observe($id, $options)
+
+Returns persistence and replication status about a specific document ID.
+Unlike the C<keystats> method, the information is received from the network
+as binary and is thus more efficient.
+
+You may also pass a C<master_only> option in the options hashref, in which
+case only the master node from the item will be contacted.
+
