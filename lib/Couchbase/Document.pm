@@ -15,8 +15,9 @@ use Class::XSAccessor::Array {
         id => RETIDX_KEY,
         expiry => RETIDX_EXP,
         _cas => RETIDX_CAS,
+        _ctx => RETIDX_PARENT,
         value => RETIDX_VALUE,
-        errnum => RETIDX_ERRNUM
+        errnum => RETIDX_ERRNUM,
     }
 };
 

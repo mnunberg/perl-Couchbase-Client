@@ -19,6 +19,14 @@ sub AUTOLOAD {
     goto &{"Couchbase::Bucket::".$meth};
 }
 
+sub callback {
+    if (scalar @_ == 2) {
+        goto &set_callback;
+    } else {
+        goto &get_callback;
+    }
+}
+
 
 # Note, there is no new() method because this must be instantiated
 # via XS directly.

@@ -17,6 +17,9 @@
 #define PLCB_PRIV_CONSTANTS_PKG "Couchbase::_GlueConstants"
 #define PLCB_OBS_PLHELPER "Couchbase::Bucket::__obshelper"
 #define PLCB_STATS_PLHELPER "Couchbase::Bucket::__statshelper"
+#define PLCB_EVENT_CLASS "Couchbase::IO::Event"
+#define PLCB_IOPROCS_CLASS "Couchbase::IO"
+#define PLCB_IOPROCS_CONSTANTS_CLASS "Couchbase::IO::Constants"
 
 #if IVSIZE >= 8
 #define PLCB_PERL64
@@ -67,6 +70,7 @@ enum {
     PLCB_RETIDX_OPTIONS,
     PLCB_RETIDX_EXP,
     PLCB_RETIDX_FMTSPEC,
+    PLCB_RETIDX_CALLBACK,
     PLCB_RETIDX_MAX
 };
 
@@ -95,6 +99,29 @@ enum {
     PLCB_CF_MASK = 0xFF << 24
 };
 
+enum {
+    PLCB_EVIDX_FD,
+    PLCB_EVIDX_DUPFH,
+    PLCB_EVIDX_WATCHFLAGS,
+    PLCB_EVIDX_OPAQUE,
+    PLCB_EVIDX_PLDATA,
+    PLCB_EVIDX_TYPE,
+    PLCB_EVIDX_MAX
+};
+
+/*various types of actions which may be taken by the callback*/
+enum {
+    PLCB_EVACTION_WATCH,
+    PLCB_EVACTION_UNWATCH,
+    PLCB_EVACTION_INIT,
+    PLCB_EVACTION_CLEANUP
+};
+
+enum {
+    PLCB_EVTYPE_IO,
+    PLCB_EVTYPE_TIMER
+};
+
 struct PLCB_st {
     lcb_t instance; /*our library handle*/
     HV *ret_stash; /*stash with which we bless our return objects*/
@@ -116,16 +143,23 @@ struct PLCB_st {
     SV *deflctx;
     SV *curctx;
     SV *selfobj;
+    SV *ioprocs;
+    SV *udata;
+    SV *conncb;
 
     /*how many operations are pending on this object*/
     int npending;
+    int async;
 };
 
 typedef struct {
     unsigned nremaining;
     unsigned flags;
     SV *parent; /* PLCB_T */
-    AV *ctxqueue; /* For queued operations */
+    union {
+        SV *callback; /* For async only */
+        AV *ctxqueue; /* For queued operations */
+    } u;
 } plcb_OPCTX;
 
 typedef struct {
@@ -149,8 +183,9 @@ typedef struct {
 } plcb_DOCVAL;
 
 #define PLCB_OPCTXf_IMPLICIT 0x01
-#define PLCB_OPCTXf_CALLBACKS 0x02
-#define PLCB_OPCTXf_WAITONE 0x04
+#define PLCB_OPCTXf_CALLEACH 0x02
+#define PLCB_OPCTXf_CALLDONE 0x04
+#define PLCB_OPCTXf_WAITONE 0x08
 
 /*need to include this after defining PLCB_t*/
 #include "plcb-return.h"
@@ -205,8 +240,49 @@ PLCB_args_return(plcb_SINGLEOP *so, lcb_error_t err);
 
 void plcb_define_constants(void);
 
+typedef struct plcb_EVENT_st plcb_EVENT;
+struct plcb_EVENT_st {
+    /* Corresponding Perl event object */
+    AV *pl_event;
+    SV *rv_event;
+
+    int evtype;
+    lcb_ioE_callback lcb_handler;
+    void *lcb_arg;
+    short flags;
+
+    /*FD from libcouchbase*/
+    lcb_socket_t fd;
+    lcb_io_opt_t ioptr;
+};
+
+/*our base object*/
+typedef struct {
+    lcb_io_opt_t iops_ptr;
+    SV *userdata;
+    SV *action_sv;
+    SV *flags_sv;
+    SV *usec_sv;
+
+    SV *selfrv;
+    SV *cv_evmod; /* Modify an event */
+    SV *cv_timermod; /* Modify a timer */
+    SV *cv_evinit;
+    SV *cv_evclean;
+    SV *cv_tminit;
+    SV *cv_tmclean;
+    int refcount;
+} plcb_IOPROCS;
+
+#define PLCB_READ_EVENT LCB_READ_EVENT
+#define PLCB_WRITE_EVENT LCB_WRITE_EVENT
+
+SV * PLCB_ioprocs_new(SV *options);
+void PLCB_ioprocs_dtor(lcb_io_opt_t cbcio);
+
 /* Declare these ahead of time */
 XS(boot_Couchbase__View);
 XS(boot_Couchbase__BucketConfig);
+XS(boot_Couchbase__IO);
 
 #endif /* PERL_COUCHBASE_H_ */

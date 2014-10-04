@@ -8,6 +8,8 @@ PLCB_jsondec_t*	T_PLCB_JSONDEC_T
 PLCB_t *        T_PLCB
 plcb_OPCTX*		T_OPCTX
 lcbvb_CONFIG *	T_VBC
+plcb_IOPROCS *	T_IOPROCS
+plcb_EVENT	*	T_IOEVENT
 
 INPUT
 T_PLCB_XS_OBJPAIR_T
@@ -40,6 +42,22 @@ T_VBC
 		die(\"Not a valid Couchbase::BucketConfig\");
 	}
 	$var = NUM2PTR($type, SvIV(SvRV($arg)));
+
+T_IOPROCS
+	if (!sv_isa($arg, \"Couchbase::IO\")) {
+		die(\"Not a valid Couchbase::IO\");
+	}
+	$var = NUM2PTR($type, SvIV(SvRV($arg)));
+
+T_IOEVENT
+	if (!sv_derived_from($arg, \"Couchbase::IO::Event\")) {
+		sv_dump($arg);
+		die(\"Not a valid Couchbase::IO::Event\");
+	}
+	{
+		SV **tmpsv = av_fetch((AV*)SvRV((SV*)$arg), PLCB_EVIDX_OPAQUE, 0);
+		$var = NUM2PTR($type, SvIV(*tmpsv));
+	}
 
 T_PLCB_XS_STRING_NONULL_T
 	if(!SvPOK($arg)) {

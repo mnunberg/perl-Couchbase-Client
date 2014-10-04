@@ -54,16 +54,36 @@ PLCB_construct(const char *pkg, HV *hvopts)
     lcb_t instance;
     lcb_error_t err;
     struct lcb_create_st cr_opts = { 0 };
+
     SV *blessed_obj;
+    SV *iops_impl = NULL;
+    SV *conncb = NULL;
+
     PLCB_t *object;
     plcb_OPTION options[] = {
         PLCB_KWARG("connstr", CSTRING, &cr_opts.v.v3.connstr),
         PLCB_KWARG("password", CSTRING, &cr_opts.v.v3.passwd),
+        PLCB_KWARG("io", SV, &iops_impl),
+        PLCB_KWARG("on_connect", CV, &conncb),
         { NULL }
     };
 
     cr_opts.version = 3;
     plcb_extract_args((SV*)hvopts, options);
+
+    if (iops_impl && SvTYPE(iops_impl) != SVt_NULL) {
+        plcb_IOPROCS *ioprocs;
+        /* Validate */
+        if (!sv_derived_from(iops_impl, PLCB_IOPROCS_CLASS)) {
+            die("io must be a valid " PLCB_IOPROCS_CLASS);
+        }
+        if (!conncb) {
+            die("Connection callback must be specified in async mode");
+        }
+        ioprocs = NUM2PTR(plcb_IOPROCS* , SvIV(SvRV(iops_impl)));
+        cr_opts.v.v3.io = ioprocs->iops_ptr;
+    }
+
     err = lcb_create(&instance, &cr_opts);
 
     if (!instance) {
@@ -73,6 +93,12 @@ PLCB_construct(const char *pkg, HV *hvopts)
     Newxz(object, 1, PLCB_t);
     lcb_set_cookie(instance, object);
     object->instance = instance;
+
+    if (iops_impl) {
+        object->ioprocs = newRV_inc(SvRV(iops_impl));
+        object->conncb = newRV_inc(SvRV(conncb));
+        object->async = 1;
+    }
 
     plcb_callbacks_setup(object);
     plcb_vh_callbacks_setup(object);
@@ -109,6 +135,10 @@ PLCB_connect(PLCB_t *object)
         if ((err = lcb_connect(instance)) != LCB_SUCCESS) {
             goto GT_ERR;
         }
+        if (object->async) {
+            return 0;
+        }
+
         lcb_wait(instance);
         if ((err = lcb_get_bootstrap_status(instance)) != LCB_SUCCESS) {
             goto GT_ERR;
@@ -304,7 +334,15 @@ init_singleop(plcb_SINGLEOP *so, PLCB_t *parent, SV *doc, SV *ctx, SV *options)
         }
 
         assert(parent->curctx == NULL);
-        so->opctx = parent->deflctx;
+
+        if (parent->async) {
+            so->opctx = new_opctx(parent, PLCB_OPCTXf_IMPLICIT);
+            /* If we get an error, don't leave the pointer dangling */
+            SAVEFREESV(so->opctx);
+
+        } else {
+            so->opctx = parent->deflctx;
+        }
         lcb_sched_enter(parent->instance);
     }
 }
@@ -322,6 +360,7 @@ PLCB_args_return(plcb_SINGLEOP *so, lcb_error_t err)
         av_store(so->docav, PLCB_RETIDX_PARENT, &PL_sv_undef);
 
         if (ctx->flags & PLCB_OPCTXf_IMPLICIT) {
+            if (so->parent)
             lcb_sched_fail(so->parent->instance);
         }
 
@@ -338,7 +377,16 @@ PLCB_args_return(plcb_SINGLEOP *so, lcb_error_t err)
     ctx->nremaining++;
 
     if (ctx->flags & PLCB_OPCTXf_IMPLICIT) {
+        if (so->parent->async) {
+            SvREFCNT_inc(so->opctx); /* Undo SAVEFREESV */
+        }
+
         lcb_sched_leave(so->parent->instance);
+
+        if (so->parent->async) {
+            goto GT_RET;
+        }
+
         lcb_wait3(so->parent->instance, LCB_WAIT_NOCHECK);
         /* See if we have an error */
         if (plcb_doc_get_err(so->docav) != LCB_SUCCESS) {
@@ -350,6 +398,9 @@ PLCB_args_return(plcb_SINGLEOP *so, lcb_error_t err)
     if (ctx->flags & PLCB_OPCTXf_IMPLICIT) {
         if (haserr) {
             retval = &PL_sv_no;
+        } else if (so->parent->async) {
+            retval = so->opctx;
+            SvREFCNT_inc(so->opctx);
         } else {
             retval = &PL_sv_yes;
         }
@@ -591,6 +642,23 @@ PLCB__ctx_clear(PLCB_t *object)
     CODE:
     clear_opctx(object);
 
+
+SV *
+PLCB_user_data(PLCB_t *object, ...)
+    PREINIT:
+    SV *arg;
+    CODE:
+    if (items == 1) {
+        RETVAL = object->udata;
+    } else {
+        SvREFCNT_dec(object->udata);
+        object->udata = ST(1);
+        SvREFCNT_inc(object->udata);
+        RETVAL = &PL_sv_undef;
+    }
+    SvREFCNT_inc(RETVAL);
+    OUTPUT: RETVAL
+
 MODULE = Couchbase PACKAGE = Couchbase::OpContext PREFIX = PLCB_ctx_
 
 void
@@ -627,8 +695,8 @@ PLCB_ctx_wait_one(plcb_OPCTX *ctx)
         die("Parent context is destroyed");
     }
 
-    if (ctx->ctxqueue) {
-        RETVAL = av_shift(ctx->ctxqueue);
+    if (ctx->u.ctxqueue) {
+        RETVAL = av_shift(ctx->u.ctxqueue);
         if (RETVAL != &PL_sv_undef) {
             goto GT_DONE;
         }
@@ -644,13 +712,13 @@ PLCB_ctx_wait_one(plcb_OPCTX *ctx)
         SvREFCNT_inc(&PL_sv_undef);
         goto GT_DONE;
     }
-    if (!ctx->ctxqueue) {
-        ctx->ctxqueue = newAV();
+    if (!ctx->u.ctxqueue) {
+        ctx->u.ctxqueue = newAV();
     }
     ctx->flags |= PLCB_OPCTXf_WAITONE;
     lcb_sched_leave(parent->instance);
     lcb_wait3(parent->instance, LCB_WAIT_NOCHECK);
-    RETVAL = av_shift(ctx->ctxqueue);
+    RETVAL = av_shift(ctx->u.ctxqueue);
 
     GT_DONE: ;
     OUTPUT: RETVAL
@@ -665,12 +733,34 @@ PLCB_ctx__cbo(plcb_OPCTX *ctx)
     OUTPUT: RETVAL
 
 void
+PLCB_ctx_set_callback(plcb_OPCTX *ctx, CV *cv)
+    PREINIT:
+    PLCB_t *parent;
+    CODE:
+    SvREFCNT_dec(ctx->u.callback);
+    ctx->u.callback = newRV_inc((SV*)cv);
+
+SV *
+PLCB_ctx_get_callback(plcb_OPCTX *ctx)
+    PREINIT:
+    PLCB_t *parent;
+    CODE:
+    if (!ctx->u.callback) {
+        RETVAL = &PL_sv_undef;
+    } else {
+        RETVAL = ctx->u.callback;
+    }
+    SvREFCNT_inc(RETVAL);
+    OUTPUT: RETVAL
+
+
+void
 PLCB_ctx_DESTROY(plcb_OPCTX *ctx)
     PREINIT:
     PLCB_t *parent;
     CODE:
     SvREFCNT_dec(ctx->parent);
-    SvREFCNT_dec(ctx->ctxqueue);
+    SvREFCNT_dec(ctx->u.ctxqueue);
 
 MODULE = Couchbase PACKAGE = Couchbase    PREFIX = PLCB_
 
@@ -721,5 +811,6 @@ SPAGAIN;
     plcb_define_constants();
     PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__View);
     PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__BucketConfig);
+    PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__IO);
 }
 #undef PLCB_BOOTSTRAP_DEPENDENCY

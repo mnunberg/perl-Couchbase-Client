@@ -33,8 +33,8 @@ my %MM_Options = (
 ################################################################################
 ### Our C Source Files                                                       ###
 ################################################################################
-my @C_Modules = qw(args callbacks constants convert operations viewhandle);
-my @XS_Modules = qw(Couchbase View BucketConfig);
+my @C_Modules = qw(args async callbacks constants convert operations viewhandle);
+my @XS_Modules = qw(Couchbase View BucketConfig IO);
 
 foreach (@XS_Modules, @C_Modules) {
     my $obj = $_ . $Config{obj_ext};
@@ -82,7 +82,8 @@ WriteMakefile(
     PREREQ_PM => {
         'Class::XSAccessor' => 1.11,
         'JSON'              => 2.53,
-        'JSON::SL'          => '1.0.1'
+        'JSON::SL'          => '1.0.1',
+        'Constant::Generate'=> '0.16'
     },
 
     TEST_REQUIRES => {

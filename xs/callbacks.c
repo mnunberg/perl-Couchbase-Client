@@ -104,6 +104,40 @@ call_helper(AV *resobj, int cbtype, const lcb_RESPBASE *resp)
     LEAVE;
 }
 
+static void
+call_async(plcb_OPCTX *ctx, AV *resobj)
+{
+    SV *cv = ctx->u.callback;
+    dSP;
+
+    if (cv == NULL || SvOK(cv) == 0) {
+        warn("Context does not have a callback (%p)!", cv);
+        return;
+    }
+
+    if (ctx->nremaining && (ctx->flags & PLCB_OPCTXf_CALLEACH) == 0) {
+        return; /* Still have ops. Only call once they're all complete */
+    }
+
+    ENTER;
+    SAVETMPS;
+    PUSHMARK(SP);
+    XPUSHs(sv_2mortal(newRV_inc((SV*)resobj)));
+    PUTBACK;
+    call_sv(cv, G_DISCARD);
+    FREETMPS;
+    LEAVE;
+
+    if (ctx->nremaining == 0 && (ctx->flags & PLCB_OPCTXf_CALLDONE)) {
+        ENTER;
+        SAVETMPS;
+        PUSHMARK(SP);
+        call_sv(cv, G_DISCARD);
+        FREETMPS;
+        LEAVE;
+    }
+}
+
 /* This callback is only ever called for single operation, single key results */
 static void
 callback_common(lcb_t instance, int cbtype, const lcb_RESPBASE *resp)
@@ -172,15 +206,41 @@ callback_common(lcb_t instance, int cbtype, const lcb_RESPBASE *resp)
         break;
     }
 
-
     ctx->nremaining--;
+    if (parent->async) {
+        call_async(ctx, resobj);
 
-    if (ctx->flags & PLCB_OPCTXf_WAITONE) {
-        av_push(ctx->ctxqueue, newRV_inc( (SV* )resobj));
+    } else if (ctx->flags & PLCB_OPCTXf_WAITONE) {
+        av_push(ctx->u.ctxqueue, newRV_inc( (SV* )resobj));
         lcb_breakout(instance);
     }
-
     SvREFCNT_dec(resobj);
+}
+
+static void
+bootstrap_callback(lcb_t instance, lcb_error_t status)
+{
+    dSP;
+    PLCB_t *obj = lcb_get_cookie(instance);
+    if (!obj->async) {
+        return;
+    }
+    if (!obj->conncb) {
+        warn("Object %p does not have a connect callback!", obj);
+        return;
+    }
+    printf("Invoking callback for connect..!\n");
+
+    ENTER;SAVETMPS;PUSHMARK(SP);
+
+    XPUSHs(sv_2mortal(newRV_inc(obj->selfobj)));
+    XPUSHs(sv_2mortal(newSViv(status)));
+    PUTBACK;
+
+    call_sv(obj->conncb, G_DISCARD);
+    SPAGAIN;
+    FREETMPS;LEAVE;
+    SvREFCNT_dec(obj->conncb); obj->conncb = NULL;
 }
 
 void
@@ -198,4 +258,5 @@ plcb_callbacks_setup(PLCB_t *object)
     lcb_install_callback3(o, LCB_CALLBACK_ENDURE, callback_common);
     lcb_install_callback3(o, LCB_CALLBACK_STATS, callback_common);
     lcb_install_callback3(o, LCB_CALLBACK_OBSERVE, callback_common);
+    lcb_set_bootstrap_callback(o, bootstrap_callback);
 }

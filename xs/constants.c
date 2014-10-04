@@ -12,6 +12,8 @@ plcb_define_constants(void)
     HV *pub_stash = gv_stashpv(PLCB_PUB_CONSTANTS_PKG, GV_ADD);
     AV *our_public = get_av(PLCB_PUB_CONSTANTS_PKG "::EXPORT", GV_ADD);
     AV *our_private = get_av(PLCB_PRIV_CONSTANTS_PKG "::EXPORT", GV_ADD);
+    HV *async_stash = gv_stashpv(PLCB_IOPROCS_CONSTANTS_CLASS, GV_ADD);
+    AV *our_async = get_av(PLCB_IOPROCS_CONSTANTS_CLASS "::EXPORT", GV_ADD);
 
     #define ADD_PUBLIC(n, v) \
         newCONSTSUB(pub_stash, n, newSViv(v)); \
@@ -21,16 +23,20 @@ plcb_define_constants(void)
         newCONSTSUB(priv_stash, n, newSViv(v)); \
         av_push(our_private, newSVpvs(n));
 
+    #define DEF_ASYNC(n) \
+        newCONSTSUB(async_stash, "COUCHBASE_"#n, newSViv(PLCB_##n)); \
+        av_push(our_async, newSVpvs("COUCHBASE_"#n));
+
     #define DEF_PRIV(nbase) ADD_PRIVATE(#nbase, PLCB_##nbase)
     #define ADD_PUB_LCB(n) ADD_PUBLIC("COUCHBASE_" #n, LCB_##n)
 
     DEF_PRIV(RETIDX_VALUE);
-    DEF_PRIV(RETIDX_PARENT);
     DEF_PRIV(RETIDX_ERRNUM);
     DEF_PRIV(RETIDX_KEY);
     DEF_PRIV(RETIDX_FMTSPEC);
     DEF_PRIV(RETIDX_CAS);
     DEF_PRIV(RETIDX_EXP);
+    DEF_PRIV(RETIDX_PARENT);
 
     DEF_PRIV(COUCHIDX_HTTP);
     DEF_PRIV(COUCHIDX_CBO);
@@ -93,4 +99,21 @@ plcb_define_constants(void)
     ADD_PUB_LCB(NETWORK_ERROR);
     ADD_PUB_LCB(ETIMEDOUT);
     ADD_PUB_LCB(CONNECT_ERROR);
+
+    DEF_ASYNC(EVIDX_FD);
+    DEF_ASYNC(EVIDX_DUPFH);
+    DEF_ASYNC(EVIDX_WATCHFLAGS);
+    DEF_ASYNC(EVIDX_PLDATA);
+    DEF_ASYNC(EVIDX_TYPE);
+    DEF_ASYNC(EVIDX_OPAQUE);
+    DEF_ASYNC(EVIDX_MAX);
+
+    DEF_ASYNC(EVACTION_WATCH);
+    DEF_ASYNC(EVACTION_UNWATCH);
+    DEF_ASYNC(EVACTION_INIT);
+    DEF_ASYNC(EVACTION_CLEANUP);
+    DEF_ASYNC(EVTYPE_IO);
+    DEF_ASYNC(EVTYPE_TIMER);
+    DEF_ASYNC(READ_EVENT);
+    DEF_ASYNC(WRITE_EVENT);
 }
