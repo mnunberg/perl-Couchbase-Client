@@ -33,8 +33,10 @@ sub new {
     my $self = $pkg->construct(\%options);
 
     $self->connect();
-    $self->_set_converters(CONVERTERS_JSON, \&_js_encode, \&_js_decode);
-    $self->_set_converters(CONVERTERS_STORABLE, \&Storable::freeze, \&Storable::thaw);
+    $self->_encoder(CONVERTERS_JSON, \&_js_encode);
+    $self->_decoder(CONVERTERS_JSON, \&_js_decode);
+    $self->_encoder(CONVERTERS_STORABLE, \&Storable::freeze);
+    $self->_decoder(CONVERTERS_STORABLE, \&Storable::thaw);
     return $self;
 }
 

@@ -169,45 +169,6 @@ get_converter_pointers(PLCB_t *object, int type, SV ***cv_encode, SV ***cv_decod
     }
 }
 
-static void
-PLCB__set_converters(PLCB_t *object, int type, CV *encode, CV *decode)
-{
-    SV **cv_encode, **cv_decode;
-    get_converter_pointers(object, type, &cv_encode, &cv_decode);
-    if (*cv_encode) {
-        SvREFCNT_dec(*cv_encode);
-    }
-    if (*cv_decode) {
-        SvREFCNT_dec(*cv_decode);
-    }
-    SvREFCNT_inc(encode);
-    SvREFCNT_inc(decode);
-    *cv_encode = (SV*)encode;
-    *cv_decode = (SV*)decode;
-}
-
-static SV *
-PLCB__get_converters(PLCB_t *object, int type)
-{
-    SV **cv_encode, **cv_decode;
-    SV *my_encode, *my_decode;
-    AV *ret;
-    get_converter_pointers(object, type, &cv_encode, &cv_decode);
-    if ((my_encode = *cv_encode)) {
-        my_encode = newRV_inc(my_encode);
-    } else {
-        my_encode = &PL_sv_undef; SvREFCNT_inc(my_encode);
-    }
-    if ((my_decode = *cv_decode)) {
-        my_decode = newRV_inc(my_decode);
-    } else {
-        my_decode = &PL_sv_undef; SvREFCNT_inc(my_decode);
-    }
-    ret = newAV();
-    av_push(ret, my_encode);
-    av_push(ret, my_decode);
-    return newRV_noinc((SV*)ret);
-}
 
 /* lcb_cntl() APIs */
 static void
@@ -431,11 +392,43 @@ PLCB_construct(const char *pkg, HV *options)
 int
 PLCB_connect(PLCB_t *object)
 
-void
-PLCB__set_converters(PLCB_t *object, int type, CV *encode, CV *decode)
-
 SV *
-PLCB__get_converters(PLCB_t *object, int type)
+PLCB__codec_common(PLCB_t *object, int type, ...)
+    ALIAS:
+    _encoder = 1
+    _decoder = 2
+
+    PREINIT:
+    SV **cv_encode = NULL, **cv_decode = NULL, **target = NULL;
+
+    CODE:
+    get_converter_pointers(object, type, &cv_encode, &cv_decode);
+    target = ix == 1 ? cv_encode : cv_decode;
+
+    if (items == 2) {
+        if (*target) {
+            RETVAL = newRV_inc(*target);
+        } else {
+            RETVAL = &PL_sv_undef; SvREFCNT_inc(&PL_sv_undef);
+        }
+    } else {
+        SV *tmpsv = ST(2);
+        SV *to_decref = *target;
+
+        RETVAL = &PL_sv_undef;
+        if (tmpsv != &PL_sv_undef) {
+            if (SvROK(tmpsv) == 0 || SvTYPE(SvRV(tmpsv)) != SVt_PVCV) {
+                die("Argument passed must be undef or CODE reference");
+            }
+            *target = SvRV(tmpsv);
+            SvREFCNT_inc(*target);
+        } else {
+            *target = NULL;
+        }
+        SvREFCNT_dec(to_decref);
+        SvREFCNT_inc(RETVAL);
+    }
+    OUTPUT: RETVAL
 
 void
 PLCB__cntl_set(PLCB_t *object, int setting, int type, SV *value)
