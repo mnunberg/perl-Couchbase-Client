@@ -785,8 +785,13 @@ PLCB__get_errtype(int code)
 
 SV *
 PLCB_strerror(int code)
+    PREINIT:
+    const char *msg;
+    unsigned len;
     CODE:
-    RETVAL = newSVpv_share(lcb_strerror(NULL, code), 0);
+    msg = lcb_strerror(NULL, code);
+    len = strlen(msg);
+    RETVAL = newSVpvn_share(msg, len, 0);
     SvREADONLY_on(RETVAL);
     OUTPUT: RETVAL
 
