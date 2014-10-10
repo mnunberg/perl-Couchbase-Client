@@ -55,6 +55,8 @@ xs/operations.c
 xs/Couchbase.xs
 xs/BucketConfig.xs
 xs/plcb-args.h
+xs/async.c
+xs/IO.xs
 
 ################################################################################
 ### Views C Support                                                          ###
