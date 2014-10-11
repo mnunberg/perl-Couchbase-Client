@@ -222,7 +222,10 @@ void plcb_evloop_wait_unref(PLCB_t *obj);
  * Returns a new blessed operation context, also makes it the current
  * context
  */
-SV *PLCB_opctx_new(PLCB_t *);
+SV *plcb_opctx_new(PLCB_t *, int);
+void plcb_opctx_clear(PLCB_t *parent);
+void plcb_opctx_initop(plcb_SINGLEOP *so, PLCB_t *parent, SV *doc, SV *ctx, SV *options);
+SV * plcb_opctx_return(plcb_SINGLEOP *so, lcb_error_t err);
 
 /** Operation functions */
 SV *PLCB_op_get(PLCB_t*,plcb_SINGLEOP*);

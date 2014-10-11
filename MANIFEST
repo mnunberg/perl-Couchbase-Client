@@ -46,6 +46,7 @@ xs/typemap
 xs/callbacks.c
 xs/convert.c
 xs/constants.c
+xs/opcontext.c
 
 ################################################################################
 ### Basic C Client Support                                                   ###
