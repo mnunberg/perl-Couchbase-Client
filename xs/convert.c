@@ -170,11 +170,6 @@ plcb_convert_retrieval(PLCB_t *object, AV *docav,
         ret_sv = serialize_convert(object->cv_deserialize, input_sv, CONVERT_IN);
         flags = PLCB_CF_STORABLE;
 
-    } else if (IS_FMT(RAW)) {
-        ret_sv = input_sv;
-        SvREFCNT_inc(ret_sv);
-        flags = PLCB_CF_RAW;
-
     } else if (IS_FMT(UTF8)) {
         SvUTF8_on(input_sv);
         ret_sv = input_sv;
@@ -182,8 +177,13 @@ plcb_convert_retrieval(PLCB_t *object, AV *docav,
         flags = PLCB_CF_UTF8;
 
     } else {
-        warn("Unrecognized flags 0x%x. Assuming raw", flags);
+        if (IS_FMT(RAW)) {
+            flags = PLCB_CF_RAW;
+        } else {
+            warn("Unrecognized flags 0x%x. Assuming raw", flags);
+        }
         ret_sv = input_sv;
+        SvREFCNT_inc(ret_sv);
     }
 #undef IS_FMT
 
