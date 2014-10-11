@@ -32,7 +32,7 @@ use Couchbase::Test::Netfail;
 use Couchbase::Test::Views;
 
 Couchbase::Test::ClientSync->runtests();
-#Couchbase::Test::Settings->runtests();
+Couchbase::Test::Settings->runtests();
 #Couchbase::Test::Netfail->runtests();
 #Couchbase::Test::Views->runtests();
 #Test::Class->runtests();

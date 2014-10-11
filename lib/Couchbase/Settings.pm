@@ -9,6 +9,7 @@ use Couchbase::_GlueConstants;
 
 my %KEYMAP = (
     operation_timeout => [ 0x00, SETTING_TIMEOUT ],
+    kv_timeout => [ 0x00, SETTING_TIMEOUT ],
     view_timeout => [ 0x01, SETTING_TIMEOUT ],
     error_thresh_count => [ 0x0C, SETTING_SIZE ],
     durability_timeout => [ 0x0D, SETTING_TIMEOUT ],
@@ -45,7 +46,7 @@ while (my ($k,$v) = each %KEYMAP) {
 }
 
 while (my ($k,$v) = each %ENCMAP) {
-    my $is_decode = ($k =~ m/decode/);
+    my $is_decode = ($k =~ m/decoder/);
     my $methname = $is_decode ? "_decoder" : "_encoder";
     my $set = sub {
         my ($cbo,$val) = @_;

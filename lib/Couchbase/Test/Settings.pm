@@ -4,42 +4,13 @@ use warnings;
 use base qw(Couchbase::Test::Common);
 use Test::More;
 use Couchbase::Constants;
+use Couchbase::Bucket;
 use Data::Dumper;
+use Storable;
 
 use Class::XSAccessor {
     accessors => [qw(cbo)]
 };
-
-my $have_zlib = eval {
-    require Compress::Zlib;
-};
-
-my $SERIALIZATION_CALLED = 0;
-my $DESERIALIZATION_CALLED = 0;
-my $COMPRESSION_CALLED = 0;
-my $DECOMPRESSION_CALLED = 0;
-
-my $COMPRESS_METHOD;
-my $DECOMPRESS_METHOD;
-if($have_zlib) {
-    $COMPRESS_METHOD = sub {
-        $COMPRESSION_CALLED = 1;
-        ${$_[1]} = Compress::Zlib::memGzip(${$_[0]});
-    };
-    $DECOMPRESS_METHOD = sub {
-        $DECOMPRESSION_CALLED = 1;
-        ${$_[1]} = Compress::Zlib::memGunzip(${$_[0]});
-    };
-} else {
-    $COMPRESS_METHOD = sub {
-        $COMPRESSION_CALLED = 1;
-        ${$_[1]} = scalar reverse ${$_[0]};
-    };
-    $DECOMPRESS_METHOD = sub {
-        $DECOMPRESSION_CALLED = 1;
-        ${$_[1]} = scalar reverse ${$_[0]};
-    };
-}
 
 sub setup_client :Test(startup)
 {
@@ -47,178 +18,79 @@ sub setup_client :Test(startup)
     $self->mock_init();
 }
 
-sub reset_vars {
-    $COMPRESSION_CALLED = 0;
-    $DECOMPRESSION_CALLED = 0;
-    $SERIALIZATION_CALLED = 0;
-    $DESERIALIZATION_CALLED = 0;
-}
 #We make a new client for each test
 sub _pretest :Test(setup) {
     my $self = shift;
-    reset_vars();
-    my %options = (
-        %{$self->common_options},
-        compress_threshold => 100,
-        compress_methods => [$COMPRESS_METHOD, $DECOMPRESS_METHOD]
-    );
-
-    my $o = Couchbase::Client->new(\%options);
-
+    my $o = Couchbase::Bucket->new($self->common_options);
     $self->cbo( $o );
-
 }
 
 sub T20_settings_connect :Test(no_plan)
 {
     my $self = shift;
-
-    my $client = Couchbase::Client->new({
-        username => "bad",
-        password => "12345",
-        bucket => "nonexistent",
-        no_init_connect => 1,
-        server => '127.0.0.1:0'
-    });
-    is(scalar @{$client->get_errors()}, 0,
-       "No error on initial connect with no_init_connect => 1");
-
-    my $ret = $client->set("Foo", "Bar");
-    is($ret->errnum, COUCHBASE_CLIENT_ETMPFAIL, "Got ETMPFAIL on non-connected server");
-
-    ok(!$client->connect, "Failure to connect to nonexistent host");
-    my $errors = $client->get_errors;
-    ok(scalar @$errors, "Have error");
-    is($errors->[0]->[0], COUCHBASE_CONNECT_ERROR, "Got CONNECT_ERROR");
-
-    $client = Couchbase::Client->new({
-        %{$self->common_options},
-        bucket => 'nonexist',
-    });
-    $errors = $client->get_errors();
-    ok(scalar @$errors, "Have error for nonexistent bucket");
-    is($errors->[0]->[0], COUCHBASE_BUCKET_ENOENT,
-       "Got BUCKET_ENOENT for nonexistent bucket");
-
-    my $warnmsg;
-    {
-        local $SIG{__WARN__} = sub { $warnmsg = shift };
-        ok($self->cbo->connect, "connect on connected instance returns OK");
-        like($warnmsg, qr/already connected/i,
-             "warning on already connected instance");
-    }
-}
-
-sub T21_default_settings :Test(no_plan)
-{
-    my $self = shift;
-    my $cbo = Couchbase::Client->new({
-        no_init_connect => 1,
-        server => "localhost:0",
+    my $client = Couchbase::Bucket->new({
+        connstr => "couchbases://badhost/badbucket",
+        no_init_connect => 1
     });
 
-    ok(!$cbo->dereference_scalar_ref_settings,
-       "SCALAR ref deref disabled by default");
-    ok($cbo->deconversion_settings, "deconversion enabled by default");
-    ok(!$cbo->enable_compress, "compression disabled by default");
-    ok($cbo->serialization_settings, "Serialization enabled by default");
-}
+    ok(!$client->connected);
+    # Set the timeout value..
+    $client->settings->{config_total_timeout} = 0.5;
+    eval { $client->connect(); };
+    ok($@, "Got connection error");
 
-sub T22_compress_settings :Test(no_plan)
-{
-    my $self = shift;
-    my $v;
-
-    my $key = "compressed";
-    my $value = "foo" x 100;
-
-    my $cbo = $self->cbo;
-
-    my $ret = $cbo->set($key, $value);
-    ok($ret->is_ok, "No problem setting key: " . $ret->errstr . " " . $ret->errnum);
-    is($COMPRESSION_CALLED, 1, "compression method called");
-
-    $ret = $cbo->get($key);
-    ok($ret->is_ok, "Got back our data");
-    is($ret->value, $value, "same value");
-    ok($DECOMPRESSION_CALLED, "Decompression method called");
-
-    $v = $cbo->enable_compress(0);
-    is($cbo->enable_compress, 0, "Compression disabled via setter");
-    reset_vars();
-
-    $ret = $cbo->get($key);
-    ok($ret->is_ok, "status OK");
-    ok($DECOMPRESSION_CALLED,
-       "decompression still called with compressiond disabled");
-    is($ret->value, $value, "Got same value");
-
-    reset_vars();
-    $ret = $cbo->set($key, $value);
-    ok($ret->is_ok, "storage operation ok");
-    is($COMPRESSION_CALLED, 0, "compression not called");
-
-    $ret = $cbo->get($key);
-    ok($ret->is_ok, "uncompressed retrieval ok");
-    is($DECOMPRESSION_CALLED, 0,
-       "decompression not called for non-compressed value");
-    is($ret->value, $value, "got same value");
-
-    reset_vars();
-    $cbo->enable_compress(1);
-    ok($cbo->enable_compress, "compression re-enabled");
-
-
-
-    $cbo->set($key, $value);
-    ok($COMPRESSION_CALLED,
-       "compression method called when compression re-enabled");
-
-    $cbo->enable_compress(0);
-    is($cbo->enable_compress, 0, "compression disabled");
-
-    ok($cbo->deconversion_settings, "deconversion still enabled");
-    $cbo->deconversion_settings(0);
-    is($cbo->deconversion_settings, 0, "deconversion now disabled");
-
-    reset_vars();
-    $ret = $cbo->get($key);
-    ok($ret->is_ok, "got compressed value ok");
-    is($DECOMPRESSION_CALLED, 0, "decompression not called");
-    ok($ret->value ne $value, "compressed data does not match original");
-
-    reset_vars();
-    $cbo->deconversion_settings(1);
-    $ret = $cbo->get($key);
-    is($ret->value, $value, "deconversion enabled, deompression enabled");
+    # Try to perform an operation
+    my $doc = Couchbase::Document->new('foo', 'bar');
+    $client->upsert($doc);
+    ok(!$doc->is_ok);
+    is($doc->errnum, COUCHBASE_CLIENT_ETMPFAIL);
 }
 
 sub T23_serialize_settings :Test(no_plan)
 {
     my $self = shift;
     my $cbo = $self->cbo;
+    my $serialize_called = 0;
+    my $doc = Couchbase::Document->new('serkey', \"Hello World", { format => COUCHBASE_FMT_STORABLE });
 
-    $cbo->serialization_settings(0);
-    $cbo->dereference_scalar_ref_settings(1);
+    {
+        local $cbo->settings->{storable_encoder} = sub {
+            $serialize_called = 1;
+            Storable::freeze(shift);
+        };
+        $cbo->upsert($doc);
+        ok($serialize_called);
+    }
 
-        #try to store a reference:
+    $serialize_called = 0;
+    {
+        local $cbo->settings->{storable_decoder} = sub {
+            $serialize_called = 1;
+            Storable::thaw(shift);
+        };
+        $cbo->get($doc);
+        ok($serialize_called);
+    }
 
-    eval {
-        $cbo->set("serialized", [qw(foo bar baz)]);
-    };
-    ok($@, "got error for serializing data - ($@)");
-    is($SERIALIZATION_CALLED, 0, "serialization method not called on pre-check");
+    # See what happens when we get an error
+    {
+        local $cbo->settings->{storable_encoder} = sub { die("Argh!!") };
+        eval { $cbo->upsert($doc); };
+        ok($@, "Got exception during encoding");
+    }
 
-    my $key = "compressed_key";
-    my $value = \"Hello world";
+    {
+        $cbo->upsert($doc); # This should be ok
+        ok($doc->is_ok);
+        $doc->value(undef);
 
-    my $ret = $cbo->set($key, $value);
-    ok($ret->is_ok, "set value ok");
-    is($SERIALIZATION_CALLED, 0, "serialization not performed");
 
-    $ret = $cbo->get($key);
-    ok($ret->is_ok, "Got value ok");
-    is($ret->value, $$value, "dereference scalar ref");
+        my $did_warn = 0;
+        local $SIG{__WARN__} = sub { $did_warn = 1 };
+        local $cbo->settings->{storable_decoder} = sub { die("ARGH") };
+        $cbo->get($doc);
+        ok($did_warn, "Got warning during decoding");
+    }
 }
 
 sub T24_timeout_settings :Test(no_plan)
@@ -227,84 +99,27 @@ sub T24_timeout_settings :Test(no_plan)
     #here we can just get/set the timeout value, the real timeout tests happen
     #in a different test module:
     my $cbo = $self->cbo();
-    my $orig_timeo = $cbo->timeout;
+    my $orig_timeo = $cbo->settings->{kv_timeout};
     is($orig_timeo, 2.5);
-
-
-    my $warnmsg;
-    {
-        local $SIG{__WARN__} = sub { $warnmsg = shift };
-        ok(!$cbo->timeout(-1), "Return nothing on bad argument");
-    };
-    like($warnmsg, qr/cannot disable timeouts/i, "cannot disable timeouts");
-    is($cbo->timeout, $orig_timeo, "still have the same timeout");
-
-    ok($cbo->timeout(0.1), "set timeout to value under 1");
-}
-
-sub T25_multi_server_list :Test(no_plan)
-{
-    my $self = shift;
-    # We can't use null for a port here because it might fail on GAI for
-    # SOCK_STREAM
-
-    my $server_list = ['localhost:1'];
-    my %options = %{$self->common_options};
-    my $bucket = $options{bucket};
-    my ($username,$password) = @options{qw(username password)};
-    push @$server_list, delete $options{server};
-    $options{servers} = $server_list;
-
-    my $errors;
-    my $cbo;
-    my $ret;
-
-    $cbo = Couchbase::Client->new({%options});
-    note "Connecting with bucket $bucket";
-    isa_ok($cbo, 'Couchbase::Client');
-
-    if (0) {
-        ok(scalar @{$cbo->get_errors}, "have error(s)");
-        is($cbo->get_errors->[0]->[0], COUCHBASE_CONNECT_ERROR,
-           "Got network error for nonexistent host");
-
-        # If we have more than a single error, print them out (via dumper);
-        if(@{$cbo->get_errors()} > 1) {
-            diag "We really expected a single error. Extra info:";
-            diag Dumper($cbo->get_errors());
-        }
-    } else {
-        $self->builder->skip("Can't get info on failed nodes");
-    }
-
-    $ret = $cbo->set("foo", "fooval");
-    ok($ret->is_ok, "connected and can set value (retry ok)");
-    if(!$ret->is_ok){
-        print Dumper($ret);
-    }
-    $cbo = Couchbase::Client->new({
-        %options,
-        servers => [$self->common_options->{server}, 'localhost:0'],
-        bucket => 'nonexistent'
-    });
-    is(scalar @{$cbo->get_errors}, 1, "Got one non-retriable error");
-    is($cbo->get_errors->[0]->[0], COUCHBASE_BUCKET_ENOENT,
-       "BUCKET_ENOENT as expected");
+    $cbo->settings->{kv_timeout} = 0.1;
+    is(0.1, $cbo->settings->{kv_timeout});
 }
 
 sub T26_server_nodes :Test(no_plan) {
     my $self = shift;
     my $o = $self->cbo;
+    ok($o->connected);
+
     my $nodes = $o->cluster_nodes;
     isa_ok($nodes, 'ARRAY');
-    ok($#{$nodes} >= 1, "Have more than a single element");
+
+    ok($#{$nodes} >= 0); # Not empty
+    ok($o->settings->{bucket});
 }
 
 sub T27_lcb_version :Test(no_plan) {
     my $self = shift;
-    my $version = Couchbase::Client::lcb_version();
-    isa_ok($version, 'ARRAY');
-    ok(length($version->[0]) > 0);
-    ok($version->[1] > 0);
+    my $version = Couchbase::lcb_version();
+    isa_ok($version, 'HASH');
 }
 1;

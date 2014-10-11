@@ -326,6 +326,7 @@ PLCB_args_return(plcb_SINGLEOP *so, lcb_error_t err)
         }
 
         warn("Couldn't schedule operation. Code 0x%x (%s)\n", err, lcb_strerror(NULL, err));
+        plcb_doc_set_err(so->parent, so->docav, err);
         haserr = 1;
         goto GT_RET;
     }
@@ -650,6 +651,12 @@ PLCB_user_data(PLCB_t *object, ...)
         RETVAL = &PL_sv_undef;
     }
     SvREFCNT_inc(RETVAL);
+    OUTPUT: RETVAL
+
+int
+PLCB_connected(PLCB_t *object)
+    CODE:
+    RETVAL = object->connected;
     OUTPUT: RETVAL
 
 MODULE = Couchbase PACKAGE = Couchbase::OpContext PREFIX = PLCB_ctx_
