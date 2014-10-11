@@ -81,7 +81,7 @@ WriteMakefile(
 
     PREREQ_PM => {
         'Class::XSAccessor' => 1.11,
-        'JSON'              => 2.53,
+        'JSON'              => 2.00,
         'JSON::SL'          => '1.0.1',
         'Constant::Generate'=> '0.16'
     },
