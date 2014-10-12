@@ -143,6 +143,9 @@ plcb_opctx_return(plcb_SINGLEOP *so, lcb_error_t err)
         lcb_sched_leave(so->parent->instance);
 
         if (so->parent->async) {
+            /* Clear this context right now */
+            SvREFCNT_dec(so->parent->curctx);
+            so->parent->curctx = NULL;
             goto GT_RET;
         }
 
