@@ -62,8 +62,7 @@ enum {
 };
 
 enum {
-    PLCB_RETIDX_PARENT = 0,
-    PLCB_RETIDX_KEY,
+    PLCB_RETIDX_KEY = 0,
     PLCB_RETIDX_VALUE,
     PLCB_RETIDX_ERRNUM,
     PLCB_RETIDX_CAS,
@@ -140,8 +139,8 @@ struct PLCB_st {
     SV *cv_customenc;
     SV *cv_customdec;
 
-    SV *deflctx;
     SV *curctx;
+    SV *cachectx;
     SV *selfobj;
     SV *ioprocs;
     SV *udata;
@@ -155,6 +154,7 @@ struct PLCB_st {
 typedef struct {
     unsigned nremaining;
     unsigned flags;
+    HV *docs;
     SV *parent; /* PLCB_T */
     union {
         SV *callback; /* For async only */
@@ -226,6 +226,9 @@ SV *plcb_opctx_new(PLCB_t *, int);
 void plcb_opctx_clear(PLCB_t *parent);
 void plcb_opctx_initop(plcb_SINGLEOP *so, PLCB_t *parent, SV *doc, SV *ctx, SV *options);
 SV * plcb_opctx_return(plcb_SINGLEOP *so, lcb_error_t err);
+
+#define plcb_opctx_is_cmd_multi(cmd) \
+    ((cmd) == PLCB_CMD_OBSERVE || (cmd) == PLCB_CMD_STATS)
 
 /** Operation functions */
 SV *PLCB_op_get(PLCB_t*,plcb_SINGLEOP*);

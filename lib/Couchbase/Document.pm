@@ -15,7 +15,6 @@ use Class::XSAccessor::Array {
         id => RETIDX_KEY,
         expiry => RETIDX_EXP,
         _cas => RETIDX_CAS,
-        _ctx => RETIDX_PARENT,
         value => RETIDX_VALUE,
         errnum => RETIDX_ERRNUM,
     }
@@ -68,7 +67,6 @@ sub copy {
     bless my $cp = [@$self], 'Couchbase::Document';
 
     $cp->_cas(0);
-    $cp->[RETIDX_PARENT] = undef;
     return $cp;
 }
 

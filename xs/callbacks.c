@@ -142,11 +142,33 @@ call_async(plcb_OPCTX *ctx, AV *resobj)
 static void
 callback_common(lcb_t instance, int cbtype, const lcb_RESPBASE *resp)
 {
-    AV *resobj = (AV *) resp->cookie;
-    SV *ctxrv = *av_fetch(resobj, PLCB_RETIDX_PARENT, 0);
-    PLCB_t *parent = (PLCB_t *) lcb_get_cookie(instance);
-    plcb_OPCTX *ctx = NUM2PTR(plcb_OPCTX*, SvIV(SvRV(ctxrv)));
+    AV *resobj = NULL;
+    PLCB_t *parent;
+    SV *ctxrv = (SV *)resp->cookie;
+    plcb_OPCTX *ctx = NUM2PTR(plcb_OPCTX*, SvIVX(SvRV(ctxrv)));
 
+    if (cbtype == LCB_CALLBACK_STATS || cbtype == LCB_CALLBACK_OBSERVE) {
+        HE *tmp;
+
+        hv_iterinit(ctx->docs);
+        tmp = hv_iternext(ctx->docs);
+
+        if (tmp && HeVAL(tmp) && SvROK(HeVAL(tmp))) {
+            resobj = (AV *)SvRV(HeVAL(tmp));
+        }
+    } else {
+        SV **tmp = hv_fetch(ctx->docs, resp->key, resp->nkey, 0);
+        if (tmp && SvROK(*tmp)) {
+            resobj = (AV*)SvRV(*tmp);
+        }
+    }
+
+    if (!resobj) {
+        warn("Couldn't find matching object!");
+        return;
+    }
+
+    parent = (PLCB_t *)lcb_get_cookie(instance);
     plcb_doc_set_err(parent, resobj, resp->rc);
 
     switch (cbtype) {
@@ -206,22 +228,25 @@ callback_common(lcb_t instance, int cbtype, const lcb_RESPBASE *resp)
         break;
     }
 
-    ctx->nremaining--;
     if (parent->async) {
         call_async(ctx, resobj);
-
     } else if (ctx->flags & PLCB_OPCTXf_WAITONE) {
         av_push(ctx->u.ctxqueue, newRV_inc( (SV* )resobj));
         lcb_breakout(instance);
     }
-    SvREFCNT_dec(resobj);
+
+    ctx->nremaining--;
+    if (!ctx->nremaining) {
+        SvREFCNT_dec(ctxrv);
+        plcb_opctx_clear(parent);
+    }
 }
 
 static void
 bootstrap_callback(lcb_t instance, lcb_error_t status)
 {
     dSP;
-    PLCB_t *obj = lcb_get_cookie(instance);
+    PLCB_t *obj = (PLCB_t*) lcb_get_cookie(instance);
     if (!obj->async) {
         return;
     }

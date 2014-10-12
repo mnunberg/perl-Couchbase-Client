@@ -10,6 +10,8 @@ void plcb_cleanup(PLCB_t *object)
         lcb_destroy(object->instance);
         object->instance = NULL;
     }
+    plcb_opctx_clear(object);
+    SvREFCNT_dec(object->cachectx);
 
     #define _free_cv(fld) if (object->fld) { SvREFCNT_dec(object->fld); object->fld = NULL; }
     _free_cv(cv_serialize); _free_cv(cv_deserialize);
@@ -87,8 +89,6 @@ PLCB_construct(const char *pkg, HV *hvopts)
     sv_setiv(newSVrv(blessed_obj, PLCB_BKT_CLASSNAME), PTR2IV(object));
 
     object->selfobj = SvRV(blessed_obj);
-    object->deflctx = plcb_opctx_new(object, PLCB_OPCTXf_IMPLICIT);
-
     return blessed_obj;
 }
 
@@ -465,13 +465,8 @@ PLCB_batch(PLCB_t *object)
     SV *ctxrv = NULL;
 
     CODE:
-    if (object->curctx) {
-        die("Previous context must be cleared explicitly");
-    }
-
     ctxrv = plcb_opctx_new(object, 0);
-    object->curctx = newRV_inc(SvRV(ctxrv));
-    RETVAL = ctxrv;
+    RETVAL = newRV_inc(SvRV(ctxrv));
 
     lcb_sched_enter(object->instance);
     OUTPUT: RETVAL
@@ -528,7 +523,6 @@ PLCB_ctx_wait_all(plcb_OPCTX *ctx)
     ctx->flags &= ~PLCB_OPCTXf_WAITONE;
     lcb_sched_leave(parent->instance);
     lcb_wait3(parent->instance, LCB_WAIT_NOCHECK);
-    plcb_opctx_clear(parent);
 
 
 SV *
@@ -548,19 +542,16 @@ PLCB_ctx_wait_one(plcb_OPCTX *ctx)
         }
     }
 
-    if (!parent->curctx) {
-        die("Current context is not active");
-    }
-
     if (!ctx->nremaining) {
-        plcb_opctx_clear(parent);
         RETVAL = &PL_sv_undef;
         SvREFCNT_inc(&PL_sv_undef);
         goto GT_DONE;
     }
+
     if (!ctx->u.ctxqueue) {
         ctx->u.ctxqueue = newAV();
     }
+
     ctx->flags |= PLCB_OPCTXf_WAITONE;
     lcb_sched_leave(parent->instance);
     lcb_wait3(parent->instance, LCB_WAIT_NOCHECK);
@@ -605,8 +596,11 @@ PLCB_ctx_DESTROY(plcb_OPCTX *ctx)
     PREINIT:
     PLCB_t *parent;
     CODE:
+
     SvREFCNT_dec(ctx->parent);
     SvREFCNT_dec(ctx->u.ctxqueue);
+    SvREFCNT_dec(ctx->docs);
+    Safefree(ctx);
 
 MODULE = Couchbase PACKAGE = Couchbase    PREFIX = PLCB_
 

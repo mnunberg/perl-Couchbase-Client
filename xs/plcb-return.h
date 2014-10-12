@@ -12,8 +12,7 @@
                     sv_derived_from(ret, PLCB_OPCTX_CLASSNAME)))
 
 #define plcb_doc_set_cas(obj, ret, cas) \
-    av_store(ret, PLCB_RETIDX_CAS, \
-        plcb_sv_from_u64_new(cas) );
+    av_store(ret, PLCB_RETIDX_CAS, plcb_sv_from_u64_new(cas) );
 
 static inline void
 plcb_doc_set_numval(PLCB_t *obj, AV *ret, uint64_t value, uint64_t cas)
