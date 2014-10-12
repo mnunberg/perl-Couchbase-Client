@@ -45,6 +45,11 @@ plcb_opctx_clear(PLCB_t *parent)
     if (!parent->curctx) {
         return;
     }
+    if (!SvROK(parent->curctx)) {
+        SvREFCNT_dec(parent->curctx);
+        parent->curctx = NULL;
+        return;
+    }
 
     ctx = NUM2PTR(plcb_OPCTX*,SvIVX(SvRV(parent->curctx)));
     hv_clear(ctx->docs);
