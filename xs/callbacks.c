@@ -115,8 +115,10 @@ call_async(plcb_OPCTX *ctx, AV *resobj)
         return;
     }
 
-    if (ctx->nremaining && (ctx->flags & PLCB_OPCTXf_CALLEACH) == 0) {
-        return; /* Still have ops. Only call once they're all complete */
+    if ((ctx->flags & PLCB_OPCTXf_IMPLICIT) == 0) {
+        if (ctx->nremaining && (ctx->flags & PLCB_OPCTXf_CALLEACH) == 0) {
+            return; /* Still have ops. Only call once they're all complete */
+        }
     }
 
     ENTER;
@@ -228,6 +230,8 @@ callback_common(lcb_t instance, int cbtype, const lcb_RESPBASE *resp)
         break;
     }
 
+    ctx->nremaining--;
+
     if (parent->async) {
         call_async(ctx, resobj);
     } else if (ctx->flags & PLCB_OPCTXf_WAITONE) {
@@ -235,7 +239,6 @@ callback_common(lcb_t instance, int cbtype, const lcb_RESPBASE *resp)
         lcb_breakout(instance);
     }
 
-    ctx->nremaining--;
     if (!ctx->nremaining) {
         SvREFCNT_dec(ctxrv);
         plcb_opctx_clear(parent);

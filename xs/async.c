@@ -286,7 +286,7 @@ PLCB_ioprocs_new(SV *options)
     cbcio->v.v0.destroy_timer = destroy_event;
     cbcio->v.v0.delete_timer = delete_timer;
     cbcio->v.v0.update_timer = update_timer;
-    
+
     wire_lcb_bsd_impl(cbcio);
 
     cbcio->v.v0.run_event_loop = startstop_dummy;

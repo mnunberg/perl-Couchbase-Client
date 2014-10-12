@@ -35,3 +35,13 @@ void
 plcbio_dispatch(plcb_EVENT *event, int flags)
     CODE:
     event->lcb_handler(event->fd, flags, event->lcb_arg);
+
+void
+plcbio_dispatch_r(plcb_EVENT *event)
+    CODE:
+    event->lcb_handler(event->fd, LCB_READ_EVENT, event->lcb_arg);
+
+void
+plcbio_dispatch_w(plcb_EVENT *event)
+    CODE:
+    event->lcb_handler(event->fd, LCB_WRITE_EVENT, event->lcb_arg);
