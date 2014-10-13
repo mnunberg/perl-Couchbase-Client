@@ -29,7 +29,7 @@ prefix.
 
 Support for this module is provided by the author. You can find him on
 the C<#libcouchbase> IRC channel on the freenode network under the name
-C<mordy_> (number of trailing underscores may vary depending on his
+C<mnunberg> (number of trailing underscores may vary depending on his
 network).
 
 You can also try to file a bug in the github repository
