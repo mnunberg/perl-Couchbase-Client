@@ -131,6 +131,8 @@ struct PLCB_st {
     HV *opctx_cb_stash;
 
     int connected;
+    int wait_for_kv; /* Awaiting KV completion */
+    int wait_for_views; /* Awaiting views completion */
     
     SV *cv_serialize;
     SV *cv_deserialize;
@@ -151,9 +153,30 @@ struct PLCB_st {
     int async;
 };
 
+#define plcb_kv_wait(obj) do { \
+    (obj)->wait_for_kv = 1; \
+    lcb_wait3((obj)->instance, LCB_WAIT_NOCHECK); \
+} while (0);
+
+#define plcb_views_wait(obj) do { \
+    (obj)->wait_for_views = 1; \
+    lcb_wait3((obj)->instance, LCB_WAIT_NOCHECK); \
+} while (0);
+
+#define plcb_kv_waitdone(obj) do { \
+    (obj)->wait_for_kv = 0; \
+    plcb_evloop_wait_unref(obj); \
+} while (0);
+
+#define plcb_views_waitdone(obj) do { \
+    (obj)->wait_for_views = 0; \
+    plcb_evloop_wait_unref(obj); \
+} while (0);
+
 typedef struct {
     unsigned nremaining;
     unsigned flags;
+    int waiting;
     HV *docs;
     SV *parent; /* PLCB_T */
     union {

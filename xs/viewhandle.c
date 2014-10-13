@@ -62,7 +62,7 @@ static void complete_callback(lcb_t instance, int cbtype, const lcb_RESPHTTP *re
             sv_setpvn(datasv, (const char*)resp->body, resp->nbody);
         }
         /* Not chunked, decrement reference count */
-        plcb_evloop_wait_unref(handle->parent);
+        plcb_views_waitdone(handle->parent);
 
     } else {
         /* chunked */
@@ -85,7 +85,7 @@ static void complete_callback(lcb_t instance, int cbtype, const lcb_RESPHTTP *re
          * (see xs/Couch_request_handle.xs)
          */
         if ((handle->flags & PLCB_COUCHREQf_STOPITER_NOOP) == 0) {
-            plcb_evloop_wait_unref(handle->parent);
+            plcb_views_waitdone(handle->parent);
         }
     }
 }
@@ -122,7 +122,7 @@ static void data_callback(lcb_t instance, int cbtype, const lcb_RESPHTTP *resp)
         handle->lcb_request = NULL;
         handle->flags |= (PLCB_COUCHREQf_TERMINATED | PLCB_COUCHREQf_ERROR |
                 PLCB_COUCHREQf_STOPITER);
-        plcb_evloop_wait_unref(handle->parent);
+        plcb_views_waitdone(handle->parent);
         call_to_perl(handle, PLCB_COUCHIDX_CALLBACK_COMPLETE, datasv,
             handle->plpriv);
 
@@ -138,8 +138,7 @@ static void data_callback(lcb_t instance, int cbtype, const lcb_RESPHTTP *resp)
 
             handle->flags &= ~(PLCB_COUCHREQf_STOPITER);
             handle->flags |= PLCB_COUCHREQf_STOPITER_NOOP;
-
-            plcb_evloop_wait_unref(handle->parent);
+            plcb_views_waitdone(handle->parent);
         }
     }
 }
@@ -267,7 +266,7 @@ void plcb_vh_slurp(PLCB_viewhandle_t *handle,
     
     handle->flags |= PLCB_COUCHREQf_ACTIVE;
     handle->parent->npending++;
-    lcb_wait(handle->parent->instance);
+    plcb_views_wait(handle->parent);
 }
 
 /**
@@ -311,7 +310,7 @@ int plcb_vh_iter_step(PLCB_viewhandle_t *handle)
 
     handle->parent->npending++;
     handle->flags &= ~(PLCB_COUCHREQf_STOPITER|PLCB_COUCHREQf_STOPITER_NOOP);
-    lcb_wait(handle->parent->instance);
+    plcb_views_wait(handle->parent);
 
     /* Returned? */
     return ((handle->flags & PLCB_COUCHREQf_TERMINATED) == 0);

@@ -148,8 +148,7 @@ plcb_opctx_return(plcb_SINGLEOP *so, lcb_error_t err)
             so->parent->curctx = NULL;
             goto GT_RET;
         }
-
-        lcb_wait3(so->parent->instance, LCB_WAIT_NOCHECK);
+        plcb_kv_wait(so->parent);
         /* See if we have an error */
         if (plcb_doc_get_err(so->docav) != LCB_SUCCESS) {
             haserr = 1;
