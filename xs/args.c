@@ -195,13 +195,13 @@ load_doc_options(PLCB_t *parent, AV *ret, plcb_OPTION *values)
             continue;
         }
 
-        if (cur->key == PLCB_ARG_K_CAS) {
+        if (!strcmp(cur->key, PLCB_ARG_K_CAS)) {
             ix = PLCB_RETIDX_CAS;
-        } else if (cur->key == PLCB_ARG_K_EXPIRY) {
+        } else if (!strcmp(cur->key,PLCB_ARG_K_EXPIRY)) {
             ix = PLCB_RETIDX_EXP;
-        } else if (cur->key == PLCB_ARG_K_VALUE) {
+        } else if (!strcmp(cur->key,PLCB_ARG_K_VALUE)) {
             ix = PLCB_RETIDX_VALUE;
-        } else if (cur->key == PLCB_ARG_K_FMT) {
+        } else if (!strcmp(cur->key,PLCB_ARG_K_FMT)) {
             ix = PLCB_RETIDX_FMTSPEC;
         } else {
             continue;

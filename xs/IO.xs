@@ -15,7 +15,7 @@ SV *
 plcbio_data(plcb_IOPROCS *io, ...)
     CODE:
     if (items == 2) {
-        SvREFCNT(io->userdata);
+        SvREFCNT_dec(io->userdata);
         io->userdata = ST(1);
         SvREFCNT_inc(io->userdata);
         RETVAL = &PL_sv_undef;

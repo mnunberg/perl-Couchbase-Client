@@ -481,7 +481,6 @@ PLCB__ctx_clear(PLCB_t *object)
 SV *
 PLCB_user_data(PLCB_t *object, ...)
     PREINIT:
-    SV *arg;
     CODE:
     if (items == 1) {
         RETVAL = object->udata;
@@ -615,10 +614,10 @@ PLCB_lcb_version()
     ret = newHV();
     tmp = lcb_get_version(&ivers);
     
-    hv_stores(ret, "hex", newSVuv(ivers));
-    hv_stores(ret, "str", newSVpv(tmp, 0));
+    (void)hv_stores(ret, "hex", newSVuv(ivers));
+    (void)hv_stores(ret, "str", newSVpv(tmp, 0));
     if (lcb_cntl(NULL, LCB_CNTL_GET, LCB_CNTL_CHANGESET, &tmp) == LCB_SUCCESS) {
-        hv_stores(ret, "rev", newSVpv(tmp, 0));
+        (void)hv_stores(ret, "rev", newSVpv(tmp, 0));
     }
     
     RETVAL = ret;
