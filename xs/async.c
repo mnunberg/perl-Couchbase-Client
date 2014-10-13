@@ -62,6 +62,7 @@ create_event_common(lcb_io_opt_t cbcio, int type)
     cevent->pl_event = newAV();
     cevent->rv_event = newRV_noinc((SV*)cevent->pl_event);
     cevent->evtype = type;
+    cevent->fd = -1;
 
     sv_bless(cevent->rv_event, gv_stashpv(PLCB_EVENT_CLASS, GV_ADD));
     av_store(cevent->pl_event, PLCB_EVIDX_OPAQUE, newSViv(PTR2IV(cevent)));
@@ -118,8 +119,19 @@ modify_event_perl(plcb_IOPROCS *async, plcb_EVENT *cevent, short flags)
     }
 
     SvIVX(async->flags_sv) = flags;
+    /* Figure out the proper masks */
 
-    cb_args_noret(async->cv_evmod, 0, 3, async->userdata, cevent->rv_event, async->flags_sv);
+    SvIVX(async->sched_r_sv) = flags & LCB_READ_EVENT && (cevent->flags & LCB_READ_EVENT) == 0;
+    SvIVX(async->sched_w_sv) = flags & LCB_WRITE_EVENT && (cevent->flags & LCB_WRITE_EVENT) == 0;
+    SvIVX(async->stop_r_sv) = (flags & LCB_READ_EVENT) == 0  && cevent->flags & LCB_READ_EVENT;
+    SvIVX(async->stop_w_sv) = (flags & LCB_WRITE_EVENT) == 0 && cevent->flags & LCB_WRITE_EVENT;
+
+
+    cb_args_noret(async->cv_evmod, 0, 7,
+        async->userdata, cevent->rv_event, async->flags_sv,
+        async->sched_r_sv, async->sched_w_sv,
+        async->stop_r_sv, async->stop_w_sv);
+
     cevent->flags = flags;
     tmpsv = av_fetch(cevent->pl_event, PLCB_EVIDX_WATCHFLAGS, 1);
     SvIVX(*tmpsv) = cevent->flags;
@@ -145,9 +157,9 @@ update_event(lcb_io_opt_t cbcio, lcb_socket_t sock, void *event, short flags,
 
     /*these are set in the AV after the call to Perl*/
     cevent->fd = sock;
-    cevent->flags = flags;
     cevent->lcb_handler = handler;
     cevent->lcb_arg = cb_data;
+
     modify_event_perl(object, cevent, flags);
     return 0;
 }
@@ -213,6 +225,10 @@ PLCB_ioprocs_dtor(lcb_io_opt_t cbcio)
     SvREFCNT_dec(async->flags_sv);
     SvREFCNT_dec(async->usec_sv);
     SvREFCNT_dec(async->userdata);
+    SvREFCNT_dec(async->sched_r_sv);
+    SvREFCNT_dec(async->sched_w_sv);
+    SvREFCNT_dec(async->stop_r_sv);
+    SvREFCNT_dec(async->stop_w_sv);
 
     Safefree(async);
     Safefree(cbcio);
@@ -270,6 +286,10 @@ PLCB_ioprocs_new(SV *options)
     async->action_sv = newSViv(0); SvREADONLY_on(async->action_sv);
     async->flags_sv = newSViv(0); SvREADONLY_on(async->flags_sv);
     async->usec_sv = newSVnv(0); SvREADONLY_on(async->usec_sv);
+    async->sched_r_sv = newSViv(0); SvREADONLY_on(async->sched_r_sv);
+    async->sched_w_sv = newSViv(0); SvREADONLY_on(async->sched_w_sv);
+    async->stop_r_sv = newSViv(0); SvREADONLY_on(async->stop_r_sv);
+    async->stop_w_sv = newSViv(0); SvREADONLY_on(async->stop_w_sv);
 
     /* i/o events */
     cbcio->v.v0.create_event = create_event;

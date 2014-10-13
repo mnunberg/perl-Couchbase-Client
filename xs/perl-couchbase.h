@@ -269,6 +269,10 @@ typedef struct {
     SV *action_sv;
     SV *flags_sv;
     SV *usec_sv;
+    SV *sched_r_sv;
+    SV *sched_w_sv;
+    SV *stop_r_sv;
+    SV *stop_w_sv;
 
     SV *selfrv;
     SV *cv_evmod; /* Modify an event */
