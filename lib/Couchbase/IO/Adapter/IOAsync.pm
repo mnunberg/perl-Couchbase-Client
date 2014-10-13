@@ -35,21 +35,13 @@ sub ioa_init_event {
 }
 
 sub ioa_update_event {
-    my ($loop,$event,$flags) = @_;
+    my ($loop,$event,$flags,$sched_r,$sched_w,$remove_r,$remove_w) = @_;
     my $fh = $event->[COUCHBASE_EVIDX_DUPFH];
     my $funcs = $event->[COUCHBASE_EVIDX_PLDATA];
-    my ($remove_r,$remove_w,$sched_r,$sched_w);
-    my $curflags = $event->[COUCHBASE_EVIDX_WATCHFLAGS];
     my %params;
 
     (open($fh, "+<&", $event->fileno) or die "Couldn't dup") if !defined($fh);
     $event->[COUCHBASE_EVIDX_DUPFH] //= $fh;
-
-    $sched_r = ($curflags & COUCHBASE_READ_EVENT) == 0 && ($flags & COUCHBASE_READ_EVENT);
-    $sched_w = ($curflags & COUCHBASE_WRITE_EVENT) == 0 && ($flags & COUCHBASE_WRITE_EVENT);
-
-    $remove_r = ($curflags & COUCHBASE_READ_EVENT) && ($flags & COUCHBASE_READ_EVENT) == 0;
-    $remove_w = ($curflags & COUCHBASE_WRITE_EVENT) && ($flags & COUCHBASE_WRITE_EVENT) == 0;
 
     $params{on_read_ready} = $funcs->[0] if $sched_r;
     $params{on_write_ready} = $funcs->[1] if $sched_w;
