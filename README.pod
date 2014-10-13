@@ -20,8 +20,8 @@ script in the source repository for ways to link against a custom install
 prefix.
 
 
- Using this library will mainly deal with the L<Couchbase::Bucket> class,
- so have a look there!
+Using this library will mainly deal with the L<Couchbase::Bucket> class,
+so have a look there!
 
 
 
