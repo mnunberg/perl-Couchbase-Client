@@ -68,17 +68,18 @@ $MM_Options{META_MERGE} = {
     }
 };
 
+if (!-f 'Changes') {
+    # eek
+    system("git log > Changes");
+}
+
 WriteMakefile(
     NAME                => 'Couchbase',
     AUTHOR              => q{M. Nunberg <mnunberg@haskalah.org>},
     VERSION_FROM        => 'lib/Couchbase.pm',
     ABSTRACT_FROM       => 'lib/Couchbase.pm',
     VERSION_FROM        => 'lib/Couchbase/Core.pm',
-
-    ($ExtUtils::MakeMaker::VERSION >= 6.3002
-      ? ('LICENSE'=> 'perl')
-      : ()),
-
+    LICENSE             => 'perl_5',
     PREREQ_PM => {
         'Class::XSAccessor' => 1.11,
         'JSON'              => 2.00,
