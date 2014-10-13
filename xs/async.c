@@ -67,6 +67,7 @@ create_event_common(lcb_io_opt_t cbcio, int type)
     av_store(cevent->pl_event, PLCB_EVIDX_OPAQUE, newSViv(PTR2IV(cevent)));
     av_store(cevent->pl_event, PLCB_EVIDX_FD, newSViv(-1));
     av_store(cevent->pl_event, PLCB_EVIDX_TYPE, newSViv(type));
+    av_store(cevent->pl_event, PLCB_EVIDX_WATCHFLAGS, newSViv(0));
 
     tmprv = newRV_inc(*av_fetch(cevent->pl_event, PLCB_EVIDX_OPAQUE, 0));
     sv_bless(tmprv, gv_stashpv("Couchbase::IO::_CEvent", GV_ADD));
@@ -105,7 +106,7 @@ destroy_event(lcb_io_opt_t cbcio, void *event)
 }
 
 static void
-modify_event_perl(plcb_IOPROCS *async, plcb_EVENT *cevent, int action, short flags)
+modify_event_perl(plcb_IOPROCS *async, plcb_EVENT *cevent, short flags)
 {
     SV **tmpsv;
     tmpsv = av_fetch(cevent->pl_event, PLCB_EVIDX_FD, 1);
@@ -116,12 +117,12 @@ modify_event_perl(plcb_IOPROCS *async, plcb_EVENT *cevent, int action, short fla
         sv_setiv(*tmpsv, cevent->fd);
     }
 
-    SvIVX(async->action_sv) = action;
     SvIVX(async->flags_sv) = flags;
 
-    cb_args_noret(async->cv_evmod, 0, 4,
-        async->userdata, cevent->rv_event, async->action_sv, async->flags_sv);
+    cb_args_noret(async->cv_evmod, 0, 3, async->userdata, cevent->rv_event, async->flags_sv);
     cevent->flags = flags;
+    tmpsv = av_fetch(cevent->pl_event, PLCB_EVIDX_WATCHFLAGS, 1);
+    SvIVX(*tmpsv) = cevent->flags;
 }
 
 /*start select()ing on a socket*/
@@ -131,28 +132,23 @@ update_event(lcb_io_opt_t cbcio, lcb_socket_t sock, void *event, short flags,
 {
     plcb_IOPROCS *object;
     plcb_EVENT *cevent;
-    int action;
     
     cevent = (plcb_EVENT*)event;
     object = (plcb_IOPROCS*)(cbcio->v.v0.cookie);
-    
-    if (!flags) {
-        action = PLCB_EVACTION_UNWATCH;
-    } else {
-        action = PLCB_EVACTION_WATCH;
-    }
-    
-    if (cevent->flags == flags && cevent->lcb_handler == handler &&
+
+    if (cevent->flags == flags &&
+            cevent->lcb_handler == handler &&
             cevent->lcb_arg == cb_data) {
+
         return 0;
     }
-    
+
     /*these are set in the AV after the call to Perl*/
     cevent->fd = sock;
     cevent->flags = flags;
     cevent->lcb_handler = handler;
     cevent->lcb_arg = cb_data;
-    modify_event_perl(object, cevent, action, flags);
+    modify_event_perl(object, cevent, flags);
     return 0;
 }
 

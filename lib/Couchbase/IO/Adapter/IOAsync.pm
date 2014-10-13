@@ -26,48 +26,40 @@ use IO::Async::Timer::Countdown;
 
 sub ioa_init_event {
     my ($data,$event) = @_;
+    my $funcs = [
+        sub {@_=($event);goto &Couchbase::IO::Event::dispatch_r}, # Read
+        sub {@_=($event);goto &Couchbase::IO::Event::dispatch_w} # Write
+    ];
+    $event->data($funcs);
     bless $event, $EVPACKAGE;
 }
 
 sub ioa_update_event {
-    my ($data,$event,$action,$flags) = @_;
-    my $ioh = $event->ioh;
-    my $fh;
-    my $remove_r = 0;
-    my $remove_w = 0;
+    my ($loop,$event,$flags) = @_;
+    my $fh = $event->[COUCHBASE_EVIDX_DUPFH];
+    my $funcs = $event->[COUCHBASE_EVIDX_PLDATA];
+    my ($remove_r,$remove_w,$sched_r,$sched_w);
+    my $curflags = $event->[COUCHBASE_EVIDX_WATCHFLAGS];
+    my %params;
 
-    if (! ($fh = $event->dupfh)) {
-        open($fh, "+<&", $event->fileno) or die "Couldn't dup";
-        $event->dupfh($fh);
-    }
+    (open($fh, "+<&", $event->fileno) or die "Couldn't dup") if !defined($fh);
+    $event->[COUCHBASE_EVIDX_DUPFH] //= $fh;
 
-    my %params = (handle => $fh);
+    $sched_r = ($curflags & COUCHBASE_READ_EVENT) == 0 && ($flags & COUCHBASE_READ_EVENT);
+    $sched_w = ($curflags & COUCHBASE_WRITE_EVENT) == 0 && ($flags & COUCHBASE_WRITE_EVENT);
 
-    if ($flags & COUCHBASE_READ_EVENT) {
-        $params{on_read_ready} = sub {
-            @_ = ($event);
-            goto &Couchbase::IO::Event::dispatch_r;
-        };
-    } else {
-        $remove_r = 1;
-    }
-    if ($flags & COUCHBASE_WRITE_EVENT) {
-        $params{on_write_ready} = sub {
-            @_ = ($event);
-            goto &Couchbase::IO::Event::dispatch_w;
-        }
-    } else {
-        $remove_w = 1;
-    }
+    $remove_r = ($curflags & COUCHBASE_READ_EVENT) && ($flags & COUCHBASE_READ_EVENT) == 0;
+    $remove_w = ($curflags & COUCHBASE_WRITE_EVENT) && ($flags & COUCHBASE_WRITE_EVENT) == 0;
 
-    if ($remove_r == 0 || $remove_w == 0) {
-        $data->{Loop}->watch_io(%params);
-    }
-    if ($remove_r || $remove_w) {
-        $params{on_write_ready} = $remove_w;
-        $params{on_read_ready} = $remove_r;
-        $data->{Loop}->unwatch_io(%params);
-    }
+    $params{on_read_ready} = $funcs->[0] if $sched_r;
+    $params{on_write_ready} = $funcs->[1] if $sched_w;
+
+    $params{handle} = $fh if ($sched_r||$sched_w||$remove_r||$remove_w);
+    $loop->watch_io(%params) if ($sched_r || $sched_w);
+
+    $params{on_read_ready} = $remove_r if $remove_r;
+    $params{on_write_ready} = $remove_w if $remove_w;
+    $loop->unwatch_io(%params) if ($remove_w || $remove_r);
 }
 
 sub ioa_init_timer {
@@ -81,7 +73,7 @@ sub ioa_init_timer {
         },
     );
 
-    $timer->loop($data->{Loop});
+    $timer->loop($data);
     $timer->ioh($iot);
     $timer->loop->add($iot);
 }
@@ -105,9 +97,7 @@ sub new_adapter {
         event_update => \&ioa_update_event,
         timer_init => \&ioa_init_timer,
         timer_update => \&ioa_update_timer,
-        data => {
-            Loop => $loop
-        }
+        data => $loop
     });
 }
 
