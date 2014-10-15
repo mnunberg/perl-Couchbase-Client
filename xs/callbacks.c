@@ -195,11 +195,11 @@ callback_common(lcb_t instance, int cbtype, const lcb_RESPBASE *resp)
     case LCB_CALLBACK_UNLOCK:
     case LCB_CALLBACK_STORE:
     case LCB_CALLBACK_ENDURE:
-        if (resp->cas) {
+        if (resp->cas && resp->rc == LCB_SUCCESS) {
             plcb_doc_set_cas(parent, resobj, &resp->cas);
         }
 
-        if (cbtype == LCB_CALLBACK_STORE &&
+        if (cbtype == LCB_CALLBACK_STORE && resp->rc == LCB_SUCCESS &&
                 chain_endure(parent, resobj, (const lcb_RESPSTORE *)resp)) {
             return; /* Will be handled already */
         }
