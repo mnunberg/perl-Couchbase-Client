@@ -1,3 +1,6 @@
+package Couchbase::Core;
+use strict;
+use warnings;
 our $VERSION;
 BEGIN {
     require XSLoader;
