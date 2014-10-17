@@ -157,6 +157,10 @@ PLCB__cntl_set(PLCB_t *object, int setting, int type, SV *value)
     p = &u;
 
     if (!SvOK(value)) {
+        if (SvTYPE(value) == SVt_PVMG && SvREFCNT(value) == 1) {
+            /* Workaround for local $cb->settings->{foo} with older perls */
+            return;
+        }
         die("Passed empty value");
     }
 
