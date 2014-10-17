@@ -98,7 +98,6 @@ plcb_convert_storage(PLCB_t *object, AV *docav, plcb_DOCVAL *vspec)
     uint32_t fmt = vspec->spec;
 
     if (object->cv_customenc) {
-        GT_CUSTOM_CONVERT:
         vspec->need_free = 1;
         vspec->value = custom_convert(docav, object->cv_customenc, vspec->value, &vspec->flags, CONVERT_OUT);
 
@@ -122,10 +121,7 @@ plcb_convert_storage(PLCB_t *object, AV *docav, plcb_DOCVAL *vspec)
         sv_utf8_upgrade(pv);
 
     } else {
-        if (!object->cv_customenc) {
-            die("Unrecognized flags used (0x%x) but no custom converted installed!", vspec->spec);
-        }
-        goto GT_CUSTOM_CONVERT;
+        die("Unrecognized flags used (0x%x) but no custom converted installed!", vspec->spec);
     }
 
     /* Assume the resultant value is an SV */
