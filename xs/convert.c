@@ -113,15 +113,22 @@ plcb_convert_storage(PLCB_t *object, AV *docav, plcb_DOCVAL *vspec)
 
     } else if (fmt == PLCB_CF_RAW) {
         vspec->flags = PLCB_CF_RAW | PLCB_LF_RAW;
+        vspec->need_free = 0;
         if (!SvPOK(pv)) {
             die("Raw conversion requires string value!");
         }
     } else if (vspec->spec == PLCB_CF_UTF8) {
         vspec->flags = PLCB_CF_UTF8 | PLCB_LF_UTF8;
+        vspec->need_free = 0;
         sv_utf8_upgrade(pv);
 
     } else {
         die("Unrecognized flags used (0x%x) but no custom converted installed!", vspec->spec);
+    }
+
+    if (!vspec->need_free) {
+        /* Use input as-is */
+        vspec->value = pv;
     }
 
     /* Assume the resultant value is an SV */
