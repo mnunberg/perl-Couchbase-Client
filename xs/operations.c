@@ -146,6 +146,8 @@ PLCB_op_observe(PLCB_t *object, plcb_SINGLEOP *opinfo)
     err = mctx->addcmd(mctx, (lcb_CMDBASE*)&obscmd);
     if (err == LCB_SUCCESS) {
         err = mctx->done(mctx, opinfo->cookie);
+    } else {
+        mctx->fail(mctx);
     }
 
     GT_DONE:
