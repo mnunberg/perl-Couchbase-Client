@@ -6,12 +6,13 @@ static int PLCB_connect(PLCB_t* self);
 
 void plcb_cleanup(PLCB_t *object)
 {
+    plcb_opctx_clear(object);
+    SvREFCNT_dec(object->cachectx);
+
     if (object->instance) {
         lcb_destroy(object->instance);
         object->instance = NULL;
     }
-    plcb_opctx_clear(object);
-    SvREFCNT_dec(object->cachectx);
 
     #define _free_cv(fld) if (object->fld) { SvREFCNT_dec(object->fld); object->fld = NULL; }
     _free_cv(cv_serialize); _free_cv(cv_deserialize);
@@ -373,6 +374,18 @@ PLCB_counter(PLCB_t *self, SV *doc, ...)
 
 
 SV *
+PLCB_endure(PLCB_t *self, SV *doc, ...)
+    PREINIT:
+    plcb_SINGLEOP opinfo = { PLCB_CMD_ENDURE };
+    dPLCB_INPUTS;
+    CODE:
+    FILL_EXTRA_PARAMS()
+    plcb_opctx_initop(&opinfo, self, doc, ctx, options);
+    RETVAL = PLCB_op_endure(self, &opinfo);
+    OUTPUT: RETVAL
+
+
+SV *
 PLCB__stats_common(PLCB_t *self, SV *doc, ...)
     ALIAS:
     _stats = PLCB_CMD_STATS
@@ -475,6 +488,40 @@ PLCB_batch(PLCB_t *object)
     lcb_sched_enter(object->instance);
     OUTPUT: RETVAL
 
+SV *
+PLCB_durability_batch(PLCB_t *object, SV *options)
+    PREINIT:
+    int persist_to = 0, replicate_to = 0, is_delete = 0;
+    SV *ctxrv = NULL;
+    plcb_OPCTX *opctx;
+    lcb_error_t err;
+    lcb_durability_opts_t dopts = { 0 };
+    plcb_OPTION args[] = {
+        PLCB_KWARG(PLCB_ARG_K_PERSIST, INT, &persist_to),
+        PLCB_KWARG(PLCB_ARG_K_REPLICATE, INT, &replicate_to),
+        PLCB_KWARG(PLCB_ARG_K_ISDELETE, BOOL, &is_delete),
+        { NULL }
+    };
+    CODE:
+    plcb_extract_args(options, args);
+    ctxrv = plcb_opctx_new(object, 0);
+    RETVAL = newRV_inc(SvRV(ctxrv));
+    dopts.v.v0.persist_to = persist_to;
+    dopts.v.v0.replicate_to = replicate_to;
+    dopts.v.v0.check_delete = is_delete;
+    if (replicate_to == -1 || persist_to == -1) {
+        dopts.v.v0.cap_max = 1;
+    }
+
+    opctx = NUM2PTR(plcb_OPCTX*,SvIVX(SvRV(ctxrv)));
+    assert(opctx->multi == NULL);
+    opctx->multi = lcb_endure3_ctxnew(object->instance, &dopts, &err);
+    if (!opctx->multi) {
+        SvREFCNT_dec(RETVAL);
+        die("Bad parameters for durability: 0x%x (%s)", err, lcb_strerror(NULL, err));
+    }
+
+    OUTPUT: RETVAL
 
 void
 PLCB__ctx_clear(PLCB_t *object)
@@ -524,7 +571,7 @@ PLCB_ctx_wait_all(plcb_OPCTX *ctx)
     }
     /* Remove the 'wait_one' flag */
     ctx->flags &= ~PLCB_OPCTXf_WAITONE;
-    lcb_sched_leave(parent->instance);
+    plcb_opctx_submit(parent, ctx);
     lcb_wait3(parent->instance, LCB_WAIT_NOCHECK);
 
 
@@ -556,7 +603,7 @@ PLCB_ctx_wait_one(plcb_OPCTX *ctx)
     }
 
     ctx->flags |= PLCB_OPCTXf_WAITONE;
-    lcb_sched_leave(parent->instance);
+    plcb_opctx_submit(parent, ctx);
     lcb_wait3(parent->instance, LCB_WAIT_NOCHECK);
     RETVAL = av_shift(ctx->u.ctxqueue);
 

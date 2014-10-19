@@ -59,6 +59,7 @@ enum {
     PLCB_CMD_STATS,
     PLCB_CMD_KEYSTATS,
     PLCB_CMD_OBSERVE,
+    PLCB_CMD_ENDURE
 };
 
 enum {
@@ -179,6 +180,7 @@ typedef struct {
     int waiting;
     HV *docs;
     SV *parent; /* PLCB_T */
+    lcb_MULTICMD_CTX *multi;
     union {
         SV *callback; /* For async only */
         AV *ctxqueue; /* For queued operations */
@@ -193,6 +195,7 @@ typedef struct {
     SV *cmdopts; /* Command options */
     SV *docrv; /* Reference for the document */
     void *cookie;
+    plcb_OPCTX *ctxptr;
 } plcb_SINGLEOP;
 
 /* Temporary structure used for encoding/storing values */
@@ -249,6 +252,7 @@ SV *plcb_opctx_new(PLCB_t *, int);
 void plcb_opctx_clear(PLCB_t *parent);
 void plcb_opctx_initop(plcb_SINGLEOP *so, PLCB_t *parent, SV *doc, SV *ctx, SV *options);
 SV * plcb_opctx_return(plcb_SINGLEOP *so, lcb_error_t err);
+void plcb_opctx_submit(PLCB_t *parent, plcb_OPCTX *ctx);
 
 #define plcb_opctx_is_cmd_multi(cmd) \
     ((cmd) == PLCB_CMD_OBSERVE || (cmd) == PLCB_CMD_STATS)
@@ -263,6 +267,7 @@ SV *PLCB_op_endure(PLCB_t *object, plcb_SINGLEOP *args);
 SV *PLCB_op_unlock(PLCB_t *object, plcb_SINGLEOP *args);
 SV *PLCB_op_stats(PLCB_t *object, plcb_SINGLEOP *args);
 SV *PLCB_op_observe(PLCB_t *object, plcb_SINGLEOP *args);
+SV *PLCB_op_endure(PLCB_t *object, plcb_SINGLEOP *opinfo);
 
 SV *
 PLCB_args_return(plcb_SINGLEOP *so, lcb_error_t err);

@@ -329,4 +329,29 @@ sub T12_observe :Test(no_plan) {
     is(1, scalar @{$obsret->value});
     ok($obsret->value->[0]->{master});
 }
+
+sub T13_endure :Test(no_plan) {
+    my $self = shift;
+    my $cb = $self->cbo;
+    my $doc = Couchbase::Document->new("endure_key", "endure_value");
+
+    $cb->upsert($doc, { persist_to => -1, replicate_to => -1 });
+    ok($doc->is_ok, "Document inserted OK " . $doc->errstr);
+
+    # Try with a durability batch:
+    my @docs = Couchbase::Document->new("endure_$_", "value") for (0..3);
+    my $batch = $cb->batch();
+    $batch->upsert($_) for @docs;
+    $batch->wait_all;
+
+    foreach (@docs) {
+        ok(0, "Couldn't upsert") unless $_->is_ok;
+    }
+    $batch = $cb->durability_batch({persist_to => -1, replicate_to => -1});
+    $batch->endure($_) for @docs;
+    $batch->wait_all;
+    foreach (@docs) {
+        ok(0, "Couldn't enure") unless $_->is_ok;
+    }
+}
 1;

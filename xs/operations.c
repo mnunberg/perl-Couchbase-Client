@@ -153,3 +153,20 @@ PLCB_op_observe(PLCB_t *object, plcb_SINGLEOP *opinfo)
     GT_DONE:
     return plcb_opctx_return(opinfo, err);
 }
+
+SV*
+PLCB_op_endure(PLCB_t *object, plcb_SINGLEOP *opinfo)
+{
+    lcb_CMDENDURE ecmd = { 0 };
+    lcb_error_t err;
+    lcb_MULTICMD_CTX *mctx = opinfo->ctxptr->multi;
+
+    if (!mctx) {
+        die("Durability operations must be created with their own batch context");
+    }
+
+    key_from_so(opinfo, &ecmd);
+    PLCB_args_endure(object, opinfo, &ecmd);
+    err = mctx->addcmd(mctx, &ecmd);
+    return plcb_opctx_return(opinfo, err);
+}

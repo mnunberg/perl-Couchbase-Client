@@ -660,6 +660,41 @@ Returns a new L<Couchbase::OpContext> which may be used to schedule
 operations.
 
 
+=head2 Batched Durability Requirements
+
+In some scenarios it may be more efficient on the network to
+submit durability requirement requests as a large single command. The behavior for
+the C<persist_to> and C<replicate_to> parameters in the C<upsert()> family of
+methods will cause a durability request to be sent out to the given nodes
+node as soon as the success is received for the newly-modified item. This
+approach reduces latency at the cost of additional bandwidth.
+
+Some bandwidth may be potentially saved if these requests are all batched
+together:
+
+
+=head2 durability_batch($options)
+
+I<Volatile - Subject to change>
+
+Creates a new durability batch. A durability batch is a special kind of batch
+where the contained commands can only be documents whose durability is to
+be checked.
+
+    my $batch;
+    $batch = $cb->batch;
+    $batch->upsert($_) for @docs;
+    $batch->wait_all;
+
+    $batch = $cb->durability_batch({ persist_to => 1, replicate_to => 2 });
+    $batch->endure($_) for @docs;
+    $batch->wait_all;
+
+
+The C<options> passed can be C<persist_to> and C<replicate_to>. See the
+L<"Durability Requirements"> section for information.
+
+
 =head2 VIEW (MAPREDUCE) QUERIES
 
 

@@ -305,7 +305,7 @@ PLCB_args_unlock(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDUNLOCK *ucmd)
     };
 
     load_doc_options(object, args->docav, argspecs);
-    if (!ucmd->cas) {
+    if (ucmd->cas == 0 && args->cmdbase == PLCB_CMD_UNLOCK) {
         die("Unlock command must have CAS");
     }
     return 0;

@@ -54,6 +54,11 @@ plcb_opctx_clear(PLCB_t *parent)
     ctx = NUM2PTR(plcb_OPCTX*,SvIVX(SvRV(parent->curctx)));
     hv_clear(ctx->docs);
 
+    if (ctx->multi) {
+        ctx->multi->fail(ctx->multi);
+        ctx->multi = NULL;
+    }
+
     if ((ctx->flags & PLCB_OPCTXf_IMPLICIT) && parent->cachectx == NULL) {
         parent->cachectx = parent->curctx;
     } else {
@@ -96,6 +101,7 @@ plcb_opctx_initop(plcb_SINGLEOP *so, PLCB_t *parent, SV *doc, SV *ctx, SV *optio
     }
 
     so->cookie = so->opctx;
+    so->ctxptr = NUM2PTR(plcb_OPCTX*, SvIVX(SvRV(so->opctx)));
 }
 
 SV *
@@ -165,4 +171,19 @@ plcb_opctx_return(plcb_SINGLEOP *so, lcb_error_t err)
     }
     SvREFCNT_inc(retval);
     return retval;
+}
+
+
+void
+plcb_opctx_submit(PLCB_t *parent, plcb_OPCTX *ctx)
+{
+    lcb_error_t err = LCB_SUCCESS;
+    if (ctx->multi) {
+        err = ctx->multi->done(ctx->multi, parent->curctx);
+        ctx->multi = NULL;
+        if (err != LCB_SUCCESS) {
+            die("Couldn't submit multi context: Code=0x%x", err);
+        }
+    }
+    lcb_sched_leave(parent->instance);
 }
