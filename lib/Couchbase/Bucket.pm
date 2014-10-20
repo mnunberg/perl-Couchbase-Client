@@ -140,6 +140,13 @@ sub settings {
     return \%h;
 }
 
+sub fetch {
+    my ($self, $id) = @_;
+    my $doc = Couchbase::Document->new($id);
+    $self->get($doc);
+    return $doc;
+}
+
 # Returns a 'raw' request handle
 sub _htraw {
     my $self = $_[0];
@@ -411,6 +418,14 @@ the item. See L<"Document Expiration"> for more details:
 
     my $doc = Couchbase::Document->new("id", { expiry => 300 });
     $cb->get_and_touch($doc); # Expires in 5 minutes
+
+
+=head3 fetch($id)
+
+This is a convenience method which will create a new document with the given C<id>
+and perform a C<get> on it. It will then return the resulting document.
+
+    my $doc = $cb->fetch("id_to_retrieve");
 
 
 =head3 insert($doc)
