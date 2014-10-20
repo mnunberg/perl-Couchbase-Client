@@ -191,10 +191,7 @@ plcb_convert_retrieval(PLCB_t *object, AV *docav,
 #undef IS_FMT
 
     SvREFCNT_dec(input_sv);
-
-    if (SvIOK(flags_sv)) {
-        SvUVX(flags_sv) = flags;
-    } else {
+    if (SvIOK(flags_sv) == 0 || SvUVX(flags_sv) != flags) {
         sv_setuv(flags_sv, flags);
     }
     return ret_sv;
