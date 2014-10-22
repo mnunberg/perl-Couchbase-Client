@@ -10,8 +10,8 @@ use Class::XSAccessor {
 };
 
 our $Mock;
-my $RealServer = $ENV{PLCB_TEST_SERVER};
-my $RealPasswd = $ENV{PLCB_TEST_PASSWORD};
+our $RealServer = $ENV{PLCB_TEST_SERVER};
+our $RealPasswd = $ENV{PLCB_TEST_PASSWORD} || "";
 
 sub SKIP_CLASS {
     my ($cls,$msg) = @_;
@@ -58,6 +58,11 @@ sub common_options {
                                   $self->mock->port, $bucket->{name});
     print Dumper($opthash);
     return $opthash;
+}
+
+sub make_cbo {
+    my $self = shift;
+    return Couchbase::Bucket->new({%{$self->common_options}});
 }
 
 sub k2v {

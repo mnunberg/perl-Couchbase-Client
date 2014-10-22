@@ -78,10 +78,13 @@ sub T02_mutators :Test(no_plan) {
     $o->remove($doc); #if it already exists
 
     $doc->format('utf8');
-    ok($o->insert($doc));
-    ok($o->prepend_bytes($doc, {fragment=>"PREFIX_"}));
-    ok($o->append_bytes($doc, {fragment=>"_SUFFIX"}));
-    ok($o->get($doc));
+
+    ok($o->insert($doc), "Inserting new document");
+    $doc->is_ok or die "Couldn't insert: " . $doc->errstr;
+
+    ok($o->prepend_bytes($doc, {fragment=>"PREFIX_"}), "Prepending");
+    ok($o->append_bytes($doc, {fragment=>"_SUFFIX"}), "Appending");
+    ok($o->get($doc), "Retrieval");
     is($doc->value, "PREFIX_BASE_SUFFIX", "Got expected mutated value");
 }
 
@@ -275,6 +278,7 @@ sub T10_locks :Test(no_plan) {
 
     $o->get_and_lock($doc, {lock_duration=>5});
     ok($o->upsert($doc), "Implicit unlock with CAS ok");
+    $o->remove($doc); # Clean up
 }
 
 sub wait_for_exp {
