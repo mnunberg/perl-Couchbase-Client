@@ -17,15 +17,14 @@ my $TEST_PORT;
 
 Couchbase::Test::Common->Initialize(
     jarfile => __DIR__ . "/../t/tmp/CouchbaseMock.jar",
-    nodes => 2,
-    buckets => [{name => "default", type => "memcache"}],
+    nodes => 4,
+    buckets => [{name => "default", type => "couchbase"}],
 );
 
 use Couchbase::Test::ClientSync;
-use Couchbase::Test::Async;
+#use Couchbase::Test::Async;
 use Couchbase::Test::Settings;
-use Couchbase::Test::Interop;
-use Couchbase::Test::Netfail;
+#use Couchbase::Test::Netfail;
 use Couchbase::Test::Views;
 
 $ENV{TEST_METHOD} = shift @ARGV;
