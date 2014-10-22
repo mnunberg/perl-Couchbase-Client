@@ -371,6 +371,13 @@ PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *scmd, plcb_DOCV
         scmd->cas = 0;
     }
 
+    if (is_append(args->cmdbase)) {
+        scmd->exptime = 0;
+        scmd->flags = 0;
+    } else if (args->cmdbase == PLCB_CMD_ADD) {
+        scmd->cas = 0;
+    }
+
     dur_sv = *av_fetch(args->docav, PLCB_RETIDX_OPTIONS, 1);
     if (SvIOK(dur_sv)) {
         SvUVX(dur_sv) = PLCB_MKDURABILITY(persist_to, replicate_to);
