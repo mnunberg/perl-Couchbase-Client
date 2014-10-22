@@ -593,7 +593,7 @@ Set a high timeout for a specified operation:
     sub example_hit_counter {
         my $page_name = shift;
         my $doc = Couchbase::Document->new("page:$page_name");
-        $cb->counter($doc, { initial => 1, amount => 1 });
+        $cb->counter($doc, { initial => 1, delta => 1 });
     }
 
 
