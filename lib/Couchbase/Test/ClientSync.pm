@@ -354,4 +354,15 @@ sub T13_endure :Test(no_plan) {
         ok(0, "Couldn't enure") unless $_->is_ok;
     }
 }
+
+sub T14_utf8 :Test(no_plan) {
+    use utf8;
+    my $self = shift;
+    my $txt = "상기 정보는 UTF-8 인코딩되어 서비스되고 있습니다. EUC-KR 인코딩 서비스는 oldwhois.kisa.or.kr에서 서비스 되고 있습니다.";
+    my $doc = Couchbase::Document->new('utf8json', { string => $txt });
+    my $cb = $self->cbo;
+    $cb->upsert($doc);
+    $cb->get($doc);
+    is($txt, $doc->value->{string});
+}
 1;

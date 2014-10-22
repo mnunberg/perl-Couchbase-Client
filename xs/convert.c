@@ -166,6 +166,7 @@ plcb_convert_retrieval(PLCB_t *object, AV *docav,
         /* Flags remain unchanged? */
 
     } else if (IS_FMT(JSON)) {
+        SvUTF8_on(input_sv);
         ret_sv = serialize_convert(object->cv_jsondec, input_sv, CONVERT_IN);
         flags = PLCB_CF_JSON;
 
