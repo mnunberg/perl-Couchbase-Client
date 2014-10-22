@@ -158,7 +158,6 @@ sub design_get {
     my ($self,$path) = @_;
     my $handle = $self->_new_viewhandle(\%Couchbase::View::Handle::Slurpee::);
     my $design = $handle->slurp_jsonized("GET", "_design/" . $path, "");
-    bless $design, 'Couchbase::View::Design';
 }
 
 # saves a design document
