@@ -216,9 +216,10 @@ sub slurp {
     my ($self,@args) = @_;
     $self->slurp_raw(@args);
     $self->info->_extract_view_results;
-    foreach my $row (@{ $self->info->rows }) {
-        bless $row, 'Couchbase::View::Row';
+    if ($self->info && ref $self->info->rows eq 'ARRAY') {
+        bless $_, 'Couchbase::View::Row' for @{$self->info->rows};
     }
+
     return $self->info;
 }
 
