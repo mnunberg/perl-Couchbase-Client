@@ -25,7 +25,7 @@ so have a look there!
 
 
 
-=head2 SUPPORT
+=head1 SUPPORT
 
 Support for this module is provided by the author. You can find him on
 the C<#libcouchbase> IRC channel on the freenode network under the name
@@ -36,7 +36,7 @@ You can also try to file a bug in the github repository
 (L<https://github.com/mnunberg/perl-Couchbase-Client>).
 
 
-=head2 CONTRIBUTING
+=head1 CONTRIBUTING
 
 
 This module is primarily authored in XS. The C<xs> directory contains
