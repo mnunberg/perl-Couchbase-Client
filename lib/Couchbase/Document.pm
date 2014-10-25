@@ -117,7 +117,7 @@ sub as_hash {
 
 sub _data_printer {
     my $self = shift;
-    my $r = bless $self->as_hash, "Couchbase::Document::_PrettyDummy";
+    my $r = bless $self->as_hash, ref($self) . "::_PrettyDummy";
     Data::Printer::p($r);
 }
 
