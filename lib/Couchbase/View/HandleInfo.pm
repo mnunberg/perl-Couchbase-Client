@@ -59,11 +59,9 @@ sub errstr {
         $ret .= sprintf(" (HTTP=%d)", $self->http_code);
     }
     if ($self->errinfo) {
-        if ($self->errinfo->{errors}) {
-            $ret .= " [There were some errors fetching individual rows. "
-                    ."See ->errinfo]";
-
-        } elsif ($self->errinfo->{error}) {
+        if (ref $self->errinfo eq 'ARRAY') {
+            $ret .= " [There were some errors fetching individual rows. See ->errinfo]";
+        } elsif (ref $self->errinfo eq 'HASH') {
             $ret .= sprintf(" [Query Error (error=%s, reason=%s)]",
                             $self->errinfo->{error}, $self->errinfo->{reason});
         }
@@ -74,10 +72,14 @@ sub errstr {
 sub _extract_row_errors {
     my ($self,$hash) = @_;
     if (exists $hash->{errors}) {
+        # Errors received from individual nodes
         $self->[COUCHIDX_ERREXTRA] = delete $hash->{errors};
     } elsif (exists $hash->{error}) {
-        $self->[COUCHIDX_ERREXTRA] = { reason => delete $hash->{reason},
-                                        error => delete $hash->{error} };
+        # Errors received for the query itself, e.g. "not_found"
+        $self->[COUCHIDX_ERREXTRA] = {
+            reason => delete $hash->{reason},
+            error => delete $hash->{error}
+        };
     }
 }
 
@@ -99,6 +101,19 @@ sub _extract_view_results {
         $self->_extract_row_errors($json);
         $self->[RETIDX_VALUE] = delete $json->{rows};
     }
+}
+
+sub as_hash {
+    my $self = shift;
+    my %h = (
+        path => $self->path,
+        count => $self->count,
+        status => $self->errstr,
+    );
+    if (!$self->is_ok) {
+        $h{errinfo} = $self->errinfo;
+    }
+    return \%h;
 }
 
 {
