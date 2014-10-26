@@ -24,7 +24,6 @@ Couchbase::Test::Common->Initialize(
 use Couchbase::Test::ClientSync;
 #use Couchbase::Test::Async;
 use Couchbase::Test::Settings;
-#use Couchbase::Test::Netfail;
 use Couchbase::Test::Views;
 
 $ENV{TEST_METHOD} = shift @ARGV;

@@ -23,7 +23,6 @@ lib/Couchbase/MockServer.pm
 lib/Couchbase/Test/ClientSync.pm
 lib/Couchbase/Test/Common.pm
 lib/Couchbase/Test/Settings.pm
-lib/Couchbase/Test/Netfail.pm
 lib/Couchbase/Test/Views.pm
 
 ################################################################################

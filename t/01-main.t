@@ -28,11 +28,9 @@ Couchbase::Test::Common->Initialize(
 
 use Couchbase::Test::ClientSync;
 use Couchbase::Test::Settings;
-use Couchbase::Test::Netfail;
 use Couchbase::Test::Views;
 
 Couchbase::Test::ClientSync->runtests();
 Couchbase::Test::Settings->runtests();
-#Couchbase::Test::Netfail->runtests();
 Couchbase::Test::Views->runtests();
 #Test::Class->runtests();
