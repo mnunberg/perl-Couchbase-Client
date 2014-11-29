@@ -14,6 +14,9 @@ use Couchbase::Settings;
 use Couchbase::OpContext;
 use Couchbase::View::Handle;
 use Couchbase::View::HandleInfo;
+use Couchbase::View::Handle::RawIterator;
+use Couchbase::View::Handle::ViewIterator;
+use Couchbase::View::Handle::Slurpee;
 
 my $_JSON = JSON->new()->allow_nonref;
 sub _js_encode { $_JSON->encode($_[0]) }
@@ -727,6 +730,21 @@ rows themselves may be found inside the C<rows> accessor:
     }
 
 
+This method returns an instance of L<Couchbase::View::HandleInfo> which may be used
+to inspect for error messages. The object is in fact a subclass of
+L<Couchbase::Document> with an additional C<errinfo> method to provide more
+details about the operation.
+
+    if (!$rv->is_ok) {
+        if ($rv->errnum) {
+            # handle error code
+        }
+        if ($rv->http_code !~ /^2/) {
+            # Failed HTTP status
+        }
+    }
+
+
 =head3 view_iterator("design/view", %options)
 
 This works in much the same way as the C<view_slurp()> method does, except
@@ -737,6 +755,31 @@ query to return a large amount of results:
     my $iter = $cb->view_iterator("beer/brewery_beers");
     while (my $row = $iter->next) {
         printf("Got row for key %s with document id %s\n", $row->key, $row->id);
+    }
+
+Note that unlike the C<view_slurp> method, this does I<not> return a
+C<HandleInfo> object, but rather a L<Couchbase::View::Handle::ViewIterator>. The
+actual C<HandleInfo> object can be obtained using the C<info> method of the
+iterator. Note that the contents of the C<HandleInfo> object are only
+considered valid once the iterator has been through at least I<one> iteration;
+thus:
+
+B<Incorrect>, because it requests the C<info> object before iteration has
+started
+
+    my $iter = $cb->view_iterator($dpath);
+    if (!$iter->info->is_ok) {
+        # ...
+    }
+
+B<Correct>
+
+    my $iter = $cb->view_iterator($dpath);
+    while (my $row = $iter->next) {
+        # ...
+    }
+    if (!$iter->info->is_ok) {
+        # ...
     }
 
 

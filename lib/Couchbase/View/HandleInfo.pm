@@ -1,10 +1,4 @@
 package Couchbase::View::HandleInfo;
-# Subclass of Couchbase::Client::Return, with extra fields
-# for handling callbacks and http codes. This 'unimplements'
-# the cas method, which is not applicable to HTTP queries.
-#
-# ^^^^ This might change in the future, as CAS is actually encoded in the rev
-# field.
 
 use strict;
 use warnings;
@@ -127,20 +121,20 @@ __END__
 
 =head1 NAME
 
-Couchbase::View::HandleInfo - Handle-oriented informational subclass of Couchbase::Client::Return
+Couchbase::View::HandleInfo - informational subclass of Couchbase::Document
 
 =head1 DESCRIPTION
 
-This object subclasses L<Couchbase::Client::Return> and fulfills the same role (
+This object subclasses L<Couchbase::Document> and fulfills the same role (
 but for couchbase view requests, rather than memcached operations).
 
 =head2 ADDED FIELDS
 
-These fields are added to the L<Couchbase::Client::Return> object
+These fields are added to the L<Couchbase::Document> object
 
 =head3 http_code
 
-Returns the HTTP status code for the operation
+Returns the HTTP status code for the operation, e.g C<200> or C<404>
 
 =head3 path
 
@@ -155,14 +149,6 @@ Returns the count (if any) for the matched result
 Returns extended (non-http, non-libcouchbase, non-memcached) error information.
 This is usually a hash converted from a JSON error response.
 
-=head2 REMOVED FIELDS
-
-The following fields have been I<unimplemented> from L<Couchbase::Client::Return>
-
-=head3 cas
-
-There is no explicit documented method for the server to return the cas, although
-it is somewhat expressed in the C<rev> field.
 
 =head2 REIMPLEMENTED FIELDS
 
