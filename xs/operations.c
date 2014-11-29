@@ -68,7 +68,9 @@ PLCB_op_set(PLCB_t *object, plcb_SINGLEOP *opinfo)
 
     LCB_CMD_SET_VALUE(&scmd, vspec.encoded, vspec.len);
 
-    scmd.flags = vspec.flags;
+    if (opinfo->cmdbase != PLCB_CMD_APPEND && opinfo->cmdbase != PLCB_CMD_PREPEND) {
+        scmd.flags = vspec.flags;
+    }
     scmd.operation =  cmd_to_storop(opinfo->cmdbase);
 
     err = lcb_store3(object->instance, opinfo->cookie, &scmd);

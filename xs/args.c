@@ -373,7 +373,6 @@ PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *scmd, plcb_DOCV
 
     if (is_append(args->cmdbase)) {
         scmd->exptime = 0;
-        scmd->flags = 0;
     } else if (args->cmdbase == PLCB_CMD_ADD) {
         scmd->cas = 0;
     }
