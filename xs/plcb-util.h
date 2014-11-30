@@ -21,14 +21,15 @@
 #define plcb_sv_from_u64(sv, num) (sv_setuv(sv, num))
 #define plcb_sv_from_u64_new(nump) newSVuv( (*nump) )
 
-#define plcb_cas_from_sv(sv, cas_p) \
-    (SvIOK(sv)) \
-    ? cas_p = (uint64_t*)&(SvIVX(sv)) \
-    : (uint64_t*)die("Expected valid (UV) cas. IOK not true")
+#define plcb_sv2cas(sv) (\
+        (SvIOK(sv)) \
+            ? (uint64_t)(SvIVX(sv)) \
+            : (die("Expected valid (UV) cas. IOK not true"),-1) \
+        )
 
 #else
 
-static uint64_t plcb_sv_to_u64(SV *in)
+static PERL_UNUSED_DECL uint64_t plcb_sv_to_u64(SV *in)
 {
     char *sv_blob;
     STRLEN blob_len;
@@ -38,7 +39,7 @@ static uint64_t plcb_sv_to_u64(SV *in)
         /*Numeric*/
         return SvUV(in);
     }
-    
+
     sv_blob = SvPV(in, blob_len);
 
     if (blob_len != 8) {
@@ -58,22 +59,7 @@ static uint64_t plcb_sv_to_u64(SV *in)
     newSVpv((const char* const)(nump), 8)
 
 /*Extract a packed 8 byte blob from an SV into a CAS value*/
-
-static void plcb_cas_from_sv(SV *sv, uint64_t *cas_p)
-{
-    STRLEN len;
-    *cas_p = *(uint64_t*)SvPV(sv, len);
-
-    if (len == 8) {
-        if (!*cas_p) {
-            die("Expected 8 byte CAS. Got %d\n", (int)len);
-        }
-
-    } else {
-        die("CAS Specified, but is NULL");
-    }
-}
-
+#define plcb_sv2cas plcb_sv_to_u64
     
 #endif /*PLCB_PERL64*/
 
