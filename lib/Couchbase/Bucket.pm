@@ -484,6 +484,19 @@ This version of the client uses so-called "Common Flags", allowing seamless inte
 with Couchbase clients written in other languages.
 
 
+=head4 Encoding Formats
+
+Bear in mind that Perl's default encoding is I<Latin-1> and not I<UTF-8>. To
+that effect, any input, unless indicated otherwise, is assumed to thus be
+Latin-1. There are various ways to change the "type" of a string, the details
+of which can be found within the L<utf8> and L<Encode> modules.
+
+From the perspective of this module, any I<input> string which is marked
+as being JSON or UTF8 will be marked as being UTF-8. This may mean some
+smaller performance implications. If this is a concern, you can intercept
+the JSON decoding function and handle the raw string there.
+
+
 =head4 CAS Operations
 
 To avoid race conditions when two applications attempt to write to the same document
