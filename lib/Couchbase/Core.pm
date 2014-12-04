@@ -4,7 +4,7 @@ use warnings;
 our $VERSION;
 BEGIN {
     require XSLoader;
-    $VERSION = '2.0.1';
+    $VERSION = '2.0.2';
     XSLoader::load('Couchbase', $VERSION);
 }
 
