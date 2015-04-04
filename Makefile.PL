@@ -84,7 +84,8 @@ WriteMakefile(
         'Class::XSAccessor' => 1.11,
         'JSON'              => 2.00,
         'JSON::SL'          => '1.0.1',
-        'Constant::Generate'=> '0.16'
+        'Constant::Generate'=> '0.16',
+        'URI'               => '0'
     },
 
     TEST_REQUIRES => {
