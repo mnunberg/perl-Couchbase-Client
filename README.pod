@@ -3,7 +3,7 @@
 
 =head1 NAME
 
-Couchbase::README - README for Couchbase::Client
+Couchbase::README - README for Couchbase
 
 =head1 Introduction
 
