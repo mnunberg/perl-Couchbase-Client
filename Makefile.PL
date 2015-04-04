@@ -33,8 +33,8 @@ my %MM_Options = (
 ################################################################################
 ### Our C Source Files                                                       ###
 ################################################################################
-my @C_Modules = qw(args async callbacks constants convert operations opcontext viewhandle);
-my @XS_Modules = qw(Couchbase View BucketConfig IO);
+my @C_Modules = qw(args async callbacks constants convert operations opcontext viewrow);
+my @XS_Modules = qw(Couchbase BucketConfig IO);
 
 foreach (@XS_Modules, @C_Modules) {
     my $obj = $_ . $Config{obj_ext};

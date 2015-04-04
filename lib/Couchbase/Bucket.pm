@@ -13,10 +13,6 @@ use Couchbase::Document;
 use Couchbase::Settings;
 use Couchbase::OpContext;
 use Couchbase::View::Handle;
-use Couchbase::View::HandleInfo;
-use Couchbase::View::Handle::RawIterator;
-use Couchbase::View::Handle::ViewIterator;
-use Couchbase::View::Handle::Slurpee;
 
 my $_JSON = JSON->new()->allow_nonref;
 sub _js_encode { $_JSON->encode($_[0]) }
@@ -174,53 +170,17 @@ sub design_put {
     return $handle->slurp_jsonized("PUT", $path, $design);
 }
 
-sub _process_viewpath_common {
-    my ($orig,%options) = @_;
-    my %qparams;
-    if (%options) {
-        # TODO: pop any other known parameters?
-        %qparams = (%qparams,%options);
-    }
-
-    if (ref $orig ne 'ARRAY') {
-        if (!$orig) {
-            die("Path cannot be empty");
-        }
-        $orig = [($orig =~ m,([^/]+)/(.*),)]
-    }
-
-    unless ($orig->[0] && $orig->[1]) {
-        die("Path cannot be empty");
-    }
-
-    # Assume this is an array of [ design, view ]
-    $orig = sprintf("_design/%s/_view/%s", @$orig);
-
-    if (%qparams) {
-        $orig = URI->new($orig);
-        $orig->query_form(\%qparams);
-    }
-
-    return $orig . "";
-}
-
-# slurp an entire resultset of views
-sub view_slurp {
-    my ($self,$viewpath,%options) = @_;
-    my $handle = $self->_new_viewhandle(\%Couchbase::View::Handle::Slurpee::);
-    $viewpath = _process_viewpath_common($viewpath,%options);
-    return $handle->slurp("GET", $viewpath, "");
-}
-
 sub view_iterator {
     my ($self,$viewpath,%options) = @_;
-    my $handle;
+    my $iter = Couchbase::View::Handle->new($self, $viewpath, %options);
+    return $iter;
+}
 
-    $viewpath = _process_viewpath_common($viewpath, %options);
-    $handle = $self->_new_viewhandle(\%Couchbase::View::Handle::ViewIterator::);
-    $handle->_perl_initialize();
-    $handle->prepare("GET", $viewpath, "");
-    return $handle;
+sub view_slurp {
+    my $self = shift;
+    my $iter = $self->view_iterator(@_);
+    $iter->slurp();
+    return $iter;
 }
 
 sub bucket {

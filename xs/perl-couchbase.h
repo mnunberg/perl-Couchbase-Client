@@ -20,6 +20,7 @@
 #define PLCB_EVENT_CLASS "Couchbase::IO::Event"
 #define PLCB_IOPROCS_CLASS "Couchbase::IO"
 #define PLCB_IOPROCS_CONSTANTS_CLASS "Couchbase::IO::Constants"
+#define PLCB_VIEWHANDLE_CLASS "Couchbase::View::Handle"
 
 #if IVSIZE >= 8
 #define PLCB_PERL64
@@ -72,6 +73,20 @@ enum {
     PLCB_RETIDX_FMTSPEC,
     PLCB_RETIDX_CALLBACK,
     PLCB_RETIDX_MAX
+};
+
+enum {
+    PLCB_VHIDX_PATH     = PLCB_RETIDX_KEY,
+    PLCB_VHIDX_RC       = PLCB_RETIDX_ERRNUM,
+    PLCB_VHIDX_ROWBUF   = PLCB_RETIDX_VALUE,
+    PLCB_VHIDX_PARENT   = PLCB_RETIDX_CAS,
+    PLCB_VHIDX_PLPRIV   = PLCB_RETIDX_FMTSPEC,
+    PLCB_VHIDX_PRIVCB   = PLCB_RETIDX_MAX,
+    PLCB_VHIDX_META,
+    PLCB_VHIDX_RAWROWS,
+    PLCB_VHIDX_ISDONE,
+    PLCB_VHIDX_HTCODE,
+    PLCB_VHIDX_MAX
 };
 
 enum {
@@ -215,7 +230,6 @@ typedef struct {
 
 /*need to include this after defining PLCB_t*/
 #include "plcb-return.h"
-#include "perl-couchbase-couch.h"
 #include "plcb-args.h"
 
 void plcb_callbacks_setup(PLCB_t *object);
@@ -318,8 +332,14 @@ typedef struct {
 SV * PLCB_ioprocs_new(SV *options);
 void PLCB_ioprocs_dtor(lcb_io_opt_t cbcio);
 
+SV *
+PLCB__viewhandle_new(PLCB_t *parent,
+    const char *ddoc, const char *view, const char *options, int flags);
+
+void
+PLCB__viewhandle_fetch(SV *pp);
+
 /* Declare these ahead of time */
-XS(boot_Couchbase__View);
 XS(boot_Couchbase__BucketConfig);
 XS(boot_Couchbase__IO);
 

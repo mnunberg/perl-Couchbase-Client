@@ -29,10 +29,6 @@ lib/Couchbase/Test/Views.pm
 ### Views Perl API                                                           ###
 ################################################################################
 lib/Couchbase/View/Handle.pm
-lib/Couchbase/View/Handle/ViewIterator.pm
-lib/Couchbase/View/Handle/RawIterator.pm
-lib/Couchbase/View/Handle/Slurpee.pm
-lib/Couchbase/View/HandleInfo.pm
 
 ################################################################################
 ################################################################################
@@ -64,9 +60,7 @@ xs/IO.xs
 ################################################################################
 ### Views C Support                                                          ###
 ################################################################################
-xs/perl-couchbase-couch.h
-xs/viewhandle.c
-xs/View.xs
+xs/viewrow.c
 
 ################################################################################
 ### Examples                                                                 ###
