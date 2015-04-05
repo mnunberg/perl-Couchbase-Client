@@ -13,6 +13,7 @@ use Couchbase::Document;
 use Couchbase::Settings;
 use Couchbase::OpContext;
 use Couchbase::View::Handle;
+use Couchbase::HTTPDocument;
 
 my $_JSON = JSON->new()->allow_nonref;
 sub _js_encode { $_JSON->encode($_[0]) }
@@ -146,17 +147,33 @@ sub fetch {
     return $doc;
 }
 
-# Returns a 'raw' request handle
 sub _htraw {
-    my $self = $_[0];
-    return $self->_new_viewhandle(\%Couchbase::View::Handle::RawIterator::);
+    my ($self,$method,$path,$options) = @_;
+    $options ||= {};
+    $method = uc($method);
+
+    my $methmap = {
+        'GET' => LCB_HTTP_METHOD_GET,
+        'POST' => LCB_HTTP_METHOD_POST,
+        'PUT' => LCB_HTTP_METHOD_PUT,
+        'DELETE' => LCB_HTTP_METHOD_DELETE
+    };
+
+    my $methnum = $methmap->{$method};
+    if (!defined($methnum)) {
+        die("Unknown method $method");
+    }
+
+    $options->{method} = $methnum;
+    my $htd = Couchbase::HTTPDocument->new($path);
+    $self->_http($htd, $options);
+    return $htd;
 }
 
 # Gets a design document
 sub design_get {
     my ($self,$path) = @_;
-    my $handle = $self->_new_viewhandle(\%Couchbase::View::Handle::Slurpee::);
-    my $design = $handle->slurp_jsonized("GET", "_design/" . $path, "");
+    return $self->_htraw('GET', '_design/'.$path);
 }
 
 # saves a design document
@@ -166,8 +183,10 @@ sub design_put {
         $path = $design->{_id};
         $design = encode_json($design);
     }
-    my $handle = $self->_new_viewhandle(\%Couchbase::View::Handle::Slurpee::);
-    return $handle->slurp_jsonized("PUT", $path, $design);
+    return $self->_htraw('PUT', $path, {
+        body => $design,
+        content_type => 'application/json'
+    });
 }
 
 sub view_iterator {

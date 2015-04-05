@@ -60,7 +60,8 @@ enum {
     PLCB_CMD_STATS,
     PLCB_CMD_KEYSTATS,
     PLCB_CMD_OBSERVE,
-    PLCB_CMD_ENDURE
+    PLCB_CMD_ENDURE,
+    PLCB_CMD_HTTP
 };
 
 enum {
@@ -74,6 +75,9 @@ enum {
     PLCB_RETIDX_CALLBACK,
     PLCB_RETIDX_MAX
 };
+
+#define PLCB_HTIDX_STATUS PLCB_RETIDX_CAS
+#define PLCB_HTIDX_HEADERS PLCB_RETIDX_EXP
 
 enum {
     PLCB_VHIDX_PATH     = PLCB_RETIDX_KEY,
@@ -248,8 +252,14 @@ plcb_convert_storage(PLCB_t* object, AV *doc, plcb_DOCVAL *vspec);
 
 void plcb_convert_storage_free(PLCB_t *object, plcb_DOCVAL *vspec);
 
+/* Do not fall back to "Custom" encoders */
+#define PLCB_CONVERT_NOCUSTOM 1
 SV*
-plcb_convert_retrieval(PLCB_t *object, AV *doc, const char *data, size_t data_len, uint32_t flags);
+plcb_convert_retrieval_ex(PLCB_t *object,
+    AV *doc, const char *data, size_t data_len, uint32_t flags, int options);
+
+#define plcb_convert_retrieval(obj, doc, data, len, flags) \
+    plcb_convert_retrieval_ex(obj, doc, data, len, flags, 0)
 
 
 /**
@@ -282,6 +292,7 @@ SV *PLCB_op_unlock(PLCB_t *object, plcb_SINGLEOP *args);
 SV *PLCB_op_stats(PLCB_t *object, plcb_SINGLEOP *args);
 SV *PLCB_op_observe(PLCB_t *object, plcb_SINGLEOP *args);
 SV *PLCB_op_endure(PLCB_t *object, plcb_SINGLEOP *opinfo);
+SV* PLCB_op_http(PLCB_t *object, plcb_SINGLEOP *opinfo);
 
 SV *
 PLCB_args_return(plcb_SINGLEOP *so, lcb_error_t err);

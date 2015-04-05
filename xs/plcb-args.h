@@ -61,5 +61,6 @@ int PLCB_args_unlock(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDUNLOCK *cmd);
 int PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *cmd, plcb_DOCVAL *vspec);
 int PLCB_args_observe(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDOBSERVE *cmd);
 #define PLCB_args_endure PLCB_args_unlock
+int PLCB_args_http(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDHTTP *htcmd);
 
 #endif /* PLCB_KWARGS_H_ */

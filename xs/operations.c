@@ -172,3 +172,15 @@ PLCB_op_endure(PLCB_t *object, plcb_SINGLEOP *opinfo)
     err = mctx->addcmd(mctx, &ecmd);
     return plcb_opctx_return(opinfo, err);
 }
+
+SV*
+PLCB_op_http(PLCB_t *object, plcb_SINGLEOP *opinfo)
+{
+    lcb_CMDHTTP htcmd = { 0 };
+    lcb_error_t err;
+
+    key_from_so(opinfo, (lcb_CMDBASE*)&htcmd);
+    PLCB_args_http(object, opinfo, &htcmd);
+    err = lcb_http3(object->instance, opinfo->cookie, &htcmd);
+    return plcb_opctx_return(opinfo, err);
+}

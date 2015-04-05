@@ -413,6 +413,17 @@ PLCB__observe(PLCB_t *self, SV *doc, ...)
     OUTPUT: RETVAL
 
 SV *
+PLCB__http(PLCB_t *self, SV *doc, ...)
+    PREINIT:
+    plcb_SINGLEOP opinfo = { PLCB_CMD_HTTP };
+    dPLCB_INPUTS
+    CODE:
+    FILL_EXTRA_PARAMS()
+    plcb_opctx_initop(&opinfo, self, doc, ctx, options);
+    RETVAL = PLCB_op_http(self, &opinfo);
+    OUTPUT: RETVAL
+
+SV *
 PLCB_cluster_nodes(PLCB_t *object)
     PREINIT:
     AV *retav;

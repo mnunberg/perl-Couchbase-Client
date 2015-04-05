@@ -153,7 +153,8 @@ callback_common(lcb_t instance, int cbtype, const lcb_RESPBASE *resp)
     SV *ctxrv = (SV *)resp->cookie;
     plcb_OPCTX *ctx = NUM2PTR(plcb_OPCTX*, SvIVX(SvRV(ctxrv)));
 
-    if (cbtype == LCB_CALLBACK_STATS || cbtype == LCB_CALLBACK_OBSERVE) {
+    if (cbtype == LCB_CALLBACK_STATS || cbtype == LCB_CALLBACK_OBSERVE ||
+            cbtype == LCB_CALLBACK_HTTP) {
         HE *tmp;
 
         hv_iterinit(ctx->docs);
@@ -227,6 +228,40 @@ callback_common(lcb_t instance, int cbtype, const lcb_RESPBASE *resp)
         }
         break;
     }
+    case LCB_CALLBACK_HTTP: {
+        const lcb_RESPHTTP *htresp = (const lcb_RESPHTTP *)resp;
+
+        /* Store the CAS */
+        av_store(resobj, PLCB_HTIDX_STATUS, newSViv(htresp->htstatus));
+        if (htresp->headers) {
+            const char * const * hdr_cur;
+            HV *headers = newHV();
+            av_store(resobj, PLCB_HTIDX_HEADERS, newRV_noinc((SV*)headers));
+
+            for (hdr_cur = htresp->headers; *hdr_cur; hdr_cur += 2) {
+                const char *hdrkey = hdr_cur[0];
+                const char *hdrval = hdr_cur[1];
+                SV *valsv = newSVpv(hdrval, 0);
+                hv_store(headers, hdrkey, 0, valsv, 0);
+            }
+        }
+        if (htresp->nbody) {
+            lcb_U32 fmtflags = PLCB_CF_JSON;
+            SV *body;
+            SV *fmtspec = *av_fetch(resobj, PLCB_RETIDX_VALUE, 1);
+
+            if (SvIOK(fmtspec)) {
+                fmtflags = SvUV(fmtspec);
+            }
+
+            body = plcb_convert_retrieval_ex(parent, resobj,
+                htresp->body, htresp->nbody, fmtflags,
+                PLCB_CONVERT_NOCUSTOM);
+
+            av_store(resobj, PLCB_RETIDX_VALUE, body);
+        }
+        break;
+    }
 
     default:
         abort();
@@ -290,5 +325,6 @@ plcb_callbacks_setup(PLCB_t *object)
     lcb_install_callback3(o, LCB_CALLBACK_ENDURE, callback_common);
     lcb_install_callback3(o, LCB_CALLBACK_STATS, callback_common);
     lcb_install_callback3(o, LCB_CALLBACK_OBSERVE, callback_common);
+    lcb_install_callback3(o, LCB_CALLBACK_HTTP, callback_common);
     lcb_set_bootstrap_callback(o, bootstrap_callback);
 }

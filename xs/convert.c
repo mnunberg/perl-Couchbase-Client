@@ -148,8 +148,8 @@ void plcb_convert_storage_free(PLCB_t *object, plcb_DOCVAL *vs)
 }
 
 SV*
-plcb_convert_retrieval(PLCB_t *object, AV *docav,
-    const char *data, size_t data_len, uint32_t flags)
+plcb_convert_retrieval_ex(PLCB_t *object, AV *docav,
+    const char *data, size_t data_len, uint32_t flags, int options)
 {
     SV *ret_sv, *input_sv, *flags_sv;
     uint32_t f_common, f_legacy;
@@ -161,7 +161,7 @@ plcb_convert_retrieval(PLCB_t *object, AV *docav,
 
 #define IS_FMT(fbase) f_common == PLCB_CF_##fbase || f_legacy == PLCB_LF_##fbase
 
-    if (object->cv_customdec) {
+    if (object->cv_customdec && options != PLCB_CONVERT_NOCUSTOM) {
         ret_sv = custom_convert(docav, object->cv_customdec, input_sv, &flags, CONVERT_IN);
         /* Flags remain unchanged? */
 

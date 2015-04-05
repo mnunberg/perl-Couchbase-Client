@@ -390,3 +390,32 @@ PLCB_args_set(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDSTORE *scmd, plcb_DOCV
     }
     return 0;
 }
+
+int
+PLCB_args_http(PLCB_t *object, plcb_SINGLEOP *args, lcb_CMDHTTP *htcmd)
+{
+    int ht_type = LCB_HTTP_TYPE_VIEW;
+    int ht_meth = LCB_HTTP_METHOD_GET;
+    PLCB_XS_STRING_t body = { NULL };
+
+    plcb_OPTION argspecs[] = {
+        PLCB_KWARG("type", U32, &ht_type),
+        PLCB_KWARG("method", U32, &ht_meth),
+        PLCB_KWARG("body", STRING, &body),
+        PLCB_KWARG("content_type", CSTRING, &htcmd->content_type),
+        PLCB_KWARG("username", CSTRING, &htcmd->username),
+        PLCB_KWARG("password", CSTRING, &htcmd->password),
+        PLCB_KWARG("host", CSTRING, &htcmd->host),
+        {NULL}
+    };
+
+    if (!args->cmdopts) {
+        die("Must have options!");
+    }
+    plcb_extract_args(args->cmdopts, argspecs);
+    htcmd->body = body.base;
+    htcmd->nbody = body.len;
+    htcmd->type = ht_type;
+    htcmd->method = ht_meth;
+    return 0;
+}
