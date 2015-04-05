@@ -90,6 +90,8 @@ enum {
     PLCB_VHIDX_RAWROWS,
     PLCB_VHIDX_ISDONE,
     PLCB_VHIDX_HTCODE,
+    PLCB_VHIDX_SELFREF,
+    PLCB_VHIDX_VHANDLE,
     PLCB_VHIDX_MAX
 };
 
@@ -349,6 +351,9 @@ PLCB__viewhandle_new(PLCB_t *parent,
 
 void
 PLCB__viewhandle_fetch(SV *pp);
+
+void
+PLCB__viewhandle_stop(SV *pp);
 
 /* Declare these ahead of time */
 XS(boot_Couchbase__BucketConfig);

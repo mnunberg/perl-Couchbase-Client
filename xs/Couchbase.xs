@@ -701,6 +701,9 @@ PLCB__viewhandle_new(PLCB_t *obj, \
 void
 PLCB__viewhandle_fetch(SV *vh)
 
+void
+PLCB__viewhandle_stop(SV *vh)
+
 BOOT:
 /*XXX: DO NOT MODIFY WHITESPACE HERE. xsubpp is touchy*/
 #define PLCB_BOOTSTRAP_DEPENDENCY(bootfunc) \
