@@ -70,8 +70,8 @@ static void
 viewrow_callback(lcb_t obj, int ct, const lcb_RESPVIEWQUERY *resp)
 {
     SV *req_rv = resp->cookie;
-    SV *meth = NULL;
     AV *req = (AV *)SvRV(req_rv);
+
     SV *rawrows_rv = *av_fetch(req, PLCB_VHIDX_RAWROWS, 0);
     AV *rawrows = (AV *)SvRV(rawrows_rv);
 
@@ -92,7 +92,6 @@ viewrow_callback(lcb_t obj, int ct, const lcb_RESPVIEWQUERY *resp)
         }
         invoke_row(req, req_rv, NULL);
         SvREFCNT_dec(req_rv);
-
     } else {
         HV *rowdata = newHV();
         /* Key, Value, Doc ID, Geo, Doc */
@@ -117,29 +116,27 @@ PLCB__viewhandle_new(PLCB_t *parent,
     const char *ddoc, const char *view, const char *options, int flags)
 {
     AV *req = NULL;
-    SV *blessed;
+    SV *blessed, *cbrv;
     lcb_CMDVIEWQUERY cmd = { 0 };
     lcb_error_t rc;
 
     req = newAV();
+    rowreq_init_common(parent, req);
     blessed = newRV_noinc((SV*)req);
     sv_bless(blessed, parent->view_stash);
 
-    rowreq_init_common(parent, req);
-    lcb_view_query_initcmd(&cmd, ddoc, view, options, viewrow_callback);
+    cbrv = newSVsv(blessed);
 
+    lcb_view_query_initcmd(&cmd, ddoc, view, options, viewrow_callback);
     cmd.cmdflags = flags; /* Trust lcb on this */
 
-    rc = lcb_view_query(parent->instance, blessed, &cmd);
+    rc = lcb_view_query(parent->instance, cbrv, &cmd);
 
     if (rc != LCB_SUCCESS) {
         SvREFCNT_dec(blessed);
+        SvREFCNT_dec(cbrv);
         die("Couldn't issue view query: (0x%x): %s", rc, lcb_strerror(NULL, rc));
-    } else {
-        /* Increase the refcount.. */
-        SvREFCNT_inc(blessed);
     }
-
     return blessed;
 }
 
