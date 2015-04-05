@@ -136,7 +136,7 @@ PLCB_op_observe(PLCB_t *object, plcb_SINGLEOP *opinfo)
     lcb_MULTICMD_CTX *mctx;
     lcb_error_t err = LCB_SUCCESS;
 
-    key_from_so(opinfo, &obscmd);
+    key_from_so(opinfo, (lcb_CMDBASE*)&obscmd);
     PLCB_args_observe(object, opinfo, &obscmd);
 
     mctx = lcb_observe3_ctxnew(object->instance);
@@ -167,9 +167,9 @@ PLCB_op_endure(PLCB_t *object, plcb_SINGLEOP *opinfo)
         die("Durability operations must be created with their own batch context");
     }
 
-    key_from_so(opinfo, &ecmd);
-    PLCB_args_endure(object, opinfo, &ecmd);
-    err = mctx->addcmd(mctx, &ecmd);
+    key_from_so(opinfo, (lcb_CMDBASE*)&ecmd);
+    PLCB_args_endure(object, opinfo, (lcb_CMDBASE*)&ecmd);
+    err = mctx->addcmd(mctx, (lcb_CMDBASE*)&ecmd);
     return plcb_opctx_return(opinfo, err);
 }
 
