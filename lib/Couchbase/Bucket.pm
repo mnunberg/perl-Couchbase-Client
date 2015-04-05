@@ -183,6 +183,10 @@ sub design_put {
         $path = $design->{_id};
         $design = encode_json($design);
     }
+    if (!$path) {
+        die("Cannot determine path for design document");
+    }
+
     return $self->_htraw('PUT', $path, {
         body => $design,
         content_type => 'application/json'

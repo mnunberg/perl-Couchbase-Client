@@ -33,4 +33,13 @@ sub errstr {
     return $ret;
 }
 
+sub errinfo {
+    my $self = shift;
+    if (!$self->is_ok) {
+        return $self->value;
+    } else {
+        return {};
+    }
+}
+
 1;

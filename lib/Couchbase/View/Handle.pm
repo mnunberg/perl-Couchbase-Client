@@ -27,8 +27,15 @@ my $JSON = JSON->new->allow_nonref;
 
 sub new {
     my ($cls, $parent, $viewspec, %options) = @_;
-    my ($view, $design) = ($viewspec =~ m,([^/]+)/(.*),);
-    die("Must pass view/design") unless $view && $design;
+    my ($view,$design);
+
+    if ((ref $viewspec || '') eq 'ARRAY') {
+        ($view, $design) = @$viewspec;
+    } else {
+        ($view, $design) = ($viewspec =~ m,([^/]+)/(.*),);
+    }
+
+    die("Invalid view path: Must pass 'view/design' (or [view, design])") unless $view && $design;
 
     my $flags;
     if (delete $options{spatial}) {
@@ -115,6 +122,10 @@ sub errinfo {
     return $self->_priv->[ERRINFO];
 }
 
+sub info {
+    return $_[0];
+}
+
 sub errstr {
     my $self = shift;
     my $ret = $self->SUPER::errstr;
@@ -141,13 +152,19 @@ sub next {
     GT_AGAIN:
     if (!@{$self->rows}) {
         if ($self->done) {
-            return undef;
+            return wantarray ? () : undef;
         }
         Couchbase::_viewhandle_fetch($self);
         goto GT_AGAIN;
     }
 
-    return shift @{$self->rows};
+    if (wantarray) {
+        my @ret = @{$self->rows};
+        @{$self->rows} = ();
+        return @ret;
+    } else {
+        return shift @{$self->rows};
+    }
 }
 
 sub slurp {
@@ -156,6 +173,11 @@ sub slurp {
         Couchbase::_viewhandle_fetch($self);
     }
     return $self->rows;
+}
+
+sub stop {
+    my $self = shift;
+    Couchbase::_viewhandle_stop($self);
 }
 
 sub process_meta {

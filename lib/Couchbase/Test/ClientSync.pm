@@ -11,10 +11,7 @@ sub setup_client :Test(startup)
 {
     my $self = shift;
     $self->mock_init();
-
-    my %options = (%{$self->common_options});
-    my $o = Couchbase::Bucket->new(\%options);
-    $self->cbo( $o );
+    $self->cbo($self->make_cbo);
     $self->{basic_keys} = [qw(
         Foo Bar Baz Blargh Bleh Meh Grr Gah)];
 }
