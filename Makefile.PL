@@ -33,7 +33,7 @@ my %MM_Options = (
 ################################################################################
 ### Our C Source Files                                                       ###
 ################################################################################
-my @C_Modules = qw(args async callbacks constants convert operations opcontext viewrow);
+my @C_Modules = qw(args async callbacks constants convert operations opcontext query);
 my @XS_Modules = qw(Couchbase BucketConfig IO N1QLParams);
 
 foreach (@XS_Modules, @C_Modules) {
