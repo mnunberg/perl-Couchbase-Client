@@ -162,8 +162,14 @@ PLCB__viewhandle_stop(SV *pp)
 {
     AV *req = (AV *)SvRV(pp);
     PLCB_t *parent = parent_from_req(req);
-    SV *vhsv = *av_fetch(req, PLCB_VHIDX_VHANDLE, 0);
+    SV **tmp, *vhsv;
 
+    tmp = av_fetch(req, PLCB_VHIDX_VHANDLE, 0);
+    if (!tmp) {
+        return;
+    }
+
+    vhsv = *tmp;
     if (SvIOK(vhsv)) {
         lcb_VIEWHANDLE vh = NUM2PTR(lcb_VIEWHANDLE, SvUV(vhsv));
         lcb_view_cancel(parent->instance, vh);
