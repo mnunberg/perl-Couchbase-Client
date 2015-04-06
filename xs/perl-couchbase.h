@@ -358,5 +358,6 @@ PLCB__viewhandle_stop(SV *pp);
 /* Declare these ahead of time */
 XS(boot_Couchbase__BucketConfig);
 XS(boot_Couchbase__IO);
+XS(boot_Couchbase__N1QL__Params);
 
 #endif /* PERL_COUCHBASE_H_ */

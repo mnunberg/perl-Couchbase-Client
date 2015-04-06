@@ -717,5 +717,6 @@ SPAGAIN;
     plcb_define_constants();
     PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__BucketConfig);
     PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__IO);
+    PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__N1QL__Params);
 }
 #undef PLCB_BOOTSTRAP_DEPENDENCY

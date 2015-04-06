@@ -15,6 +15,7 @@ xs/Couchbase.c
 xs/Client.c
 xs/View.c
 xs/BucketConfig.c
+xs/N1QLParams.c
 xs/IO.c
 pm_to_blib
 *.tar.gz
