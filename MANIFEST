@@ -11,10 +11,16 @@ lib/Couchbase.pm
 lib/Couchbase/Core.pm
 lib/Couchbase/Bucket.pm
 lib/Couchbase/Document.pm
+lib/Couchbase/HTTPDocument.pm
 lib/Couchbase/OpContext.pm
 lib/Couchbase/Constants.pm
 lib/Couchbase/_GlueConstants.pm
 lib/Couchbase/Settings.pm
+
+################################################################################
+### Misc                                                                     ###
+################################################################################
+lib/Couchbase/BucketConfig.pm
 
 ################################################################################
 ### Testing API                                                              ###
@@ -56,6 +62,7 @@ xs/BucketConfig.xs
 xs/plcb-args.h
 xs/async.c
 xs/IO.xs
+xs/N1QLParams.xs
 
 ################################################################################
 ### Views C Support                                                          ###
