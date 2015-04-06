@@ -184,7 +184,14 @@ sub TV06_iterator :Test(no_plan) {
     ok($iter->next, "Iterator keeps object in scope");
 
     $iter->stop();
+
+    $iter = $self->cbo->view_iterator(['blog', 'recent_posts']);
+    my $count = 0;
+    while ((my $row = $iter->next)) {
+        $count++;
+    }
     ok($iter->count, "Can get count");
+    is($iter->count, $count, "Got the exact number of rows");
 
 
     # Create a rather long view/design document, so that
@@ -225,20 +232,24 @@ EOF
     ok(!@errs, "No store errors");
 
     # Now, query the view
-    $iter = $o->view_iterator(['tv06', 'tv06'], stale => 'false', limit => '100');
+    $iter = $o->view_iterator(['tv06', 'tv06'], stale => 'false');
     # Do we have a count?
 
     my %rkeys;
     my @kv_errors = ();
     my @rows;
+    $count = 0;
     do {
         @rows = $iter->next;
+        $count += scalar(@rows);
         my $doc = Couchbase::Document->new("foo", "bar");
         $o->upsert($doc);
         push @kv_errors, $doc unless $doc->is_ok;
     } while (@rows);
 
     ok(!@kv_errors, "No errors during async handle usage");
+    ok($iter->count, "Have count");
+    is($count, $iter->count, "Got expected number of rows");
 }
 
 sub TV07_synopsis :Test(no_plan) {
