@@ -11,7 +11,7 @@ BEGIN {
 
 $Log::Fu::LINE_PREFIX = '#';
 
-my $jarurl = 'http://files.couchbase.com/maven2/org/couchbase/mock/CouchbaseMock/0.8-SNAPSHOT/CouchbaseMock-0.8-20140621.030439-1.jar';
+my $jarurl = 'http://packages.couchbase.com/clients/c/mock/CouchbaseMock-1.1.0-gda80301.jar';
 my $jarfile = __DIR__ . "/tmp/CouchbaseMock.jar";
 
 if (! -e $jarfile) {

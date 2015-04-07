@@ -14,7 +14,7 @@ before_install:
   - sudo apt-cache search libcouchbase
   - sudo apt-get -y install libcouchbase-dev libcouchbase2-core libcouchbase2-libevent libevent-dev
   - mkdir t/tmp
-  - wget -O t/tmp/CouchbaseMock.jar http://files.couchbase.com/maven2/org/couchbase/mock/CouchbaseMock/0.8-SNAPSHOT/CouchbaseMock-0.8-20140621.030439-1.jar
+  - wget -O t/tmp/CouchbaseMock.jar http://packages.couchbase.com/clients/c/mock/CouchbaseMock-1.1.0-gda80301.jar
 
 notifications:
   email:

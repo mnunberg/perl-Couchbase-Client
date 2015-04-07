@@ -5,6 +5,7 @@
 #include <sys/types.h> /*for size_t*/
 #include <libcouchbase/couchbase.h>
 #include <libcouchbase/api3.h>
+#include <libcouchbase/n1ql.h>
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
@@ -20,6 +21,8 @@
 #define PLCB_EVENT_CLASS "Couchbase::IO::Event"
 #define PLCB_IOPROCS_CLASS "Couchbase::IO"
 #define PLCB_IOPROCS_CONSTANTS_CLASS "Couchbase::IO::Constants"
+#define PLCB_VIEWHANDLE_CLASS "Couchbase::View::Handle"
+#define PLCB_N1QLHANDLE_CLASS "Couchbase::N1QL::Handle"
 
 #if IVSIZE >= 8
 #define PLCB_PERL64
@@ -59,7 +62,8 @@ enum {
     PLCB_CMD_STATS,
     PLCB_CMD_KEYSTATS,
     PLCB_CMD_OBSERVE,
-    PLCB_CMD_ENDURE
+    PLCB_CMD_ENDURE,
+    PLCB_CMD_HTTP
 };
 
 enum {
@@ -72,6 +76,25 @@ enum {
     PLCB_RETIDX_FMTSPEC,
     PLCB_RETIDX_CALLBACK,
     PLCB_RETIDX_MAX
+};
+
+#define PLCB_HTIDX_STATUS PLCB_RETIDX_CAS
+#define PLCB_HTIDX_HEADERS PLCB_RETIDX_EXP
+
+enum {
+    PLCB_VHIDX_PATH     = PLCB_RETIDX_KEY,
+    PLCB_VHIDX_RC       = PLCB_RETIDX_ERRNUM,
+    PLCB_VHIDX_ROWBUF   = PLCB_RETIDX_VALUE,
+    PLCB_VHIDX_PARENT   = PLCB_RETIDX_CAS,
+    PLCB_VHIDX_PLPRIV   = PLCB_RETIDX_FMTSPEC,
+    PLCB_VHIDX_PRIVCB   = PLCB_RETIDX_MAX,
+    PLCB_VHIDX_META,
+    PLCB_VHIDX_RAWROWS,
+    PLCB_VHIDX_ISDONE,
+    PLCB_VHIDX_HTCODE,
+    PLCB_VHIDX_SELFREF,
+    PLCB_VHIDX_VHANDLE,
+    PLCB_VHIDX_MAX
 };
 
 enum {
@@ -126,6 +149,7 @@ struct PLCB_st {
     lcb_t instance; /*our library handle*/
     HV *ret_stash; /*stash with which we bless our return objects*/
     HV *view_stash;
+    HV *n1ql_stash;
     HV *design_stash;
     HV *handle_av_stash;
     HV *opctx_sync_stash;
@@ -215,7 +239,6 @@ typedef struct {
 
 /*need to include this after defining PLCB_t*/
 #include "plcb-return.h"
-#include "perl-couchbase-couch.h"
 #include "plcb-args.h"
 
 void plcb_callbacks_setup(PLCB_t *object);
@@ -234,8 +257,14 @@ plcb_convert_storage(PLCB_t* object, AV *doc, plcb_DOCVAL *vspec);
 
 void plcb_convert_storage_free(PLCB_t *object, plcb_DOCVAL *vspec);
 
+/* Do not fall back to "Custom" encoders */
+#define PLCB_CONVERT_NOCUSTOM 1
 SV*
-plcb_convert_retrieval(PLCB_t *object, AV *doc, const char *data, size_t data_len, uint32_t flags);
+plcb_convert_retrieval_ex(PLCB_t *object,
+    AV *doc, const char *data, size_t data_len, uint32_t flags, int options);
+
+#define plcb_convert_retrieval(obj, doc, data, len, flags) \
+    plcb_convert_retrieval_ex(obj, doc, data, len, flags, 0)
 
 
 /**
@@ -268,6 +297,7 @@ SV *PLCB_op_unlock(PLCB_t *object, plcb_SINGLEOP *args);
 SV *PLCB_op_stats(PLCB_t *object, plcb_SINGLEOP *args);
 SV *PLCB_op_observe(PLCB_t *object, plcb_SINGLEOP *args);
 SV *PLCB_op_endure(PLCB_t *object, plcb_SINGLEOP *opinfo);
+SV* PLCB_op_http(PLCB_t *object, plcb_SINGLEOP *opinfo);
 
 SV *
 PLCB_args_return(plcb_SINGLEOP *so, lcb_error_t err);
@@ -318,9 +348,22 @@ typedef struct {
 SV * PLCB_ioprocs_new(SV *options);
 void PLCB_ioprocs_dtor(lcb_io_opt_t cbcio);
 
+SV *
+PLCB__viewhandle_new(PLCB_t *parent,
+    const char *ddoc, const char *view, const char *options, int flags);
+
+void
+PLCB__viewhandle_fetch(SV *pp);
+
+void
+PLCB__viewhandle_stop(SV *pp);
+
+SV *
+PLCB__n1qlhandle_new(PLCB_t *parent, lcb_N1QLPARAMS *params, const char *host);
+
 /* Declare these ahead of time */
-XS(boot_Couchbase__View);
 XS(boot_Couchbase__BucketConfig);
 XS(boot_Couchbase__IO);
+XS(boot_Couchbase__N1QL__Params);
 
 #endif /* PERL_COUCHBASE_H_ */

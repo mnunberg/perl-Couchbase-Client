@@ -127,7 +127,8 @@ plcb_opctx_return(plcb_SINGLEOP *so, lcb_error_t err)
     }
 
     /* Get the key */
-    if (so->cmdbase == PLCB_CMD_STATS || so->cmdbase == PLCB_CMD_OBSERVE) {
+    if (so->cmdbase == PLCB_CMD_STATS || so->cmdbase == PLCB_CMD_OBSERVE ||
+            so->cmdbase == PLCB_CMD_HTTP) {
         ksv = &PL_sv_yes;
     } else {
         ksv = *av_fetch(so->docav, PLCB_RETIDX_KEY, 1);

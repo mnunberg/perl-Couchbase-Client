@@ -75,7 +75,6 @@ PLCB_construct(const char *pkg, HV *hvopts)
     }
 
     plcb_callbacks_setup(object);
-    plcb_vh_callbacks_setup(object);
 
     #define get_stash_assert(stashname, target) \
         if (! (object->target = gv_stashpv(stashname, 0)) ) { \
@@ -83,8 +82,9 @@ PLCB_construct(const char *pkg, HV *hvopts)
         }
 
     get_stash_assert(PLCB_RET_CLASSNAME, ret_stash);
-    get_stash_assert(PLCB_COUCH_HANDLE_INFO_CLASSNAME, handle_av_stash);
     get_stash_assert(PLCB_OPCTX_CLASSNAME, opctx_sync_stash);
+    get_stash_assert(PLCB_VIEWHANDLE_CLASS, view_stash);
+    get_stash_assert(PLCB_N1QLHANDLE_CLASS, n1ql_stash);
 
     blessed_obj = newSV(0);
     sv_setiv(newSVrv(blessed_obj, PLCB_BKT_CLASSNAME), PTR2IV(object));
@@ -414,6 +414,17 @@ PLCB__observe(PLCB_t *self, SV *doc, ...)
     OUTPUT: RETVAL
 
 SV *
+PLCB__http(PLCB_t *self, SV *doc, ...)
+    PREINIT:
+    plcb_SINGLEOP opinfo = { PLCB_CMD_HTTP };
+    dPLCB_INPUTS
+    CODE:
+    FILL_EXTRA_PARAMS()
+    plcb_opctx_initop(&opinfo, self, doc, ctx, options);
+    RETVAL = PLCB_op_http(self, &opinfo);
+    OUTPUT: RETVAL
+
+SV *
 PLCB_cluster_nodes(PLCB_t *object)
     PREINIT:
     AV *retav;
@@ -433,15 +444,6 @@ PLCB_cluster_nodes(PLCB_t *object)
 
     OUTPUT: RETVAL
     
-SV *
-PLCB__new_viewhandle(PLCB_XS_OBJPAIR_t self, stash)
-    HV *stash
-    
-    CODE:
-    RETVAL = plcb_vh_new(stash, self.sv, self.ptr);
-    OUTPUT: RETVAL
-
-
 lcbvb_CONFIG *
 PLCB_get_bucket_config(PLCB_t *object)
     PREINIT:
@@ -693,6 +695,20 @@ PLCB_strerror(int code)
     OUTPUT: RETVAL
 
 
+SV *
+PLCB__viewhandle_new(PLCB_t *obj, \
+    const char *view, const char *design, const char *options, int flags)
+
+void
+PLCB__viewhandle_fetch(SV *vh)
+
+void
+PLCB__viewhandle_stop(SV *vh)
+
+SV *
+PLCB__n1qlhandle_new(PLCB_t *parent, lcb_N1QLPARAMS *params, const char *host)
+
+
 BOOT:
 /*XXX: DO NOT MODIFY WHITESPACE HERE. xsubpp is touchy*/
 #define PLCB_BOOTSTRAP_DEPENDENCY(bootfunc) \
@@ -704,8 +720,8 @@ bootfunc(aTHX_ cv); \
 SPAGAIN;
 {
     plcb_define_constants();
-    PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__View);
     PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__BucketConfig);
     PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__IO);
+    PLCB_BOOTSTRAP_DEPENDENCY(boot_Couchbase__N1QL__Params);
 }
 #undef PLCB_BOOTSTRAP_DEPENDENCY

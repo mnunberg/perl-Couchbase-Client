@@ -26,19 +26,11 @@ my $DESIGN_JSON = {
     }
 };
 
-sub SKIP_CLASS {
-
-    if (!$Couchbase::Test::Common::RealServer) {
-        warn("Need real server for views test");
-        return 1;
-    }
-
-    return 0;
-}
-
-sub setup_client :Test(startup) {
+sub setup_client :Test(startup)
+{
     my $self = shift;
-    $self->cbo( Couchbase::Bucket->new({ %{$self->common_options} }) );
+    $self->mock_init();
+    $self->cbo($self->make_cbo);
 }
 
 sub TV01_create_ddoc :Test(no_plan) {
@@ -61,7 +53,7 @@ sub TV02_create_invalid_ddoc :Test(no_plan) {
 
     eval {
         $o->design_put("blah");
-    }; like($@, '/path cannot be empty/');
+    }; like($@, '/path/');
 
     my $ret = $o->design_put({
         _id => "_design/meh",
@@ -71,7 +63,8 @@ sub TV02_create_invalid_ddoc :Test(no_plan) {
     });
 
     is($ret->http_code, 400, "Got error for invalid view");
-    is($ret->errinfo->{error}, "invalid_design_document");
+    #is($ret->errinfo->{error}, "invalid_design_document");
+    ok($ret->errinfo->{error});
 }
 
 sub TV03_view_query :Test(no_plan) {
@@ -124,7 +117,7 @@ sub TV03_view_query :Test(no_plan) {
     @errors = ();
 
     $res = $o->view_slurp(["blog", "recent_posts"], stale => "false");
-    isa_ok($res, 'Couchbase::View::HandleInfo');
+    isa_ok($res, 'Couchbase::View::Handle');
 
     my %rkeys = map { $_->{id}, 1 } @{ $res->value };
     my %dkeys = map { $_->id, 1 } @docs;
@@ -146,7 +139,7 @@ sub TV04_vq_errors :Test(no_plan) {
     my $o = $self->cbo;
 
     my $res = $o->view_slurp(["nonexist", "nonexist"]);
-    isa_ok($res, 'Couchbase::View::HandleInfo');
+    isa_ok($res, 'Couchbase::View::Handle');
     ok(!$res->is_ok);
     is($res->http_code, 404);
 
@@ -165,7 +158,7 @@ sub TV04_vq_errors :Test(no_plan) {
     }; like($@, $path_re);
 
     # Test with invalid view parameters
-    $res = $o->view_slurp(["blog", "recent_posts"], 'include_docs' => 'bad ^VALUE^');
+    $res = $o->view_slurp(["blog", "recent_posts"], group_level=>'hello');
     is($res->http_code, 400);
 }
 
@@ -191,7 +184,14 @@ sub TV06_iterator :Test(no_plan) {
     ok($iter->next, "Iterator keeps object in scope");
 
     $iter->stop();
+
+    $iter = $self->cbo->view_iterator(['blog', 'recent_posts']);
+    my $count = 0;
+    while ((my $row = $iter->next)) {
+        $count++;
+    }
     ok($iter->count, "Can get count");
+    is($iter->count, $count, "Got the exact number of rows");
 
 
     # Create a rather long view/design document, so that
@@ -232,20 +232,24 @@ EOF
     ok(!@errs, "No store errors");
 
     # Now, query the view
-    $iter = $o->view_iterator(['tv06', 'tv06'], stale => 'false', limit => '100');
+    $iter = $o->view_iterator(['tv06', 'tv06'], stale => 'false');
     # Do we have a count?
 
     my %rkeys;
     my @kv_errors = ();
     my @rows;
+    $count = 0;
     do {
         @rows = $iter->next;
+        $count += scalar(@rows);
         my $doc = Couchbase::Document->new("foo", "bar");
         $o->upsert($doc);
         push @kv_errors, $doc unless $doc->is_ok;
     } while (@rows);
 
     ok(!@kv_errors, "No errors during async handle usage");
+    ok($iter->count, "Have count");
+    is($count, $iter->count, "Got expected number of rows");
 }
 
 sub TV07_synopsis :Test(no_plan) {

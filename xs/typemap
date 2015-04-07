@@ -10,6 +10,7 @@ plcb_OPCTX*		T_OPCTX
 lcbvb_CONFIG *	T_VBC
 plcb_IOPROCS *	T_IOPROCS
 plcb_EVENT	*	T_IOEVENT
+lcb_N1QLPARAMS *	T_N1QLPARAMS
 
 INPUT
 T_PLCB_XS_OBJPAIR_T
@@ -101,6 +102,13 @@ T_PLCB_ITER_T
 
 T_PLCB_EXP_T
 	$var = plcb_exp_from_sv($arg);
+
+T_N1QLPARAMS
+	if (! (SvROK($arg) && SvOBJECT(SvRV($arg)) && SvIOK(SvRV($arg)))) {
+	    die(\"Not a valid Couchbase::N1QL::Params\");
+	}
+
+	$var = NUM2PTR(lcb_N1QLPARAMS*, SvIV(SvRV($arg)));
 
 OUTPUT
 T_VBC

@@ -13,10 +13,8 @@ use Couchbase::Document;
 use Couchbase::Settings;
 use Couchbase::OpContext;
 use Couchbase::View::Handle;
-use Couchbase::View::HandleInfo;
-use Couchbase::View::Handle::RawIterator;
-use Couchbase::View::Handle::ViewIterator;
-use Couchbase::View::Handle::Slurpee;
+use Couchbase::HTTPDocument;
+use Couchbase::N1QL::Handle;
 
 my $_JSON = JSON->new()->allow_nonref;
 sub _js_encode { $_JSON->encode($_[0]) }
@@ -150,17 +148,33 @@ sub fetch {
     return $doc;
 }
 
-# Returns a 'raw' request handle
 sub _htraw {
-    my $self = $_[0];
-    return $self->_new_viewhandle(\%Couchbase::View::Handle::RawIterator::);
+    my ($self,$method,$path,$options) = @_;
+    $options ||= {};
+    $method = uc($method);
+
+    my $methmap = {
+        'GET' => LCB_HTTP_METHOD_GET,
+        'POST' => LCB_HTTP_METHOD_POST,
+        'PUT' => LCB_HTTP_METHOD_PUT,
+        'DELETE' => LCB_HTTP_METHOD_DELETE
+    };
+
+    my $methnum = $methmap->{$method};
+    if (!defined($methnum)) {
+        die("Unknown method $method");
+    }
+
+    $options->{method} = $methnum;
+    my $htd = Couchbase::HTTPDocument->new($path);
+    $self->_http($htd, $options);
+    return $htd;
 }
 
 # Gets a design document
 sub design_get {
     my ($self,$path) = @_;
-    my $handle = $self->_new_viewhandle(\%Couchbase::View::Handle::Slurpee::);
-    my $design = $handle->slurp_jsonized("GET", "_design/" . $path, "");
+    return $self->_htraw('GET', '_design/'.$path);
 }
 
 # saves a design document
@@ -170,57 +184,40 @@ sub design_put {
         $path = $design->{_id};
         $design = encode_json($design);
     }
-    my $handle = $self->_new_viewhandle(\%Couchbase::View::Handle::Slurpee::);
-    return $handle->slurp_jsonized("PUT", $path, $design);
-}
-
-sub _process_viewpath_common {
-    my ($orig,%options) = @_;
-    my %qparams;
-    if (%options) {
-        # TODO: pop any other known parameters?
-        %qparams = (%qparams,%options);
+    if (!$path) {
+        die("Cannot determine path for design document");
     }
 
-    if (ref $orig ne 'ARRAY') {
-        if (!$orig) {
-            die("Path cannot be empty");
-        }
-        $orig = [($orig =~ m,([^/]+)/(.*),)]
-    }
-
-    unless ($orig->[0] && $orig->[1]) {
-        die("Path cannot be empty");
-    }
-
-    # Assume this is an array of [ design, view ]
-    $orig = sprintf("_design/%s/_view/%s", @$orig);
-
-    if (%qparams) {
-        $orig = URI->new($orig);
-        $orig->query_form(\%qparams);
-    }
-
-    return $orig . "";
-}
-
-# slurp an entire resultset of views
-sub view_slurp {
-    my ($self,$viewpath,%options) = @_;
-    my $handle = $self->_new_viewhandle(\%Couchbase::View::Handle::Slurpee::);
-    $viewpath = _process_viewpath_common($viewpath,%options);
-    return $handle->slurp("GET", $viewpath, "");
+    return $self->_htraw('PUT', $path, {
+        body => $design,
+        content_type => 'application/json'
+    });
 }
 
 sub view_iterator {
     my ($self,$viewpath,%options) = @_;
-    my $handle;
+    my $iter = Couchbase::View::Handle->new($self, $viewpath, %options);
+    return $iter;
+}
 
-    $viewpath = _process_viewpath_common($viewpath, %options);
-    $handle = $self->_new_viewhandle(\%Couchbase::View::Handle::ViewIterator::);
-    $handle->_perl_initialize();
-    $handle->prepare("GET", $viewpath, "");
-    return $handle;
+sub view_slurp {
+    my $self = shift;
+    my $iter = $self->view_iterator(@_);
+    $iter->slurp();
+    return $iter;
+}
+
+sub query_iterator {
+    my ($self, $query, $params, $options) = @_;
+    my $iter = Couchbase::N1QL::Handle->new($self, $query, $params, $options);
+    return $iter;
+}
+
+sub query_slurp {
+    my $self = shift;
+    my $iter = $self->query_iterator(@_);
+    $iter->slurp();
+    return $iter;
 }
 
 sub bucket {

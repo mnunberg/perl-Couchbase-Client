@@ -11,10 +11,16 @@ lib/Couchbase.pm
 lib/Couchbase/Core.pm
 lib/Couchbase/Bucket.pm
 lib/Couchbase/Document.pm
+lib/Couchbase/HTTPDocument.pm
 lib/Couchbase/OpContext.pm
 lib/Couchbase/Constants.pm
 lib/Couchbase/_GlueConstants.pm
 lib/Couchbase/Settings.pm
+
+################################################################################
+### Misc                                                                     ###
+################################################################################
+lib/Couchbase/BucketConfig.pm
 
 ################################################################################
 ### Testing API                                                              ###
@@ -29,10 +35,12 @@ lib/Couchbase/Test/Views.pm
 ### Views Perl API                                                           ###
 ################################################################################
 lib/Couchbase/View/Handle.pm
-lib/Couchbase/View/Handle/ViewIterator.pm
-lib/Couchbase/View/Handle/RawIterator.pm
-lib/Couchbase/View/Handle/Slurpee.pm
-lib/Couchbase/View/HandleInfo.pm
+
+################################################################################
+### N1QL                                                                     ###
+################################################################################
+lib/Couchbase/N1QL/Handle.pm
+lib/Couchbase/N1QL/Params.pm
 
 ################################################################################
 ################################################################################
@@ -60,13 +68,12 @@ xs/BucketConfig.xs
 xs/plcb-args.h
 xs/async.c
 xs/IO.xs
+xs/N1QLParams.xs
 
 ################################################################################
 ### Views C Support                                                          ###
 ################################################################################
-xs/perl-couchbase-couch.h
-xs/viewhandle.c
-xs/View.xs
+xs/query.c
 
 ################################################################################
 ### Examples                                                                 ###
