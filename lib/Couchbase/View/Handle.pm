@@ -245,6 +245,43 @@ information. The fields of this object will only contain meaningful values
 once the query has been completed (i.e. if calling C<view_iterator>, ensure
 the iterator has been exhausted).
 
+=head2 Row Object
+
+The row object (nominally, C<Couchbase::View::Row>) is the object used to
+represent a single view row. This object is returned by the L</next> method
+(when using an iterator) or as the element type of the L</rows> arrayref
+(if using slurp mode). The row object contains the following fields
+
+=head3 key
+
+This is the key emitted as the first argument of the C<emit> function in the
+Javascript view.
+
+=head3 value
+
+This is the value emitted as the second argument of the C<emit> function in the
+Javascript view
+
+=head3 id
+
+This is the document ID associated with the row. This will only be present if
+the C<reduce> function is not used in the query.
+
+=head3 geometry
+
+Valid only for geospatial views, contains the GeoJSON of the given result. Note
+that this is the geometry of the emitted item, and may be partially outside the
+C<start_range> and C<end_range> parameters.
+
+=head3 doc
+
+This special field contains a L<Couchbase::Document> instance if the
+C<include_docs> option was set when the query was made. The document is
+fetched internally by the library for each row which has a valid L</id>
+field present.
+
+See the C<view_slurp> documentation for more information
+on C<include_docs>
 
 =head2 rows
 

@@ -839,6 +839,11 @@ following forms are equivalent.
         my $doc = $row->doc;
     }
 
+Using C<include_docs> is significantly more efficient than fetching the rows
+manually as it allows the library to issue gets in bulk for each raw chunk
+of view results received - and also allows the library to "lazily" fetch
+documents while other rows are being received.
+
 =back
 
 The returned object contains various status information about the query. The
