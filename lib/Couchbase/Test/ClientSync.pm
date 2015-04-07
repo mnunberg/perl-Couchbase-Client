@@ -168,6 +168,29 @@ sub T05_conversion :Test(no_plan) {
 
     $doc->format('utf8');
     ok($o->append_bytes($doc, { fragment => "foo bar baz" }));
+
+    my $exptxt = <<'EOF';
+# KOREAN(UTF8)
+
+\x{b3c4}\x{ba54}\x{c778}\x{c774}\x{b984}                  : google.co.kr
+\x{b4f1}\x{b85d}\x{c778}                      : \x{ad6c}\x{ae00}\x{cf54}\x{b9ac}\x{c544}\x{c720}\x{d55c}\x{d68c}\x{c0ac}
+\x{b4f1}\x{b85d}\x{c778} \x{c8fc}\x{c18c}                 : \x{c11c}\x{c6b8}\x{c2dc} \x{ac15}\x{b0a8}\x{ad6c} \x{c5ed}\x{c0bc}\x{b3d9} 737 \x{ac15}\x{b0a8}\x{d30c}\x{c774}\x{b0b8}\x{c2a4}\x{c13c}\x{d130} 22\x{ce35}
+\x{b4f1}\x{b85d}\x{c778} \x{c6b0}\x{d3b8}\x{bc88}\x{d638}             : 135984
+\x{cc45}\x{c784}\x{c790}                      : Domain Administrator
+\x{cc45}\x{c784}\x{c790} \x{c804}\x{c790}\x{c6b0}\x{d3b8}             : dns-admin\@google.com
+\x{cc45}\x{c784}\x{c790} \x{c804}\x{d654}\x{bc88}\x{d638}  ";
+EOF
+    $doc = Couchbase::Document->new('utf8_test', $exptxt);
+    $o->upsert($doc);
+    $o->get($doc);
+    is($exptxt, $doc->value,
+       "Serializing/Deserializing UTF-8 characters (not bytes!) = FMT_JSON");
+
+    $doc->format('utf8');
+    $o->upsert($doc);
+    $o->get($doc);
+    is($exptxt, $doc->value,
+       "Serializing/Deserializing UTF-8 characters (not bytes!) = FMT_UTF8");
 }
 
 sub multi_ok {
