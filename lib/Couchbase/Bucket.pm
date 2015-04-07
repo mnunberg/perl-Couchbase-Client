@@ -722,6 +722,74 @@ The C<options> passed can be C<persist_to> and C<replicate_to>. See the
 L<"Durability Requirements"> section for information.
 
 
+=head2 N1QL QUERIES (EXPERIMENTAL)
+
+
+N1QL queries are available as an experimental feature of the client
+library.
+
+The N1QL API exposes two functions, both of which function
+similarly to their view counterparts.
+
+At the time of writing, the server does not include N1QL as an integrated
+feature (because it is still experimental). This means it must be downloaded
+as a standalone package
+(see L<http://docs.couchbase.com/developer/n1ql-dp4/n1ql-intro.html>). Once
+downloaded and configured, the C<_host> option should be passed to the
+query function (as detailed below).
+
+N1QL functions return a L<Couchbase::N1QL::Handle> object, which functions
+similarly to L<Couchbase::View::Handle> (internally, they share a lot of
+code).
+
+
+=head3 query_slurp("query", $queryargs, $queryopts)
+
+Issue an N1QL query. This will send the query to the server (encoding
+any parameters as needed).
+
+    my $rv = $cb->query_slurp(
+        # Query string
+        'SELECT *, META().id FROM travel WHERE travel.country = $country ',
+
+        # Placeholder values
+        { country => "Ecuador", },
+
+        # Query options
+        { _host => "localhost:8093" }
+    );
+
+    foreach my $row (@{$rv->rows}) {
+        # do something with decoded JSON
+    }
+
+
+The C<queryargs> parameter can either be a hashref of named placeholders
+(omiting of course, the leading C<$> which is handled internally), or it can
+be an arrayref of positional placeholders (if your query uses positional
+placeholders).
+
+The C<queryopts> is a set of other modifiers for the query. Most of these
+are sent to the server. One special parameter is the C<_host> parameter, which
+points to a standalone instance of the N1QL Developer Preview installation;
+a temporary necesity for pre-release versions. Using of the C<_host> paramter
+will be removed once Couchbase Server is available (in release or pre-release)
+with an integrated N1QL process.
+
+
+=head3 query_iterator("query", $queryargs, $queryopts)
+
+This function is to C<query_slurp> as C<view_iterator> is to C<view_slurp>.
+In short, this allows an iterator over the rows, only fetching data from
+the network as needed. This is more efficient (but a bit less simple to
+use) than C<query_slurp>
+
+    my $rv = $cb->query_iterator("select * from default");
+    while ((my $row = $rv->next)) {
+        # do something with row.
+    }
+
+
 =head2 VIEW (MAPREDUCE) QUERIES
 
 
