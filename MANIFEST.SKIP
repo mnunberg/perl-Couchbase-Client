@@ -9,3 +9,7 @@
 .+\.in
 .+\.kpf
 README\.dist
+^PODOUT/
+
+.+\.o # Object files
+
