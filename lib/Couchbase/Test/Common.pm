@@ -56,7 +56,6 @@ sub common_options {
     }
     $opthash->{connstr} = sprintf("http://localhost:%s/%s",
                                   $self->mock->port, $bucket->{name});
-    print Dumper($opthash);
     return $opthash;
 }
 
