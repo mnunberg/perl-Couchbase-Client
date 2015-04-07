@@ -3,6 +3,10 @@ use strict;
 use warnings;
 use Class::XSAccessor accessors => [qw(key value id geometry)];
 
+sub doc {
+    return $_[0]->{__doc__};
+}
+
 package Couchbase::View::Handle;
 use strict;
 use warnings;

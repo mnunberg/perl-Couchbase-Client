@@ -73,18 +73,30 @@ sv_from_rowdata(const char *s, size_t n)
 }
 
 static SV*
-make_views_row(const lcb_RESPVIEWQUERY *resp)
+make_views_row(PLCB_t *parent, const lcb_RESPVIEWQUERY *resp)
 {
     HV *rowdata = newHV();
+    SV *docid = sv_from_rowdata(resp->docid, resp->ndocid);
+
     /* Key, Value, Doc ID, Geo, Doc */
     hv_stores(rowdata, "key", sv_from_rowdata(resp->key, resp->nkey));
     hv_stores(rowdata, "value", sv_from_rowdata(resp->value, resp->nvalue));
     hv_stores(rowdata, "geometry", sv_from_rowdata(resp->geometry, resp->ngeometry));
-    hv_stores(rowdata, "id", sv_from_rowdata(resp->docid, resp->ndocid));
+    hv_stores(rowdata, "id", docid);
 
-    if (resp->docresp && resp->docresp->rc == LCB_SUCCESS) {
-        hv_stores(rowdata, "__doc__",
-            newSVpvn(resp->docresp->value, resp->docresp->nvalue));
+    if (resp->docresp) {
+        const lcb_RESPGET *docresp = resp->docresp;
+        AV *docav = newAV();
+
+        hv_stores(rowdata, "__doc__", newRV_noinc((SV*)docav));
+        av_store(docav, PLCB_RETIDX_KEY, SvREFCNT_inc(docid));
+        plcb_doc_set_err(parent, docav, resp->rc);
+
+        if (docresp->rc == LCB_SUCCESS) {
+            SV *docval = plcb_convert_getresp(parent, docav, docresp);
+            av_store(docav, PLCB_RETIDX_VALUE, docval);
+            plcb_doc_set_cas(parent, docav, &docresp->cas);
+        }
     }
     return newRV_noinc((SV *)rowdata);
 }
@@ -129,7 +141,7 @@ common_callback(lcb_t obj, const lcb_RESPBASE *resp,
         if (is_n1ql) {
             row = make_n1ql_row((const lcb_RESPN1QL *)resp);
         } else {
-            row = make_views_row((const lcb_RESPVIEWQUERY *)resp);
+            row = make_views_row(plobj, (const lcb_RESPVIEWQUERY *)resp);
         }
 
         av_push(rawrows, row);

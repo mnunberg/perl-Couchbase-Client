@@ -173,6 +173,19 @@ sub TV05_empty_rows :Test(no_plan) {
     is($res->info->http_code, 200);
 }
 
+sub TV051_include_docs :Test(no_plan) {
+    my $self = shift;
+    my $o = $self->cbo;
+    my $res = $o->view_slurp(['blog', 'recent_posts'], include_docs => 1);
+    is(scalar @{$res->rows}, $res->count, "Got all rows");
+    foreach my $row (@{$res->rows}) {
+        if (!$row->doc) {
+            fail("Expected document with include_docs!");
+        }
+    }
+    ok(1, "Got docs");
+}
+
 sub TV06_iterator :Test(no_plan) {
     my $self = shift;
 

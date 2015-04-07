@@ -265,7 +265,9 @@ plcb_convert_retrieval_ex(PLCB_t *object,
 
 #define plcb_convert_retrieval(obj, doc, data, len, flags) \
     plcb_convert_retrieval_ex(obj, doc, data, len, flags, 0)
-
+#define plcb_convert_getresp(obj, doc, resp) \
+    plcb_convert_retrieval(\
+        obj, doc, (resp)->value, (resp)->nvalue, (resp)->itmflags)
 
 /**
  * This function decrements the wait count by one, and possibly calls stop_event_loop

@@ -811,6 +811,36 @@ Queries and returns the results of a view. The first argument may be provided
 either as a string of C<"$design/$view"> or as a two-element array reference
 containing the design and view respectively.
 
+The C<%options> are options passed verbatim to the view engine. Some options
+however are intercepted by the client, and modify how the view is queried.
+
+=over
+
+=item C<spatial>
+
+Indicate that the queried view is a geospatial view. This is required since the
+formatting of the internal URI is slightly different.
+
+=item C<include_docs>
+
+Indicate that the relevant documents should be fetched for each view. The
+following forms are equivalent.
+
+    # fetching directly:
+    my $iter = $bkt->view_iterator(['design', 'view']);
+    while ((my $row = $iter->next)) {
+        my $doc = Couchbase::Document->new($row->id);
+        $bkt->get($doc);
+    }
+
+    # using include_docs
+    my $iter = $bkt->view_iterator(['design', 'view'], include_docs => 1);
+    while ((my $row = $iter->next)) {
+        my $doc = $row->doc;
+    }
+
+=back
+
 The returned object contains various status information about the query. The
 rows themselves may be found inside the C<rows> accessor:
 
