@@ -11,7 +11,7 @@ use Couchbase::N1QL::Params;
 use JSON;
 use base (qw(Couchbase::View::Handle));
 
-my $JSON = JSON->new;
+my $JSON = JSON->new->allow_nonref;
 
 sub new {
     my ($cls, $bucket, $query, $qargs, $params) = @_;
@@ -27,10 +27,10 @@ sub new {
     $pobj->setquery($query, LCB_N1P_QUERY_STATEMENT);
     if (ref $qargs eq 'HASH') {
         while (my ($k,$v) = each %$qargs) {
-            $pobj->namedparam("\$$k", $v);
+            $pobj->namedparam("\$$k", $JSON->encode($v));
         }
     } elsif (ref $qargs eq 'ARRAY') {
-        $pobj->posparam($_) for @$qargs;
+        $pobj->posparam($JSON->encode($_)) for @$qargs;
     }
 
     while (my ($k,$v) = each %$params) {
