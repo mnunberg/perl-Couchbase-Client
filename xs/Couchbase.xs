@@ -84,6 +84,7 @@ PLCB_construct(const char *pkg, HV *hvopts)
     get_stash_assert(PLCB_RET_CLASSNAME, ret_stash);
     get_stash_assert(PLCB_OPCTX_CLASSNAME, opctx_sync_stash);
     get_stash_assert(PLCB_VIEWHANDLE_CLASS, view_stash);
+    get_stash_assert(PLCB_N1QLHANDLE_CLASS, n1ql_stash);
 
     blessed_obj = newSV(0);
     sv_setiv(newSVrv(blessed_obj, PLCB_BKT_CLASSNAME), PTR2IV(object));
@@ -703,6 +704,10 @@ PLCB__viewhandle_fetch(SV *vh)
 
 void
 PLCB__viewhandle_stop(SV *vh)
+
+SV *
+PLCB__n1qlhandle_new(PLCB_t *parent, lcb_N1QLPARAMS *params, const char *host)
+
 
 BOOT:
 /*XXX: DO NOT MODIFY WHITESPACE HERE. xsubpp is touchy*/

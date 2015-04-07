@@ -14,6 +14,7 @@ use Couchbase::Settings;
 use Couchbase::OpContext;
 use Couchbase::View::Handle;
 use Couchbase::HTTPDocument;
+use Couchbase::N1QL::Handle;
 
 my $_JSON = JSON->new()->allow_nonref;
 sub _js_encode { $_JSON->encode($_[0]) }
@@ -202,6 +203,19 @@ sub view_iterator {
 sub view_slurp {
     my $self = shift;
     my $iter = $self->view_iterator(@_);
+    $iter->slurp();
+    return $iter;
+}
+
+sub query_iterator {
+    my ($self, $query, $params, $options) = @_;
+    my $iter = Couchbase::N1QL::Handle->new($self, $query, $params, $options);
+    return $iter;
+}
+
+sub query_slurp {
+    my $self = shift;
+    my $iter = $self->query_iterator(@_);
     $iter->slurp();
     return $iter;
 }

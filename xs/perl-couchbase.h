@@ -5,6 +5,7 @@
 #include <sys/types.h> /*for size_t*/
 #include <libcouchbase/couchbase.h>
 #include <libcouchbase/api3.h>
+#include <libcouchbase/n1ql.h>
 #include "EXTERN.h"
 #include "perl.h"
 #include "XSUB.h"
@@ -21,6 +22,7 @@
 #define PLCB_IOPROCS_CLASS "Couchbase::IO"
 #define PLCB_IOPROCS_CONSTANTS_CLASS "Couchbase::IO::Constants"
 #define PLCB_VIEWHANDLE_CLASS "Couchbase::View::Handle"
+#define PLCB_N1QLHANDLE_CLASS "Couchbase::N1QL::Handle"
 
 #if IVSIZE >= 8
 #define PLCB_PERL64
@@ -147,6 +149,7 @@ struct PLCB_st {
     lcb_t instance; /*our library handle*/
     HV *ret_stash; /*stash with which we bless our return objects*/
     HV *view_stash;
+    HV *n1ql_stash;
     HV *design_stash;
     HV *handle_av_stash;
     HV *opctx_sync_stash;
@@ -354,6 +357,9 @@ PLCB__viewhandle_fetch(SV *pp);
 
 void
 PLCB__viewhandle_stop(SV *pp);
+
+SV *
+PLCB__n1qlhandle_new(PLCB_t *parent, lcb_N1QLPARAMS *params, const char *host);
 
 /* Declare these ahead of time */
 XS(boot_Couchbase__BucketConfig);

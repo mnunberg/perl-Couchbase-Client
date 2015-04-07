@@ -2,12 +2,12 @@
 #include "plcb-util.h"
 #include <libcouchbase/n1ql.h>
 
-MODULE = Couchbase::N1QL::Params PACKAGE = Couchbase::N1QL::Params PREFIX = N1P
+MODULE = Couchbase::N1QL::Params PACKAGE = Couchbase::N1QL::Params PREFIX = N1P_
 
 PROTOTYPES: DISABLE
 
 SV *
-N1P_new()
+N1P_new(SV *)
     PREINIT:
     HV *stash;
 

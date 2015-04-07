@@ -72,8 +72,33 @@ sv_from_rowdata(const char *s, size_t n)
     }
 }
 
+static SV*
+make_views_row(const lcb_RESPVIEWQUERY *resp)
+{
+    HV *rowdata = newHV();
+    /* Key, Value, Doc ID, Geo, Doc */
+    hv_stores(rowdata, "key", sv_from_rowdata(resp->key, resp->nkey));
+    hv_stores(rowdata, "value", sv_from_rowdata(resp->value, resp->nvalue));
+    hv_stores(rowdata, "geometry", sv_from_rowdata(resp->geometry, resp->ngeometry));
+    hv_stores(rowdata, "id", sv_from_rowdata(resp->docid, resp->ndocid));
+
+    if (resp->docresp && resp->docresp->rc == LCB_SUCCESS) {
+        hv_stores(rowdata, "__doc__",
+            newSVpvn(resp->docresp->value, resp->docresp->nvalue));
+    }
+    return newRV_noinc((SV *)rowdata);
+}
+
+static SV *
+make_n1ql_row(const lcb_RESPN1QL *resp)
+{
+    return sv_from_rowdata(resp->row, resp->nrow);
+}
+
 static void
-viewrow_callback(lcb_t obj, int ct, const lcb_RESPVIEWQUERY *resp)
+common_callback(lcb_t obj, const lcb_RESPBASE *resp,
+    const char *meta, size_t nmeta, const lcb_RESPHTTP *htresp,
+    int is_n1ql)
 {
     AV *req = resp->cookie;
     SV *req_weakrv = *av_fetch(req, PLCB_VHIDX_SELFREF, 0);
@@ -92,30 +117,41 @@ viewrow_callback(lcb_t obj, int ct, const lcb_RESPVIEWQUERY *resp)
 
         av_store(req, PLCB_VHIDX_ISDONE, SvREFCNT_inc(&PL_sv_yes));
         av_store(req, PLCB_VHIDX_RC, newSViv(resp->rc));
-        av_store(req, PLCB_VHIDX_META, sv_from_rowdata(resp->value, resp->nvalue));
+        av_store(req, PLCB_VHIDX_META, sv_from_rowdata(meta, nmeta));
 
-        if (resp->htresp) {
-            av_store(req, PLCB_VHIDX_HTCODE, newSViv(resp->htresp->htstatus));
+        if (htresp) {
+            av_store(req, PLCB_VHIDX_HTCODE, newSViv(htresp->htstatus));
         }
         invoke_row(req, req_weakrv, NULL);
         SvREFCNT_dec(req);
     } else {
-        HV *rowdata = newHV();
-        /* Key, Value, Doc ID, Geo, Doc */
-        hv_stores(rowdata, "key", sv_from_rowdata(resp->key, resp->nkey));
-        hv_stores(rowdata, "value", sv_from_rowdata(resp->value, resp->nvalue));
-        hv_stores(rowdata, "geometry", sv_from_rowdata(resp->geometry, resp->ngeometry));
-        hv_stores(rowdata, "id", sv_from_rowdata(resp->docid, resp->ndocid));
-
-        if (resp->docresp && resp->docresp->rc == LCB_SUCCESS) {
-            hv_stores(rowdata, "__doc__",
-                newSVpvn(resp->docresp->value, resp->docresp->nvalue));
+        SV *row;
+        if (is_n1ql) {
+            row = make_n1ql_row((const lcb_RESPN1QL *)resp);
+        } else {
+            row = make_views_row((const lcb_RESPVIEWQUERY *)resp);
         }
-        av_push(rawrows, newRV_noinc((SV*)rowdata));
+
+        av_push(rawrows, row);
         if (av_len(rawrows) >= 1) {
             invoke_row(req, req_weakrv, rawrows_rv);
         }
     }
+
+}
+
+static void
+viewrow_callback(lcb_t obj, int ct, const lcb_RESPVIEWQUERY *resp)
+{
+    common_callback(obj, (lcb_RESPBASE*)resp,
+        resp->value, resp->nvalue, resp->htresp, 0);
+}
+
+static void
+n1ql_callback(lcb_t obj, int ct, const lcb_RESPN1QL *resp)
+{
+    common_callback(obj, (lcb_RESPBASE *)resp, resp->row, resp->nrow,
+        resp->htresp, 1);
 }
 
 SV *
@@ -177,4 +213,38 @@ PLCB__viewhandle_stop(SV *pp)
         av_store(req, PLCB_VHIDX_ISDONE, SvREFCNT_inc(&PL_sv_yes));
         SvREFCNT_dec((SV *)req);
     }
+}
+
+SV *
+PLCB__n1qlhandle_new(PLCB_t *parent, lcb_N1QLPARAMS *params, const char *host)
+{
+    AV *req;
+    SV *blessed;
+    lcb_CMDN1QL cmd = { 0 };
+    lcb_error_t rc;
+
+    rc = lcb_n1p_mkcmd(params, &cmd);
+    if (rc != LCB_SUCCESS) {
+        die("Error encoding N1QL parameters: %s", lcb_strerror(NULL, rc));
+    }
+
+    if (host && *host) {
+        cmd.host = host;
+    }
+    cmd.callback = n1ql_callback;
+
+    req = newAV();
+    rowreq_init_common(parent, req);
+    blessed = newRV_noinc((SV*)req);
+    sv_bless(blessed, parent->n1ql_stash);
+
+    rc = lcb_n1ql_query(parent->instance, req, &cmd);
+    if (rc != LCB_SUCCESS) {
+        SvREFCNT_dec(blessed);
+        die("Couldn't issue N1QL query: (0x%x): %s", rc, lcb_strerror(NULL, rc));
+    } else {
+        SvREFCNT_inc(req);
+    }
+
+    return blessed;
 }
