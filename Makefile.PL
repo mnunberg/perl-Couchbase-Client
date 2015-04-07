@@ -73,34 +73,37 @@ if (!-f 'Changes') {
     system("git log > Changes");
 }
 
+# some MakeMaker versions have underscores, like 6.55_02
+my ($makemaker_version) = $ExtUtils::MakeMaker::VERSION =~ /^(\d+\.\d+)/;
+
 WriteMakefile(
-    NAME                => 'Couchbase',
-    AUTHOR              => q{M. Nunberg <mnunberg@haskalah.org>},
-    VERSION_FROM        => 'lib/Couchbase.pm',
-    ABSTRACT_FROM       => 'lib/Couchbase.pm',
-    VERSION_FROM        => 'lib/Couchbase/Core.pm',
-    LICENSE             => 'perl_5',
-    PREREQ_PM => {
+    NAME          => 'Couchbase',
+    AUTHOR        => q{M. Nunberg <mnunberg@haskalah.org>},
+    ABSTRACT_FROM => 'lib/Couchbase.pm',
+    VERSION_FROM  => 'lib/Couchbase/Core.pm',
+    LICENSE       => 'perl_5',
+    PREREQ_PM     => {
         'Class::XSAccessor' => 1.11,
         'JSON::MaybeXS'       => '0',
         'URI'               => '0',
         'Constant::Generate'=> '0.16'
     },
 
-    TEST_REQUIRES => {
-        #These modules are needed for tests, but not strictly required for
-        #functionality
+    !$makemaker_version || $makemaker_version >= 6.64 ?
+      ( TEST_REQUIRES => {
+            #These modules are needed for tests, but not strictly required for
+            #functionality
 
-        'Test::More'        => 0,
-        'Test::Class'       => 0.36,
-        'Log::Fu'           => 0,
-        'Dir::Self'         => 0
-    },
+            'Test::More'  => 0,
+            'Test::Class' => 0.36,
+            'Log::Fu'     => 0,
+            'Dir::Self'   => 0
+        })
+    : (),
 
-    dist                => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
-    clean               => { FILES => 'Couchbase-* COMPILER_FLAGS log.test-*' },
-    %MM_Options,
-);
+    dist  => { COMPRESS => 'gzip -9f', SUFFIX => 'gz', },
+    clean => { FILES    => 'Couchbase-* COMPILER_FLAGS log.test-*' },
+    %MM_Options,);
 
 package MY;
 use Config;
