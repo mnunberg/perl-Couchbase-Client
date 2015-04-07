@@ -725,6 +725,18 @@ L<"Durability Requirements"> section for information.
 =head2 VIEW (MAPREDUCE) QUERIES
 
 
+View methods come in two flavors. One is an iterator which incrementally
+fetches data from the network, while the other loads the entire data and
+then returns. For small queries (i.e. those which do not return many
+results), which API you use is a matter of personal preference. For larger
+resultsets, however, it often becomes a necessity to not load the entire
+dataset into RAM.
+
+Both the C<view_slurp> and C<view_iterator> return L<Couchbase::View::Handle>
+objects. This has been changed from previous versions which returned a
+C<Couchbase::View::HandleInfo> object (Though the APIs remain the same).
+
+
 =head3 view_slurp("design/view", %options)
 
 Queries and returns the results of a view. The first argument may be provided
@@ -740,7 +752,7 @@ rows themselves may be found inside the C<rows> accessor:
     }
 
 
-This method returns an instance of L<Couchbase::View::HandleInfo> which may be used
+This method returns an instance of L<Couchbase::View::Handle> which may be used
 to inspect for error messages. The object is in fact a subclass of
 L<Couchbase::Document> with an additional C<errinfo> method to provide more
 details about the operation.
@@ -753,6 +765,8 @@ details about the operation.
             # Failed HTTP status
         }
     }
+
+As of version 2.0.3, this method is implemented as a wrapper atop C<view_iterator>
 
 
 =head3 view_iterator("design/view", %options)
@@ -767,12 +781,9 @@ query to return a large amount of results:
         printf("Got row for key %s with document id %s\n", $row->key, $row->id);
     }
 
-Note that unlike the C<view_slurp> method, this does I<not> return a
-C<HandleInfo> object, but rather a L<Couchbase::View::Handle::ViewIterator>. The
-actual C<HandleInfo> object can be obtained using the C<info> method of the
-iterator. Note that the contents of the C<HandleInfo> object are only
-considered valid once the iterator has been through at least I<one> iteration;
-thus:
+
+Note that the contents of the C<Handle> object are only considered valid once
+the iterator has been through at least I<one> iteration; thus:
 
 B<Incorrect>, because it requests the C<info> object before iteration has
 started

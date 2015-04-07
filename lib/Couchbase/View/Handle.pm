@@ -20,6 +20,7 @@ use Class::XSAccessor::Array accessors => {
     done => VHIDX_ISDONE,
     rows => VHIDX_ROWBUF,
     meta => VHIDX_META,
+    remaining_json => VHIDX_META,
     http_code => VHIDX_HTCODE
 };
 
@@ -235,17 +236,41 @@ Couchbase::View::Handle - Class for view query handles
 
 =head1 DESCRIPTION
 
-This class represents a common inteface for various request handles.
-Emphasis will be placed on the iterating view handle, since this is the most common
-use case (technical and more 'correct' documentation will follow).
+This is a subclass of L<Couchbase::Document>. It contains some view-specific
+information. The fields of this object will only contain meaningful values
+once the query has been completed (i.e. if calling C<view_iterator>, ensure
+the iterator has been exhausted).
 
-The iterator is simple to use. Simply initialize it (which is done for you
-automatically by one of the L<Couchbase::View::Base> methods which return this
-object) and step through it. When there are no more results through which to
-step, the iterator is empty.
 
-Note that iterator objects are fully re-entrant and fully compatible with the
-normal L<Couchbase::Client> blocking API. This means that multiple iterators are
-allowed, and that you may perform modifications on the items being iterated
-upon.
+=head2 rows
 
+I<Valid only in slurp mode>.
+
+Returns the rows for the query
+
+=head2 stop
+
+I<Valid only in iterator mode>.
+
+Abort iteration. This means to stop fetching extra data from the network. There
+will likely still be extra data available from L</next>
+
+=head2 count
+
+Returns the total amount of rows in the result set. This does not mean the amount
+of rows which will be returned via the iterator, but rather the server-side count
+of the the rows which matched the query parameters
+
+=head2 meta
+
+Return the remaining JSON structure as a read-only hashref. Useful if you think
+the iterator is missing something.
+
+=head2 http_code
+
+Returns the HTTP status code for the operation, e.g C<200> or C<404>
+
+=head2 errinfo
+
+Returns extended (non-http, non-libcouchbase, non-memcached) error information.
+This is usually a hash converted from a JSON error response.
