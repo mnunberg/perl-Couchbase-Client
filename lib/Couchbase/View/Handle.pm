@@ -10,7 +10,7 @@ use Couchbase;
 use Couchbase::_GlueConstants;
 use URI::Escape qw(uri_escape);
 use Carp qw(cluck);
-use JSON;
+use JSON::MaybeXS;
 use base (qw(Couchbase::Document));
 use Constant::Generate [qw(ERRINFO ROWCOUNT REQFLAGS)], start_at => 0;
 use Devel::Peek;
@@ -24,7 +24,7 @@ use Class::XSAccessor::Array accessors => {
     http_code => VHIDX_HTCODE
 };
 
-my $JSON = JSON->new->allow_nonref;
+my $JSON = JSON::MaybeXS->new->allow_nonref;
 
 sub new {
     my ($cls, $parent, $viewspec, %options) = @_;

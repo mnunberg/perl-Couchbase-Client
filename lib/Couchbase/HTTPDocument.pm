@@ -4,7 +4,6 @@ use warnings;
 use Couchbase::Constants;
 use Couchbase::_GlueConstants;
 use base (qw(Couchbase::Document));
-use JSON;
 
 use Class::XSAccessor::Array accessors => {
     http_code => HTIDX_STATUS,

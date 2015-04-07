@@ -8,10 +8,10 @@ use warnings;
 use Couchbase;
 use Couchbase::_GlueConstants;
 use Couchbase::N1QL::Params;
-use JSON;
+use JSON::MaybeXS;
 use base (qw(Couchbase::View::Handle));
 
-my $JSON = JSON->new->allow_nonref;
+my $JSON = JSON::MaybeXS->new->allow_nonref;
 
 sub new {
     my ($cls, $bucket, $query, $qargs, $params) = @_;

@@ -3,7 +3,7 @@ package Couchbase::Bucket;
 use strict;
 use warnings;
 
-use JSON;
+use JSON::MaybeXS;
 use URI;
 use Storable;
 
@@ -16,7 +16,7 @@ use Couchbase::View::Handle;
 use Couchbase::HTTPDocument;
 use Couchbase::N1QL::Handle;
 
-my $_JSON = JSON->new()->allow_nonref;
+my $_JSON = JSON::MaybeXS->new()->allow_nonref;
 sub _js_encode { $_JSON->encode($_[0]) }
 sub _js_decode { $_JSON->decode($_[0]) }
 
