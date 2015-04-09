@@ -3,22 +3,20 @@ use strict;
 use warnings;
 
 use Couchbase::Core;
-use Couchbase::Constants;
 use Couchbase::_GlueConstants;
-use Couchbase;
-use base qw(Exporter);
 
-our @EXPORT = (qw(COUCHBASE_FMT_JSON COUCHBASE_FMT_UTF8 COUCHBASE_FMT_RAW COUCHBASE_FMT_STORABLE));
-
-use Class::XSAccessor::Array {
-    accessors => {
-        id => RETIDX_KEY,
-        expiry => RETIDX_EXP,
-        _cas => RETIDX_CAS,
-        value => RETIDX_VALUE,
-        errnum => RETIDX_ERRNUM,
-    }
+use Class::XSAccessor::Array accessors => {
+    id => RETIDX_KEY,
+    expiry => RETIDX_EXP,
+    _cas => RETIDX_CAS,
+    value => RETIDX_VALUE,
+    errnum => RETIDX_ERRNUM,
 };
+
+# Add additional includes later to avoid warnings on older versions
+use Couchbase::Constants;
+use base qw(Exporter);
+our @EXPORT = (qw(COUCHBASE_FMT_JSON COUCHBASE_FMT_UTF8 COUCHBASE_FMT_RAW COUCHBASE_FMT_STORABLE));
 
 sub is_ok {
     my $num = $_[0]->[RETIDX_ERRNUM];
