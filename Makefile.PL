@@ -11,14 +11,13 @@ $ENV{LD_RUN_PATH} ||= "";
 
 GetOptions(
     'incpath=s' => \my $U_IncPath,
-    'libpath=s' => \my $U_LibPath
-) or die <<EOD;
+    'libpath=s' => \my $U_LibPath) or die <<EOD;
 OPTIONS:
 --incpath=CPPFLAGS
 --libpath=LDFLAGS
 EOD
 
-our (@LIBS,$INC);
+our (@LIBS, $INC);
 
 push @LIBS, $U_LibPath if $U_LibPath;
 $INC = $U_IncPath || "";
@@ -26,14 +25,13 @@ $INC = $U_IncPath || "";
 push @LIBS, '-lcouchbase';
 
 my %MM_Options = (
-    INC => $INC,
-    LIBS => [ join(' ', @LIBS) || '' ],
-);
+    INC  => $INC,
+    LIBS => [ join(' ', @LIBS) || '' ],);
 
 ################################################################################
 ### Our C Source Files                                                       ###
 ################################################################################
-my @C_Modules = qw(args async callbacks constants convert operations opcontext query);
+my @C_Modules  = qw(args async callbacks constants convert operations opcontext query);
 my @XS_Modules = qw(Couchbase BucketConfig IO N1QLParams);
 
 foreach (@XS_Modules, @C_Modules) {
@@ -41,7 +39,7 @@ foreach (@XS_Modules, @C_Modules) {
     push @{ $MM_Options{OBJECT} }, File::Spec->catfile('xs', $obj);
 }
 
-$MM_Options{OBJECT} = join(' ', @{$MM_Options{OBJECT}});
+$MM_Options{OBJECT} = join(' ', @{ $MM_Options{OBJECT} });
 
 foreach my $xs (@XS_Modules) {
     $xs = File::Spec->catfile('xs', $xs);
@@ -54,7 +52,7 @@ foreach my $xs (@XS_Modules) {
 ### Check build type and options                                             ###
 ################################################################################
 
-if($ENV{PLCB_BUILD_AUTHOR}) {
+if ($ENV{PLCB_BUILD_AUTHOR}) {
     $MM_Options{OPTIMIZE} = '-Wdeclaration-after-statement -Werror -std=gnu89';
 }
 # Extra stuff - add compiler flags here
@@ -62,11 +60,7 @@ if($ENV{PLCB_BUILD_AUTHOR}) {
 
 $MM_Options{NEEDS_LINKING} = 1;
 
-$MM_Options{META_MERGE} = {
-    resources => {
-        repository => 'https://github.com/mnunberg/perl-Couchbase-Client'
-    }
-};
+$MM_Options{META_MERGE} = { resources => { repository => 'https://github.com/mnunberg/perl-Couchbase-Client' } };
 
 if (!-f 'Changes') {
     # eek
@@ -89,8 +83,8 @@ WriteMakefile(
         'Constant::Generate'=> '0.16'
     },
 
-    !$makemaker_version || $makemaker_version >= 6.64 ?
-      ( TEST_REQUIRES => {
+    !$makemaker_version || $makemaker_version >= 6.64
+    ? ( TEST_REQUIRES => {
             #These modules are needed for tests, but not strictly required for
             #functionality
 
