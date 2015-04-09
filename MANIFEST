@@ -16,6 +16,7 @@ lib/Couchbase/OpContext.pm
 lib/Couchbase/Constants.pm
 lib/Couchbase/_GlueConstants.pm
 lib/Couchbase/Settings.pm
+lib/Couchbase/JSON.pm
 
 ################################################################################
 ### Misc                                                                     ###

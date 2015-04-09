@@ -78,7 +78,7 @@ WriteMakefile(
     LICENSE       => 'perl_5',
     PREREQ_PM     => {
         'Class::XSAccessor' => 1.11,
-        'JSON::MaybeXS'       => '0',
+        'JSON'       => '0',
         'URI'               => '0',
         'Constant::Generate'=> '0.16'
     },

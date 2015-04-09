@@ -3,7 +3,7 @@ package Couchbase::Bucket;
 use strict;
 use warnings;
 
-use JSON::MaybeXS;
+use Couchbase::JSON;
 use URI;
 use Storable;
 
@@ -16,7 +16,7 @@ use Couchbase::View::Handle;
 use Couchbase::HTTPDocument;
 use Couchbase::N1QL::Handle;
 
-my $_JSON = JSON::MaybeXS->new()->allow_nonref;
+my $_JSON = Couchbase::JSON->new()->allow_nonref;
 sub _js_encode { $_JSON->encode($_[0]) }
 sub _js_decode { $_JSON->decode($_[0]) }
 
@@ -182,7 +182,7 @@ sub design_put {
     my ($self,$design,$path) = @_;
     if (ref $design) {
         $path = $design->{_id};
-        $design = encode_json($design);
+        $design = $_JSON->encode($design);
     }
     if (!$path) {
         die("Cannot determine path for design document");
