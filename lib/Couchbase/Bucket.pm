@@ -667,6 +667,74 @@ Thus a JSON string may be stored as C<"foo">, and appending to it
 will yield C<"foo"bar>, which is typically not what you want.
 
 
+=head2 PESSIMISTIC LOCKING
+
+Pessimistic locking will pre-emptively lock an item to avoid modifications
+to an item. Locks are held with a specified timeout after which the server
+will release the lock.
+
+It is typically recommended to use optimistic locking instead, if all you
+wish to do is avoid race conditions when modifying data.
+
+
+=head3 get_and_lock()
+
+This functions similarly to L<get>, and accepts an additional
+option, C<lock_duration>. If the item is already locked, the server will
+return a C<COUCHBASE_ETMPFAIL> (See L<Couchbase::Constants>).
+
+The item is unlocked by either explicitly calling L<unlock> (using the
+I<same> L<Couchbase::Document> object passed to this method), or by
+using one of the mutation APIs (the L<upsert> family).
+
+
+    my $doc = Couchbase::Document->new('key', {some => 'value'});
+
+    # Lock the document for 10 seconds
+    $cb->get_and_lock($doc, { lock_duration=>10});
+
+
+Unlocking can be done implicitly:
+
+    $doc->value->{baz} = 'new field';
+    $cb->replace($doc); # Implicitly unlock
+
+
+Or explicitly
+
+    $cb->unlock($doc);
+
+
+Locking an item twice will fail
+
+    $cb->get_and_lock($doc);
+    $cb->get_and_lock($doc); # Failure!
+    $doc->errnum == COUCHBASE_ETMPFAIL;
+
+
+Trying to modify an item without using the existing document object
+will fail
+
+    $cb->get_and_lock($doc);
+    my $newdoc = Couchbase::Document->new($doc->id, $doc->value);
+    $cb->upsert($newdoc); # Failure!
+    $newdoc->errnum = COUCHBASE_KEY_EEXISTS;
+
+
+Unlocking a non-locked item (or a different L<Couchbase::Document> object)
+will fail
+
+    $cb->unlock($doc); # OK
+    $cb->
+
+
+=head3 unlock()
+
+Unlock an item previously locked using L<get_and_lock>.
+The L<Couchbase::Document> object must have been initially passed to a
+successful L<get_and_lock> operation.
+
+
 =head2 BATCH OPERATIONS
 
 Batch operations allow more efficient utilization of the network
